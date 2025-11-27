@@ -1,12 +1,12 @@
 [project]
 name = "synod-cli"
-version = "0.3.1"
+version = "0.3.2"
 description = "Intelligent multi-model coding agent with adversarial debate. Ancient Councils. Modern Intelligence. Open Source."
 readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}
 authors = [
-    {name = "Chuks Onwuneme", email = "chuks@kekwanu.com"}
+    {name = "KekwanuLabs", email = "hello@kekwanu.com"}
 ]
 keywords = ["ai", "llm", "coding-assistant", "cli", "debate", "openrouter", "claude", "gpt"]
 classifiers = [
