@@ -1,0 +1,221 @@
+/* ============================================================================
+   SYNOD LANDING PAGE - LIGHT MODE ALTERNATIVE
+   Lighter backgrounds with better contrast
+   ============================================================================ */
+
+/* To use this stylesheet:
+   Replace <link rel="stylesheet" href="style.css"> with:
+   <link rel="stylesheet" href="style-light.css">
+*/
+
+/* Override CSS Variables for Light Mode */
+:root {
+    /* Synod Brand Colors - kept same */
+    --primary: #FF6B35;
+    --secondary: #7C3AED;
+    --accent: #EC4899;
+    --cyan: #06B6D4;
+    --gold: #FBBF24;
+    --green: #10B981;
+
+    /* Light Background Colors */
+    --bg-dark: #F5F5F7;           /* Light gray background */
+    --bg-darker: #FFFFFF;         /* Pure white sections */
+    --bg-card: #FFFFFF;           /* White cards */
+    --bg-card-hover: #FAFAFA;     /* Subtle hover */
+
+    /* Text Colors for Light Mode */
+    --text-primary: #1A1A1F;      /* Dark text */
+    --text-secondary: #4A4A5E;    /* Medium gray */
+    --text-dim: #7A7A8E;          /* Light gray */
+
+    /* Fonts - same */
+    --font-primary: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+    --font-pixel: 'Press Start 2P', cursive;
+
+    /* Spacing - same */
+    --section-padding: 120px;
+    --container-max: 1200px;
+
+    /* Animations - same */
+    --transition-smooth: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-fast: all 0.3s ease-in-out;
+}
+
+/* Import the base stylesheet and override colors */
+@import url('style.css');
+
+/* Additional Light Mode Specific Overrides */
+
+body {
+    background: var(--bg-dark);
+    color: var(--text-primary);
+}
+
+.nav {
+    background: rgba(255, 255, 255, 0.95);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.hero::before {
+    background: radial-gradient(ellipse at top, rgba(124, 58, 237, 0.08), transparent 70%);
+}
+
+.terminal-window {
+    background: #2D2D3A;
+    border: 2px solid rgba(124, 58, 237, 0.2);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+}
+
+.terminal-header {
+    background: #232330;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.stage-card,
+.feature-card {
+    background: var(--bg-card);
+    border: 2px solid rgba(0, 0, 0, 0.08);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.stage-card:hover,
+.feature-card:hover {
+    background: var(--bg-card-hover);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.1);
+}
+
+.stat-item {
+    background: rgba(0, 0, 0, 0.03);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.stat-item:hover {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.install-command {
+    background: var(--bg-card);
+    border: 2px solid rgba(0, 0, 0, 0.1);
+}
+
+.install-command:hover {
+    border-color: var(--primary);
+    box-shadow: 0 4px 20px rgba(255, 107, 53, 0.15);
+}
+
+.copy-btn {
+    background: rgba(0, 0, 0, 0.05);
+    color: var(--text-secondary);
+}
+
+.copy-btn:hover {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.btn-secondary {
+    border: 2px solid rgba(0, 0, 0, 0.2);
+    background: transparent;
+}
+
+.btn-secondary:hover {
+    background: rgba(255, 107, 53, 0.05);
+}
+
+.workflow-column {
+    background: var(--bg-card);
+    border: 2px solid rgba(0, 0, 0, 0.08);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.workflow-column.highlight {
+    border-color: var(--primary);
+    box-shadow: 0 12px 40px rgba(255, 107, 53, 0.15);
+}
+
+.workflow-item {
+    background: rgba(0, 0, 0, 0.03);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.workflow-item.glow {
+    background: rgba(255, 107, 53, 0.08);
+}
+
+.quote-box {
+    background: rgba(124, 58, 237, 0.03);
+    border-left: 4px solid var(--secondary);
+}
+
+.connect-link {
+    background: var(--bg-card);
+    border: 2px solid rgba(0, 0, 0, 0.1);
+}
+
+.connect-link:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--primary);
+}
+
+.detail-badge {
+    background: rgba(0, 0, 0, 0.05);
+    color: var(--text-secondary);
+}
+
+.label-badge {
+    background: rgba(6, 182, 212, 0.08);
+    border: 1px solid rgba(6, 182, 212, 0.2);
+}
+
+.label-pope {
+    background: rgba(124, 58, 237, 0.08);
+    border-color: rgba(124, 58, 237, 0.2);
+}
+
+.footer {
+    background: var(--bg-darker);
+    border-top: 2px solid rgba(0, 0, 0, 0.1);
+}
+
+.mouse {
+    border: 2px solid rgba(0, 0, 0, 0.2);
+}
+
+.wheel {
+    background: rgba(0, 0, 0, 0.3);
+}
+
+/* Section dividers */
+.how-it-works,
+.features-section,
+.about-section,
+.cta-section {
+    border-top: 2px solid rgba(0, 0, 0, 0.08);
+}
+
+/* Terminal kept dark for contrast */
+.terminal-section {
+    background: #1A1A2E;
+}
+
+/* Stage specific hover effects for light mode */
+.stage-0:hover {
+    border-color: var(--cyan);
+    box-shadow: 0 12px 40px rgba(6, 182, 212, 0.15);
+}
+
+.stage-1:hover {
+    border-color: var(--primary);
+    box-shadow: 0 12px 40px rgba(255, 107, 53, 0.15);
+}
+
+.stage-2:hover {
+    border-color: var(--accent);
+    box-shadow: 0 12px 40px rgba(236, 72, 153, 0.15);
+}
+
+.stage-3:hover {
+    border-color: var(--secondary);
+    box-shadow: 0 12px 40px rgba(124, 58, 237, 0.15);
+}

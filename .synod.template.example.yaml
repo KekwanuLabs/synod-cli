@@ -1,0 +1,184 @@
+# ============================================================================
+# SYNOD CONFIGURATION TEMPLATE EXAMPLE
+# ============================================================================
+#
+# Copy this file to `.synod.template.yaml` and fill in your credentials.
+#
+# This template supports two modes:
+# 1. SIMPLE: One provider for all models (easiest)
+# 2. MIXED:  Different providers for different models (use your credits)
+#
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# SETUP MODE
+# ----------------------------------------------------------------------------
+# Choose your setup mode:
+#   simple - One provider for all models (recommended for beginners)
+#   mixed  - Different providers for different models (advanced)
+#
+mode: mixed
+
+# ----------------------------------------------------------------------------
+# BISHOP MODELS
+# ----------------------------------------------------------------------------
+# Select 3-5 diverse models for your AI council.
+# These models will debate and critique each other's solutions.
+#
+# ⚠️  DIVERSITY PRINCIPLE: Choose ONE model per provider for maximum diversity
+#     (e.g., pick Opus OR Sonnet, not both)
+#
+# Available models (with provider availability):
+#
+# xAI (OpenRouter only):
+#   x-ai/grok-4.1-fast:free      # FREE on OpenRouter!
+#   x-ai/grok-4                  # Paid
+#
+# Anthropic (Azure + OpenRouter):
+#   anthropic/claude-sonnet-4.5  # Recommended
+#   anthropic/claude-opus-4.5    # Most capable
+#
+# Google (Vertex + OpenRouter):
+#   google/gemini-3-pro-preview  # Latest
+#   google/gemini-2.5-flash      # Faster
+#
+# OpenAI (Azure + OpenRouter):
+#   openai/gpt-5.1-chat          # Available on Azure
+#
+# DeepSeek (Azure + OpenRouter):
+#   deepseek/deepseek-chat-v3.1  # Excellent reasoning
+#
+bishops:
+  - anthropic/claude-opus-4.5      # Choose ONE Anthropic model (Opus OR Sonnet)
+  - openai/gpt-5.1-chat
+  - deepseek/deepseek-chat-v3.1
+  - x-ai/grok-4.1-fast:free
+  - google/gemini-3-pro-preview
+
+# ----------------------------------------------------------------------------
+# POPE MODEL
+# ----------------------------------------------------------------------------
+# The Pope synthesizes the final solution from all bishop debates.
+# Must be one of the bishops listed above.
+# Recommended: Claude Opus 4.5 (most capable)
+#
+pope: anthropic/claude-opus-4.5
+
+# ============================================================================
+# SIMPLE MODE CONFIGURATION (mode: simple)
+# ============================================================================
+# When mode is "simple", all models use the same provider.
+# Simple mode = ONE provider (OpenRouter) for ALL 6 models (easiest setup)
+#
+simple:
+  # --------------------------------------------------------------------------
+  # OpenRouter - Supports ALL 6 models!
+  # --------------------------------------------------------------------------
+  # Access 50+ models through one API.
+  # Get your API key at: https://openrouter.ai/keys
+  #
+  # ✅ Supports: ALL 6 models (Claude, GPT, DeepSeek, Grok, Gemini)
+  # ✅ Free Grok: Use x-ai/grok-4.1-fast:free
+  # 💡 Simple mode uses OpenRouter only (Azure doesn't support all 6 models)
+  #
+  openrouter:
+    enabled: false
+    api_key: "sk-or-v1-YOUR_OPENROUTER_KEY"
+
+
+# ============================================================================
+# MIXED MODE CONFIGURATION (mode: mixed)
+# ============================================================================
+# When mode is "mixed", each model can use a different provider.
+# This lets you optimize costs by using cloud credits + free tiers.
+#
+# Example setup:
+# - Use Azure credits for Claude, GPT, DeepSeek (4 expensive models)
+# - Use OpenRouter for free Grok + Gemini (2 models)
+#
+mixed:
+  # Provider configurations
+  providers:
+    # Azure AI Foundry
+    # Supports: Claude, GPT, DeepSeek
+    azure_foundry:
+      enabled: true
+      endpoint: "https://YOUR-RESOURCE.services.ai.azure.com"
+      api_key: "YOUR_AZURE_API_KEY"
+
+    # OpenRouter
+    # Supports: ALL models (including free Grok and Gemini)
+    openrouter:
+      enabled: true
+      api_key: "sk-or-v1-YOUR_OPENROUTER_KEY"
+
+  # Model routing: which provider to use for each model
+  routing:
+    anthropic/claude-opus-4.5: azure_foundry
+    openai/gpt-5.1-chat: azure_foundry
+    deepseek/deepseek-chat-v3.1: azure_foundry
+    x-ai/grok-4.1-fast:free: openrouter
+    google/gemini-3-pro-preview: openrouter
+
+# ============================================================================
+# VALIDATION RULES
+# ============================================================================
+# Synod will check:
+#   ✓ Mode is either "simple" or "mixed"
+#   ✓ At least 3 bishops selected
+#   ✓ Pope is one of the bishops
+#   ✓ In simple mode: exactly one provider enabled
+#   ✓ In mixed mode: required providers enabled for selected models
+#   ✓ All required credentials provided (no empty strings)
+#
+# If validation fails, Synod will show clear error messages.
+#
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# QUICK START EXAMPLES
+# ----------------------------------------------------------------------------
+#
+# Example 1: Simple mode with OpenRouter (easiest)
+# ---------------------------------------------------
+# mode: simple
+# bishops:
+#   - x-ai/grok-4.1-fast:free        # FREE!
+#   - anthropic/claude-sonnet-4.5
+#   - google/gemini-3-pro-preview
+#   - openai/gpt-5.1-chat
+#   - deepseek/deepseek-chat-v3.1
+# pope: anthropic/claude-sonnet-4.5
+# simple:
+#   openrouter:
+#     enabled: true
+#     api_key: "sk-or-v1-YOUR_KEY"
+#
+#
+# Example 2: Mixed mode with Azure + OpenRouter (optimize costs!)
+# -----------------------------------------------------------------
+# mode: mixed
+# bishops:
+#   - anthropic/claude-opus-4.5      # Azure (ONE Anthropic model)
+#   - openai/gpt-5.1-chat            # Azure
+#   - deepseek/deepseek-chat-v3.1    # Azure
+#   - x-ai/grok-4.1-fast:free        # OpenRouter (FREE!)
+#   - google/gemini-3-pro-preview    # OpenRouter
+# pope: anthropic/claude-opus-4.5
+# mixed:
+#   providers:
+#     azure_foundry:
+#       enabled: true
+#       endpoint: "https://YOUR-RESOURCE.services.ai.azure.com"
+#       api_key: "YOUR_AZURE_KEY"
+#     openrouter:
+#       enabled: true
+#       api_key: "sk-or-v1-YOUR_OPENROUTER_KEY"
+#   routing:
+#     anthropic/claude-opus-4.5: azure_foundry
+#     openai/gpt-5.1-chat: azure_foundry
+#     deepseek/deepseek-chat-v3.1: azure_foundry
+#     x-ai/grok-4.1-fast:free: openrouter
+#     google/gemini-3-pro-preview: openrouter
+#
+# ----------------------------------------------------------------------------

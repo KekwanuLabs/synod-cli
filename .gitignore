@@ -1,0 +1,67 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+venv/
+env/
+ENV/
+
+# Keys and secrets
+.env
+.synod.template.yaml
+
+# User config directories
+.synod/
+.claude/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Type checking
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Data files
+data/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Backup files
+*.backup
+*.bak
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Lock files (optional - uncomment if you don't want to track)
+# uv.lock
+
+# AI Assistant Context (private)
+docs/CLAUDE.md
