@@ -80,9 +80,15 @@ MODEL_AVAILABILITY: Dict[str, Set[ModelProvider]] = {
         ModelProvider.OPENROUTER,
     },
 
-    # Grok models (xAI)
+    # Grok models (xAI) - ONLY available on OpenRouter
+    "grok-4.1-fast": {
+        ModelProvider.OPENROUTER,
+    },
     "x-ai/grok-4.1-fast:free": {
-        ModelProvider.OPENROUTER,  # Only via OpenRouter (free tier!)
+        ModelProvider.OPENROUTER,
+    },
+    "x-ai/grok-4.1-fast": {
+        ModelProvider.OPENROUTER,
     },
 
     # DeepSeek models
@@ -92,8 +98,11 @@ MODEL_AVAILABILITY: Dict[str, Set[ModelProvider]] = {
         ModelProvider.OPENROUTER,
     },
 
-    # GLM models (Zhipu AI)
+    # GLM models (Zhipu AI) - ONLY available on OpenRouter
     "glm-4.6": {
+        ModelProvider.OPENROUTER,
+    },
+    "z-ai/glm-4.6": {
         ModelProvider.OPENROUTER,
     },
 }
