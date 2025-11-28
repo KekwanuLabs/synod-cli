@@ -128,15 +128,16 @@ Built on async/parallel execution with `asyncio` and `httpx`. All Bishops debate
 Adversarial debate means every solution is challenged. Mistakes don't survive the gauntlet of peer review from other SOTA models.
 
 ### 🌟 State-of-the-Art Bishop Models
-Synod exclusively uses the 6 most powerful SOTA models via [OpenRouter](https://openrouter.ai):
+Synod exclusively uses the 7 most powerful SOTA models from 6 providers via [OpenRouter](https://openrouter.ai):
 
-**The 6 Bishops:**
+**The 7 Bishops:**
 1. **Claude Opus 4.5** - Recommended Pope (best at reasoning and synthesis)
 2. **Claude Sonnet 4.5** - Fast, high-quality responses
 3. **GPT 5.1 Chat** - Latest from OpenAI
-4. **Grok 4.1 Fast** - xAI's fastest model
-5. **Gemini 3.0** - Google's multimodal powerhouse
-6. **DeepSeek V3.1** - Excellence in algorithms and optimization
+4. **Grok 4.1 Fast** - xAI's fastest model (free tier available)
+5. **Gemini 3 Pro** - Google's multimodal powerhouse
+6. **DeepSeek Chat V3.1** - Excellence in algorithms and optimization
+7. **GLM 4.6** - Zhipu AI's latest model
 
 **FREE Classifier** (not involved in debate):
 - **Grok 4.1 Fast** - Fast, reliable, excellent availability (all classification $0)

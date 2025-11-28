@@ -484,6 +484,7 @@ class SynodSettings:
             "google/gemini-3-pro-preview",
             "x-ai/grok-4.1-fast:free",
             "deepseek/deepseek-chat-v3.1",
+            "z-ai/glm-4.6",
         ]
 
         # Prepare choices for Questionary - only show supported models
