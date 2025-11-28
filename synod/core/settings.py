@@ -476,14 +476,24 @@ class SynodSettings:
             ))
             return False
         
-        # Filter to only supported providers (5 providers, 6 models)
-        # Anthropic (Claude), OpenAI (GPT), Google (Gemini), xAI (Grok), DeepSeek
-        SUPPORTED_PROVIDERS = [
-            "anthropic/",   # Claude models
-            "openai/",      # GPT models
-            "google/",      # Gemini models
-            "x-ai/",        # Grok models
-            "deepseek/",    # DeepSeek models
+        # Specific models we support - exact model IDs from OpenRouter
+        SUPPORTED_MODELS = [
+            # Anthropic Claude
+            "anthropic/claude-sonnet-4.5",
+            "anthropic/claude-opus-4.5",
+            "anthropic/claude-haiku-4.5",
+            # OpenAI GPT
+            "openai/gpt-4o",
+            "openai/gpt-4-turbo",
+            # Google Gemini
+            "google/gemini-2.5-pro-preview",
+            "google/gemini-2.5-flash-preview",
+            # xAI Grok
+            "x-ai/grok-4.1-fast:free",
+            "x-ai/grok-4.1-fast",
+            # DeepSeek
+            "deepseek/deepseek-r1",
+            "deepseek/deepseek-chat",
         ]
 
         # Prepare choices for Questionary - only show supported models
@@ -491,8 +501,8 @@ class SynodSettings:
         model_map = {} # Map display string back to model ID
         for m in available_models:
             model_id = m['id']
-            # Only include models from supported providers
-            if any(model_id.startswith(provider) for provider in SUPPORTED_PROVIDERS):
+            # Only include specific supported models
+            if model_id in SUPPORTED_MODELS:
                 display_name = f"{model_id} (pricing: ${m.get('pricing',{}).get('prompt', 'N/A')}/1K, context: {m.get('context', 'N/A')}K)"
                 model_choices.append(display_name)
                 model_map[display_name] = model_id
