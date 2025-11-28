@@ -332,7 +332,7 @@ We welcome contributions! Synod is **open source** and community-driven under th
 | Type | How |
 |------|-----|
 | 🐛 **Bug Reports** | [Open an issue](https://github.com/KekwanuLabs/synod-cli/issues) with steps to reproduce |
-| 💡 **Feature Requests** | [Start a discussion](https://github.com/KekwanuLabs/synod-cli/discussions) or open an issue |
+| 💡 **Feature Requests** | [Open an issue](https://github.com/KekwanuLabs/synod-cli/issues) with your idea |
 | 🔧 **Code Contributions** | Fork → Branch → PR (see below) |
 | 📖 **Documentation** | Improvements to README, docstrings, or guides |
 | ⭐ **Spread the Word** | Star the repo, share on social media |
@@ -341,8 +341,8 @@ We welcome contributions! Synod is **open source** and community-driven under th
 
 ```bash
 # Fork and clone
-git clone https://github.com/YOUR_USERNAME/synod.git
-cd synod
+git clone https://github.com/YOUR_USERNAME/synod-cli.git
+cd synod-cli
 
 # Install dependencies with uv
 uv sync
@@ -390,8 +390,7 @@ We aim to review PRs within a few days. For large changes, open an issue first t
 ## Community
 
 - **GitHub**: [KekwanuLabs/synod-cli](https://github.com/KekwanuLabs/synod-cli)
-- **Issues**: [Report bugs](https://github.com/KekwanuLabs/synod-cli/issues)
-- **Discussions**: [Feature requests & questions](https://github.com/KekwanuLabs/synod-cli/discussions)
+- **Issues**: [Report bugs & feature requests](https://github.com/KekwanuLabs/synod-cli/issues)
 - **PyPI**: [synod-cli](https://pypi.org/project/synod-cli/)
 
 ## License
@@ -406,7 +405,7 @@ You are free to:
 
 See [LICENSE](LICENSE) for the full text.
 
-Copyright (c) 2025-present Chuks Onwuneme / KekwanuLabs
+Copyright (c) 2025-present [KekwanuLabs](https://kekwanu.com)
 
 ---
 
@@ -416,6 +415,6 @@ Copyright (c) 2025-present Chuks Onwuneme / KekwanuLabs
 
 ⭐ [Star us on GitHub](https://github.com/KekwanuLabs/synod-cli) if you find Synod useful!
 
-[Report Bug](https://github.com/KekwanuLabs/synod-cli/issues) · [Request Feature](https://github.com/KekwanuLabs/synod-cli/discussions) · [PyPI](https://pypi.org/project/synod-cli/)
+[Report Bug](https://github.com/KekwanuLabs/synod-cli/issues) · [Request Feature](https://github.com/KekwanuLabs/synod-cli/issues) · [PyPI](https://pypi.org/project/synod-cli/)
 
 </div>
