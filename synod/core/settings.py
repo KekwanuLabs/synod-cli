@@ -476,15 +476,26 @@ class SynodSettings:
             ))
             return False
         
-        # Prepare choices for Questionary
-        # Questionary choices are typically a list of strings or Choice objects
-        # Format: "model_id (details)"
+        # Filter to only supported providers (5 providers, 6 models)
+        # Anthropic (Claude), OpenAI (GPT), Google (Gemini), xAI (Grok), DeepSeek
+        SUPPORTED_PROVIDERS = [
+            "anthropic/",   # Claude models
+            "openai/",      # GPT models
+            "google/",      # Gemini models
+            "x-ai/",        # Grok models
+            "deepseek/",    # DeepSeek models
+        ]
+
+        # Prepare choices for Questionary - only show supported models
         model_choices = []
         model_map = {} # Map display string back to model ID
-        for m in available_models: # No filtering here, show all
-            display_name = f"{m['id']} (pricing: ${m.get('pricing',{}).get('prompt', 'N/A')}/1K, context: {m.get('context', 'N/A')}K)"
-            model_choices.append(display_name)
-            model_map[display_name] = m['id']
+        for m in available_models:
+            model_id = m['id']
+            # Only include models from supported providers
+            if any(model_id.startswith(provider) for provider in SUPPORTED_PROVIDERS):
+                display_name = f"{model_id} (pricing: ${m.get('pricing',{}).get('prompt', 'N/A')}/1K, context: {m.get('context', 'N/A')}K)"
+                model_choices.append(display_name)
+                model_map[display_name] = model_id
         
         if not model_choices:
             console.print(Panel(
