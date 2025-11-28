@@ -108,6 +108,15 @@ PROVIDER_ENDPOINTS = {
 }
 
 
+# Models that are ONLY available on OpenRouter (not on other providers)
+# These models will always be routed to OpenRouter regardless of user configuration
+OPENROUTER_ONLY_MODELS = [
+    "x-ai/grok-4.1-fast:free",
+    "x-ai/grok-4.1-fast",
+    "z-ai/glm-4.6",
+]
+
+
 # Model mappings for different providers
 # Maps canonical model names to provider-specific model IDs
 MODEL_MAPPINGS = {
@@ -269,6 +278,7 @@ def get_provider_for_model(model: str) -> str:
     Get the provider for a specific model.
 
     Checks for per-model provider configuration first, then falls back to global provider.
+    Note: Some models (Grok, GLM) are only available on OpenRouter and will always use it.
 
     Args:
         model: Model identifier (e.g., "anthropic/claude-sonnet-4.5")
@@ -276,6 +286,10 @@ def get_provider_for_model(model: str) -> str:
     Returns:
         Provider name (e.g., "azure_foundry", "openrouter")
     """
+    # Enforce OpenRouter for models that are only available there
+    if model in OPENROUTER_ONLY_MODELS:
+        return "openrouter"
+
     # Convert model ID to env var format
     # anthropic/claude-sonnet-4.5 -> ANTHROPIC_CLAUDE_SONNET_4_5_PROVIDER
     model_key = model.replace('/', '_').replace('-', '_').replace('.', '_').upper()

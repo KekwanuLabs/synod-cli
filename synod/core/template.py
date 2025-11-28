@@ -251,6 +251,13 @@ def _validate_mixed_mode(config: Dict, bishops: List[str]) -> List[str]:
         errors.append("❌ Mixed mode: 'routing' section is empty")
         return errors
 
+    # Models that are ONLY available on OpenRouter
+    OPENROUTER_ONLY_MODELS = [
+        "x-ai/grok-4.1-fast:free",
+        "x-ai/grok-4.1-fast",
+        "z-ai/glm-4.6",
+    ]
+
     # Ensure all bishops have routing entries
     for bishop in bishops:
         if bishop not in routing:
@@ -261,9 +268,9 @@ def _validate_mixed_mode(config: Dict, bishops: List[str]) -> List[str]:
             if routed_provider not in enabled_providers:
                 errors.append(f"❌ Bishop '{bishop}' routed to '{routed_provider}' but that provider is not enabled")
 
-            # Check if model is available on that provider (basic check)
-            # Note: This is simplified - full validation would use model_registry
-            # For now just warn if routing looks suspicious
+            # Enforce OpenRouter-only models
+            if bishop in OPENROUTER_ONLY_MODELS and routed_provider != 'openrouter':
+                errors.append(f"❌ Model '{bishop}' is only available on OpenRouter (cannot use '{routed_provider}')")
 
     return errors
 
