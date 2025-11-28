@@ -255,7 +255,7 @@ def _validate_mixed_mode(config: Dict, bishops: List[str]) -> List[str]:
     OPENROUTER_ONLY_MODELS = [
         "x-ai/grok-4.1-fast:free",
         "x-ai/grok-4.1-fast",
-        "z-ai/glm-4.6",
+        "zhipu/glm-4-plus",
     ]
 
     # Ensure all bishops have routing entries
