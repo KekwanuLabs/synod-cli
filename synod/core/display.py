@@ -40,6 +40,30 @@ def get_version() -> str:
     except Exception:
         return "0.2.0"  # Fallback
 
+
+# ============================================================================
+# BRANDING - Single source of truth for taglines
+# ============================================================================
+
+TAGLINE = "Ancient Councils. Modern Intelligence."
+SUBTITLE = "AI models debate. Your code wins."
+TAGLINE_FULL = f"{TAGLINE} {SUBTITLE}"
+
+
+def get_tagline() -> str:
+    """Get the primary tagline."""
+    return TAGLINE
+
+
+def get_subtitle() -> str:
+    """Get the subtitle/value proposition."""
+    return SUBTITLE
+
+
+def get_tagline_full() -> str:
+    """Get the full tagline with subtitle."""
+    return TAGLINE_FULL
+
 # Initialize console with theme and force color support
 console = Console(theme=SYNOD_THEME, force_terminal=True, color_system="truecolor")
 
@@ -158,13 +182,13 @@ def show_launch_screen(
 
         # Tagline
         console.print(
-            Text("Ancient Councils. Modern Intelligence.", style=SynodStyles.SUBTITLE),
+            Text(TAGLINE, style=SynodStyles.SUBTITLE),
             justify="center"
         )
 
         # Subtitle
         console.print(
-            Text("Adversarial debate. Perfect code.", style=SynodStyles.TAGLINE),
+            Text(SUBTITLE, style=SynodStyles.TAGLINE),
             justify="center"
         )
 
@@ -220,14 +244,14 @@ def show_launch_screen(
 
         # Tagline
         tagline = Text(
-            "Ancient Councils. Modern Intelligence.",
+            TAGLINE,
             style=SynodStyles.SUBTITLE,
             justify="center",
         )
 
         # Subtitle
         subtitle = Text(
-            "Adversarial debate. Perfect code.",
+            SUBTITLE,
             style=SynodStyles.TAGLINE,
             justify="center",
         )

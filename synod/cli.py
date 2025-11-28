@@ -23,6 +23,8 @@ from synod.core.display import (
     show_exit_summary,
     console,  # Use themed console from display
     get_version,
+    get_tagline_full,
+    TAGLINE_FULL,
 )
 from synod.core.session import get_current_session, end_session
 from synod.core.indexer import quick_index
@@ -36,10 +38,17 @@ from synod.core.syntax import render_with_syntax, SyntaxMarkdown
 VERSION = get_version()
 app = typer.Typer(
     name="synod",
-    help="Elite Models Debate. You Get Their Collective Best.",
+    help=TAGLINE_FULL,
     add_completion=False,
     rich_markup_mode="rich",
 )
+
+
+@app.command()
+def version():
+    """Show Synod version and tagline."""
+    console.print(f"\n[{CYAN}]Synod v{VERSION}[/{CYAN}]")
+    console.print(f"[dim]{TAGLINE_FULL}[/dim]\n")
 
 async def _arun_query(prompt: str, file_context: str, skip_config_check: bool = False, archives: Optional[CouncilArchives] = None):
     """Internal async function to run the query logic."""
@@ -533,7 +542,7 @@ async def _handle_slash_command(
     elif command in ['version', 'v']:
         # Show version
         console.print(f"\n[{CYAN}]Synod v{VERSION}[/{CYAN}]")
-        console.print(f"[dim]Ancient Councils. Modern Intelligence.[/dim]\n")
+        console.print(f"[dim]{TAGLINE_FULL}[/dim]\n")
         return False
 
     elif command == 'history':

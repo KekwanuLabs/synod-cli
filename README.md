@@ -7,6 +7,8 @@
 
 **Ancient Councils. Modern Intelligence. Open Source.**
 
+[Website](https://synod.run) | [Documentation](https://synod.run) | [PyPI](https://pypi.org/project/synod-cli/)
+
 Synod is a CLI-based coding agent that harnesses the collective intelligence of multiple AI models through **intelligent adversarial debate**. Instead of relying on a single LLM that might hallucinate or make mistakes, Synod orchestrates rigorous debates among multiple state-of-the-art models to produce battle-tested, robust solutions to your most challenging coding problems.
 
 **Built for speed, accuracy, and an exceptional developer experience.**
