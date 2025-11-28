@@ -99,10 +99,10 @@ MODEL_AVAILABILITY: Dict[str, Set[ModelProvider]] = {
     },
 
     # GLM models (Zhipu AI) - ONLY available on OpenRouter
-    "glm-4.6": {
+    "glm-4-plus": {
         ModelProvider.OPENROUTER,
     },
-    "z-ai/glm-4.6": {
+    "zhipu/glm-4-plus": {
         ModelProvider.OPENROUTER,
     },
 }

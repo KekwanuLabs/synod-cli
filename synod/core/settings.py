@@ -160,7 +160,7 @@ class SynodSettings:
 
         subtitle = Text()
         subtitle.append("\nThese AI models will debate your code from different perspectives\n", style="dim")
-        subtitle.append("Core 5 are pre-selected for optimal results\n", style=f"bold {GREEN}")
+        subtitle.append("Core models are pre-selected for optimal results\n", style=f"bold {GREEN}")
 
         header.append("\n")
         header.append(subtitle)
@@ -174,69 +174,47 @@ class SynodSettings:
         console.print(panel)
         console.print()
 
-        # Search patterns for latest models (in priority order)
-        # Each pattern: (search_keywords, priority_keywords, max_results)
-        # Note: Prioritizing free tiers and cost-effective variants where available
-        # Core 5 models pre-selected: Claude (required), GPT, Grok, Gemini, GLM
-        # Optional: DeepSeek (user can add)
-        search_patterns = [
-            # Anthropic Claude (4.5 Sonnet - REQUIRED for best results)
-            (['claude', 'sonnet'], ['4.5', '4-5', '3.5', '3-5'], 1),
-            # OpenAI GPT (5.1 Codex or latest GPT-4)
-            (['gpt'], ['5.1', '5-1', 'codex', '4o', 'turbo'], 1),
-            # xAI Grok (4.1 Fast free tier is available!)
-            (['grok'], ['4.1', '4-1', 'free', 'code'], 1),
-            # Google Gemini (3 Pro Preview is latest)
-            (['gemini'], ['3', 'preview', 'pro', 'flash', '2.0'], 1),
-            # Zhipu GLM (4.6 or latest) - Provider is 'z-ai' on OpenRouter
-            (['glm'], ['4.6', '4-6', '4.5', 'free'], 1),
-            # DeepSeek (V3.1 is latest, very cost-effective) - Optional
-            (['deepseek'], ['v3.1', 'v3-1', 'v3', 'free', 'chat'], 1),
+        # Our 7 curated models with display info
+        # Format: (model_id, display_name, description, is_core, is_free)
+        # Model IDs must match exactly what OpenRouter uses
+        CURATED_MODELS = [
+            ("anthropic/claude-sonnet-4.5", "Claude Sonnet 4.5", "Best reasoning", True, False),
+            ("openai/gpt-5.1-chat", "GPT 5.1 Chat", "Latest from OpenAI", True, False),
+            ("x-ai/grok-4.1-fast:free", "Grok 4.1 Fast", "xAI - FREE!", True, True),
+            ("google/gemini-3-pro-preview", "Gemini 3 Pro", "Google multimodal", True, False),
+            ("deepseek/deepseek-chat-v3.1", "DeepSeek V3.1", "Algorithms expert", True, False),
+            ("zhipu/glm-4-plus", "GLM 4 Plus", "Zhipu AI", False, False),
+            ("anthropic/claude-opus-4.5", "Claude Opus 4.5", "Recommended Pope", False, False),
         ]
 
+        # Build model lookup from available models for context info
+        available_lookup = {m['id']: m for m in available_models}
+
         top_models = []
-        used_model_ids = set()
-
-        # Find best match for each pattern
-        for keywords, priority_terms, max_count in search_patterns:
-            candidates = []
-
-            for model in available_models:
-                model_id = model['id'].lower()
-
-                # Must match all keywords
-                if not all(kw in model_id for kw in keywords):
-                    continue
-
-                # Skip if already selected
-                if model['id'] in used_model_ids:
-                    continue
-
-                # Calculate priority score
-                score = 0
-                for i, term in enumerate(priority_terms):
-                    if term in model_id:
-                        score = len(priority_terms) - i  # Higher score for earlier terms
-                        break
-
-                candidates.append((score, model))
-
-            # Sort by score (highest first) and take top matches
-            candidates.sort(key=lambda x: x[0], reverse=True)
-            for score, model in candidates[:max_count]:
-                if len(top_models) < 7:
-                    top_models.append(model)
-                    used_model_ids.add(model['id'])
-
-        # If we still don't have 7, add any good models
-        if len(top_models) < 7:
-            fallback = [m for m in available_models if m['id'] not in used_model_ids and
-                       any(x in m['id'].lower() for x in ['claude', 'gpt', 'grok', 'gemini', 'deepseek', 'glm', 'azure'])]
-            top_models.extend(fallback[:7 - len(top_models)])
+        for model_id, display_name, desc, is_core, is_free in CURATED_MODELS:
+            # Check if model is available on OpenRouter
+            if model_id in available_lookup:
+                model_info = available_lookup[model_id]
+                top_models.append({
+                    'id': model_id,
+                    'display_name': display_name,
+                    'description': desc,
+                    'is_core': is_core,
+                    'is_free': is_free,
+                    'context_length': model_info.get('context_length', 'N/A'),
+                })
+            else:
+                # Model not in OpenRouter list - still add it with default info
+                top_models.append({
+                    'id': model_id,
+                    'display_name': display_name,
+                    'description': desc,
+                    'is_core': is_core,
+                    'is_free': is_free,
+                    'context_length': 'N/A',
+                })
 
         # Prepare checkbox choices with detailed labels
-        # Core 5: Claude (required), GPT, Grok, Gemini, GLM - pre-selected
-        core_count = 5
         choices = []
         default_selected = []
 
@@ -254,39 +232,23 @@ class SynodSettings:
         console.print(Align.center(instructions))
         console.print()
 
-        # Beautiful column headers with perfect alignment
-        headers = Text()
-        headers.append("   MODEL", style=f"bold {CYAN}")
-        headers.append(" " * 28, style="")  # Reduced spacing
-        headers.append("CONTEXT", style=f"bold {CYAN}")
-        headers.append("   ", style="")
-        headers.append("STATUS", style=f"bold {CYAN}")
-        console.print(headers)
-        console.print("   " + "─" * 62, style=f"dim {PRIMARY}")
-        console.print()
-
         for i, model in enumerate(top_models):
-            model_name = model['id'].split('/')[-1] if '/' in model['id'] else model['id']
+            display_name = model['display_name']
+            desc = model['description']
+            is_core = model['is_core']
 
-            # Truncate long model names to keep alignment
-            max_name_length = 32
-            if len(model_name) > max_name_length:
-                model_name = model_name[:max_name_length-3] + "..."
-
-            context = f"{model.get('context_length', 'N/A')}K"
-
-            # Build display label with emojis and tighter spacing
-            if i == 0:  # Claude (required)
-                label = f"⭐ {model_name:<32} {context:<8} 🔒 Required"
-            elif i < core_count:  # Core models
-                label = f"✨ {model_name:<32} {context:<8} ⚡ Core"
+            # Build display label with emojis
+            if i == 0:  # Claude Sonnet (required)
+                label = f"⭐ {display_name:<24} ({desc})"
+            elif is_core:  # Core models
+                label = f"✨ {display_name:<24} ({desc})"
             else:  # Optional
-                label = f"   {model_name:<32} {context:<8} ➕ Optional"
+                label = f"   {display_name:<24} ({desc})"
 
             choices.append((label, model['id']))
 
-            # Pre-select core 5
-            if i < core_count:
+            # Pre-select core models
+            if is_core:
                 default_selected.append((label, model['id']))
 
         # Validation function to ensure Claude is always selected
@@ -484,7 +446,7 @@ class SynodSettings:
             "google/gemini-3-pro-preview",
             "x-ai/grok-4.1-fast:free",
             "deepseek/deepseek-chat-v3.1",
-            "z-ai/glm-4.6",
+            "zhipu/glm-4-plus",
         ]
 
         # Prepare choices for Questionary - only show supported models

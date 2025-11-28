@@ -137,7 +137,7 @@ Synod exclusively uses the 7 most powerful SOTA models from 6 providers via [Ope
 4. **Grok 4.1 Fast** - xAI's fastest model (free tier available)
 5. **Gemini 3 Pro** - Google's multimodal powerhouse
 6. **DeepSeek Chat V3.1** - Excellence in algorithms and optimization
-7. **GLM 4.6** - Zhipu AI's latest model
+7. **GLM 4 Plus** - Zhipu AI's latest model
 
 **FREE Classifier** (not involved in debate):
 - **Grok 4.1 Fast** - Fast, reliable, excellent availability (all classification $0)
@@ -235,7 +235,7 @@ You'll be prompted to:
    - Grok 4.1 Fast (free tier available)
    - Gemini 3 Pro
    - DeepSeek Chat V3.1
-   - GLM 4.6
+   - GLM 4 Plus
 3. **Select your Pope**: Choose which Bishop will synthesize the final solution
    - Recommended: Claude Opus 4.5 (best at reasoning and synthesis)
 

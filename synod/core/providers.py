@@ -113,7 +113,7 @@ PROVIDER_ENDPOINTS = {
 OPENROUTER_ONLY_MODELS = [
     "x-ai/grok-4.1-fast:free",
     "x-ai/grok-4.1-fast",
-    "z-ai/glm-4.6",
+    "zhipu/glm-4-plus",
 ]
 
 
@@ -127,7 +127,7 @@ MODEL_MAPPINGS = {
         "gpt-4o": "openai/gpt-4o",
         "gemini-3-pro": "google/gemini-3-pro-preview",
         "grok-4.1": "x-ai/grok-4.1-fast",
-        "glm-4.6": "z-ai/glm-4.6",
+        "glm-4-plus": "zhipu/glm-4-plus",
     },
     Provider.AZURE_OPENAI: {
         # Azure uses deployment names, which users configure
