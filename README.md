@@ -68,7 +68,7 @@ Before any debate begins, Synod analyzes your query using **Grok 4.1 Fast (free)
 **Cost: $0** - Classification uses only free models! If classification fails, gracefully falls back to moderate complexity defaults.
 
 ### Stage 1: Weighted Initial Proposals
-Your coding request is presented to **dynamically selected** Bishops based on their expertise in relevant domains. Each model independently proposes solutions in parallel. Simple queries might use 2-3 bishops; complex queries use all 5.
+Your coding request is presented to **dynamically selected** Bishops based on their expertise in relevant domains. Each model independently proposes solutions in parallel. Simple queries might use 2-3 bishops; complex queries use more.
 
 **Pope as Unbiased Observer:** The Pope does NOT participate in Stage 1—they silently observe all proposals without bias. This enables true synthesis without being anchored to their own proposal.
 
@@ -228,13 +228,14 @@ synod config
 
 You'll be prompted to:
 1. **Enter your OpenRouter API key**
-2. **Select your Bishops**: Choose from our 6 SOTA models (3-6 recommended for debate):
+2. **Select your Bishops**: Choose from our 7 SOTA models (3-5 recommended for debate):
    - Claude Opus 4.5
    - Claude Sonnet 4.5
    - GPT 5.1 Chat
-   - Grok 4.1 Fast
-   - Gemini 3.0
-   - DeepSeek V3.1
+   - Grok 4.1 Fast (free tier available)
+   - Gemini 3 Pro
+   - DeepSeek Chat V3.1
+   - GLM 4.6
 3. **Select your Pope**: Choose which Bishop will synthesize the final solution
    - Recommended: Claude Opus 4.5 (best at reasoning and synthesis)
 
@@ -321,7 +322,7 @@ Synod aims to be a unique and versatile coding agent that:
 - Leverages the strengths of multiple SOTA models through expertise weighting
 - Provides a seamless, always-on developer experience like Claude Code
 - Ensures quality through 6-layer quality control (strict classification, consensus detection, papal veto, evidence-based critiques, smart pairing, unbiased Pope)
-- Adapts intelligently to query complexity (1-5 bishops, 1-5 rounds based on needs)
+- Adapts intelligently to query complexity (dynamic bishop selection and rounds based on needs)
 - Evolves as new models and techniques emerge
 
 The council is always in session.
