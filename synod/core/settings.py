@@ -183,7 +183,7 @@ class SynodSettings:
             ("x-ai/grok-4.1-fast:free", "Grok 4.1 Fast", "xAI - FREE!", True, True),
             ("google/gemini-3-pro-preview", "Gemini 3 Pro", "Google multimodal", True, False),
             ("deepseek/deepseek-chat-v3.1", "DeepSeek V3.1", "Algorithms expert", True, False),
-            ("zhipu/glm-4-plus", "GLM 4 Plus", "Zhipu AI", False, False),
+            ("z-ai/glm-4.6", "GLM 4.6", "Zhipu AI", False, False),
             ("anthropic/claude-opus-4.5", "Claude Opus 4.5", "Recommended Pope", False, False),
         ]
 
@@ -446,7 +446,7 @@ class SynodSettings:
             "google/gemini-3-pro-preview",
             "x-ai/grok-4.1-fast:free",
             "deepseek/deepseek-chat-v3.1",
-            "zhipu/glm-4-plus",
+            "z-ai/glm-4.6",
         ]
 
         # Prepare choices for Questionary - only show supported models
