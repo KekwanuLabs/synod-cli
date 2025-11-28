@@ -497,20 +497,11 @@ class SynodSettings:
         console.print("\n[bold]Select your Bishops (at least 3, ideally 3-5 for debate):[/bold]")
         console.print("[italic dim]Use arrow keys to move, space to select, enter to confirm.[/italic dim]")
 
-        # Pre-select defaults if they are in the available models
-        # We must match the EXACT display string used in 'choices'
-        potential_defaults = []
-        for display_str, model_id in model_map.items():
-            if model_id in DEFAULT_BISHOP_MODELS:
-                potential_defaults.append(display_str)
-
-        # CRITICAL FIX: Ensure defaults actually exist in the final choices list to prevent ValueError
-        default_bishop_selections = [d for d in potential_defaults if d in model_choices]
-
+        # Don't pre-select defaults - let users choose from scratch
+        # Model names change frequently on OpenRouter, causing matching issues
         selected_bishop_displays = await questionary.checkbox(
             "Select Bishops:",
             choices=model_choices,
-            default=default_bishop_selections,
             validate=lambda choices: True if len(choices) >= 3 else "Please select at least 3 Bishop models."
         ).ask_async()
 
