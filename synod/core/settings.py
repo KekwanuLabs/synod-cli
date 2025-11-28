@@ -478,22 +478,12 @@ class SynodSettings:
         
         # Specific models we support - exact model IDs from OpenRouter
         SUPPORTED_MODELS = [
-            # Anthropic Claude
-            "anthropic/claude-sonnet-4.5",
             "anthropic/claude-opus-4.5",
-            "anthropic/claude-haiku-4.5",
-            # OpenAI GPT
-            "openai/gpt-4o",
-            "openai/gpt-4-turbo",
-            # Google Gemini
-            "google/gemini-2.5-pro-preview",
-            "google/gemini-2.5-flash-preview",
-            # xAI Grok
+            "anthropic/claude-sonnet-4.5",
+            "openai/gpt-5.1-chat",
+            "google/gemini-3-pro-preview",
             "x-ai/grok-4.1-fast:free",
-            "x-ai/grok-4.1-fast",
-            # DeepSeek
-            "deepseek/deepseek-r1",
-            "deepseek/deepseek-chat",
+            "deepseek/deepseek-chat-v3.1",
         ]
 
         # Prepare choices for Questionary - only show supported models

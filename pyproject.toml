@@ -1,6 +1,6 @@
 [project]
 name = "synod-cli"
-version = "0.3.8"
+version = "0.3.9"
 description = "Intelligent multi-model coding agent with adversarial debate. Ancient Councils. Modern Intelligence. Open Source."
 readme = "README.md"
 requires-python = ">=3.8"
