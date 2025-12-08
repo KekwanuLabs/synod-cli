@@ -328,14 +328,94 @@ def config(api_key: Optional[str] = typer.Argument(None, help="Your Synod API ke
         # Not configured - show onboarding
         show_onboarding_required()
 
+def _find_free_port() -> int:
+    """Find a free port for the callback server."""
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(('localhost', 0))
+        return s.getsockname()[1]
+
+
+def _run_callback_server(port: int, timeout: int = 120) -> Optional[str]:
+    """Run a local HTTP server to receive the OAuth callback.
+
+    Returns the API key if received, None if timeout.
+    """
+    from http.server import HTTPServer, BaseHTTPRequestHandler
+    from urllib.parse import urlparse, parse_qs
+    import threading
+
+    api_key_result = {"key": None}
+    server_done = threading.Event()
+
+    class CallbackHandler(BaseHTTPRequestHandler):
+        def log_message(self, format, *args):
+            pass  # Suppress logging
+
+        def do_GET(self):
+            parsed = urlparse(self.path)
+
+            if parsed.path == '/callback':
+                params = parse_qs(parsed.query)
+                if 'key' in params:
+                    api_key_result["key"] = params['key'][0]
+
+                    # Send success response
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'text/html')
+                    self.end_headers()
+                    self.wfile.write(b'''
+                    <html>
+                    <head>
+                        <title>Synod CLI - Authorized</title>
+                        <style>
+                            body { font-family: -apple-system, system-ui, sans-serif; background: #0a0a0f; color: white; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+                            .container { text-align: center; }
+                            .check { color: #22c55e; font-size: 48px; margin-bottom: 16px; }
+                            h1 { margin: 0 0 8px; }
+                            p { color: #9ca3af; }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="container">
+                            <div class="check">&#10003;</div>
+                            <h1>CLI Authorized!</h1>
+                            <p>You can close this window and return to your terminal.</p>
+                        </div>
+                    </body>
+                    </html>
+                    ''')
+                    server_done.set()
+                else:
+                    self.send_response(400)
+                    self.end_headers()
+            else:
+                self.send_response(404)
+                self.end_headers()
+
+    server = HTTPServer(('localhost', port), CallbackHandler)
+    server.timeout = 1  # Check every second
+
+    # Run server with timeout
+    start_time = __import__('time').time()
+    while not server_done.is_set():
+        server.handle_request()
+        if __import__('time').time() - start_time > timeout:
+            break
+
+    server.server_close()
+    return api_key_result["key"]
+
+
 @app.command()
-def login():
+def login(
+    manual: bool = typer.Option(False, "--manual", "-m", help="Use manual API key entry instead of browser flow")
+):
     """
     Login to Synod Cloud.
 
-    Opens your browser to sign up or log in, then guides you to get your API key.
+    Opens your browser for automatic authentication. Use --manual to enter API key directly.
     """
-    import time
     import httpx
 
     console.print()
@@ -362,35 +442,46 @@ def login():
         except:
             pass  # Key invalid, continue with login flow
 
-    # Open browser to login page
-    login_url = "https://synod.run/login?cli=true"
-    console.print(f"[{CYAN}]Opening browser to sign up / log in...[/{CYAN}]")
-    console.print(f"[dim]{login_url}[/dim]")
-    console.print()
+    if manual:
+        # Manual API key entry
+        console.print(f"[{CYAN}]Manual login mode[/{CYAN}]")
+        console.print(f"[dim]Get your API key at https://synod.run/dashboard[/dim]")
+        console.print()
 
-    try:
-        webbrowser.open(login_url)
-    except Exception:
-        console.print(f"[yellow]Could not open browser automatically.[/yellow]")
-        console.print(f"Please visit: {login_url}")
-    console.print()
+        api_key = typer.prompt("Enter your API key")
+        if not api_key.strip():
+            console.print(f"\n[red]No API key provided.[/red]\n")
+            raise typer.Exit(1)
 
-    # Wait for user to complete login
-    console.print(f"[{GOLD}]After logging in:[/{GOLD}]")
-    console.print("  1. Go to Dashboard → API Keys")
-    console.print("  2. Copy your API key (starts with sk_)")
-    console.print("  3. Paste it below")
-    console.print()
+        api_key = api_key.strip()
+    else:
+        # Automatic browser flow
+        port = _find_free_port()
+        auth_url = f"https://synod.run/cli-auth?port={port}"
 
-    # Prompt for API key
-    api_key = typer.prompt("Enter your API key")
+        console.print(f"[{CYAN}]Opening browser for authentication...[/{CYAN}]")
+        console.print(f"[dim]{auth_url}[/dim]")
+        console.print()
 
-    if not api_key.strip():
-        console.print(f"\n[red]No API key provided.[/red]\n")
-        raise typer.Exit(1)
+        try:
+            webbrowser.open(auth_url)
+        except Exception:
+            console.print(f"[yellow]Could not open browser automatically.[/yellow]")
+            console.print(f"Please visit: {auth_url}")
 
-    api_key = api_key.strip()
+        console.print(f"[{GOLD}]Waiting for authorization...[/{GOLD}]")
+        console.print(f"[dim]Complete the login in your browser. This will timeout in 2 minutes.[/dim]")
+        console.print()
 
+        # Wait for callback
+        api_key = _run_callback_server(port, timeout=120)
+
+        if not api_key:
+            console.print(f"\n[red]Authorization timed out or was cancelled.[/red]")
+            console.print(f"[dim]Try again with 'synod login' or use 'synod login --manual'[/dim]\n")
+            raise typer.Exit(1)
+
+    # Validate key format
     if not api_key.startswith("sk_"):
         console.print(f"\n[red]Invalid API key format. Should start with 'sk_'[/red]")
         console.print(f"[dim]Get your API key at https://synod.run/dashboard[/dim]\n")
