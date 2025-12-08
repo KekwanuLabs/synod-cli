@@ -157,10 +157,9 @@ def show_onboarding_required() -> None:
     content.append("  2. ", style=f"bold {CYAN}")
     content.append("Configure your LLM providers (BYOK or Managed)\n", style="dim")
     content.append("  3. ", style=f"bold {CYAN}")
-    content.append("Copy your API key from the dashboard\n", style="dim")
-    content.append("  4. ", style=f"bold {CYAN}")
     content.append("Run: ", style="dim")
-    content.append("synod config <your-api-key>\n\n", style=f"bold {GREEN}")
+    content.append("synod login", style=f"bold {GREEN}")
+    content.append(" to authenticate automatically\n\n", style="dim")
     content.append("After setup, you'll have access to:\n", style="white")
     content.append("  • AI models debating to find the best solution\n", style="dim")
     content.append("  • 7 top providers (Anthropic, OpenAI, Google, xAI, DeepSeek, Zhipu, Mistral)\n", style="dim")
@@ -292,7 +291,7 @@ def config(api_key: Optional[str] = typer.Argument(None, help="Your Synod API ke
         # Direct API key provided as argument
         if not api_key.startswith("sk_"):
             console.print(f"\n[red]Invalid API key format. Should start with 'sk_'[/red]")
-            console.print(f"[dim]Get your API key at https://synod.run/dashboard[/dim]\n")
+            console.print(f"[dim]Get your API key at https://synod.run/dashboard/keys[/dim]\n")
             raise typer.Exit(1)
 
         cfg = load_config()
@@ -311,7 +310,7 @@ def config(api_key: Optional[str] = typer.Argument(None, help="Your Synod API ke
         masked = current_key[:10] + "..." + current_key[-4:]
         console.print(f"\n[{CYAN}]Current API key:[/{CYAN}] {masked}")
         console.print(f"\n[dim]To update, run: synod config <new-api-key>[/dim]")
-        console.print(f"[dim]Manage settings at https://synod.run/dashboard[/dim]\n")
+        console.print(f"[dim]Manage API keys at https://synod.run/dashboard/keys[/dim]\n")
 
         update = typer.confirm("Would you like to update your API key?", default=False)
         if update:
@@ -443,11 +442,15 @@ def login(
             pass  # Key invalid, continue with login flow
 
     if manual:
-        # Manual API key entry
+        # Manual API key entry - fallback mode
         console.print(f"[{CYAN}]Manual login mode[/{CYAN}]")
-        console.print(f"[dim]Get your API key at https://synod.run/dashboard[/dim]")
         console.print()
-
+        console.print(f"[{GOLD}]Note: The automatic flow (synod login) is recommended.[/{GOLD}]")
+        console.print(f"[dim]It generates an API key automatically without copy/paste.[/dim]")
+        console.print()
+        console.print(f"[dim]If you already have a Synod API key, enter it below.[/dim]")
+        console.print(f"[dim]Keys start with 'sk_' and can be generated from synod.run/dashboard[/dim]")
+        console.print()
         api_key = typer.prompt("Enter your API key")
         if not api_key.strip():
             console.print(f"\n[red]No API key provided.[/red]\n")
@@ -484,7 +487,7 @@ def login(
     # Validate key format
     if not api_key.startswith("sk_"):
         console.print(f"\n[red]Invalid API key format. Should start with 'sk_'[/red]")
-        console.print(f"[dim]Get your API key at https://synod.run/dashboard[/dim]\n")
+        console.print(f"[dim]Get your API key at https://synod.run/dashboard/keys[/dim]\n")
         raise typer.Exit(1)
 
     # Verify the key works
