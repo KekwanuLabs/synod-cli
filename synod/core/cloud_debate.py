@@ -2,17 +2,19 @@
 
 This module is the thin client that:
 1. Sends queries to Synod Cloud
-2. Receives SSE events
-3. Renders them beautifully using Rich
+2. Receives SSE events (including tool calls)
+3. Executes tools locally and sends results back
+4. Renders them beautifully using Rich
 
-All debate logic lives in the cloud - this is purely display.
+Intelligence (debate) lives in the cloud. Tool execution happens locally.
 """
 
 import asyncio
 import json
 import time
+import os
 from dataclasses import dataclass, field
-from typing import Optional, Dict, List, Any, AsyncIterator
+from typing import Optional, Dict, List, Any, AsyncIterator, Callable, Awaitable
 
 import httpx
 from rich.console import Console, Group
@@ -22,6 +24,7 @@ from rich.text import Text
 from rich.live import Live
 from rich.markdown import Markdown
 from rich.spinner import Spinner
+from rich.syntax import Syntax
 from rich import box
 
 from .theme import PRIMARY, CYAN, ACCENT, SECONDARY, GOLD, GREEN, format_model_name
@@ -40,6 +43,17 @@ class CritiqueSummary:
     target: str
     severity: str  # 'critical' | 'moderate' | 'minor'
     summary: str   # One-line summary
+
+
+@dataclass
+class ToolCall:
+    """A pending tool call from the cloud."""
+    call_id: str
+    tool: str
+    parameters: Dict[str, Any]
+    status: str = "pending"  # pending, running, complete, error
+    result: Optional[str] = None
+    error: Optional[str] = None
 
 
 @dataclass
@@ -93,6 +107,11 @@ class DebateState:
     memories_retrieved: int = 0
     memories_stored: int = 0
     memory_tokens: int = 0
+
+    # Tool execution
+    tool_calls: List[ToolCall] = field(default_factory=list)
+    current_tool: Optional[ToolCall] = None
+    tools_executed: int = 0
 
     # Final
     complete: bool = False
@@ -219,6 +238,27 @@ def handle_event(state: DebateState, event: dict) -> None:
 
     elif event_type == 'error':
         state.error = event['message']
+
+    # Tool execution events
+    elif event_type == 'tool_call':
+        tool_call = ToolCall(
+            call_id=event['call_id'],
+            tool=event['tool'],
+            parameters=event.get('parameters', {}),
+            status='pending',
+        )
+        state.tool_calls.append(tool_call)
+        state.current_tool = tool_call
+
+    elif event_type == 'tool_result_ack':
+        # Cloud acknowledged our tool result
+        call_id = event.get('call_id')
+        for tc in state.tool_calls:
+            if tc.call_id == call_id:
+                tc.status = 'complete'
+                state.tools_executed += 1
+                break
+        state.current_tool = None
 
 
 # ============================================================
@@ -495,6 +535,50 @@ def build_error_panel(state: DebateState) -> Panel:
     )
 
 
+def build_tool_panel(state: DebateState) -> Optional[Panel]:
+    """Build tool execution panel if there are tool calls."""
+    if not state.tool_calls and not state.current_tool:
+        return None
+
+    elements = []
+
+    # Show tools executed count
+    if state.tools_executed > 0:
+        elements.append(Text(f"🔧 {state.tools_executed} tools executed", style=GREEN))
+        elements.append(Text(""))
+
+    # Show current tool being executed
+    if state.current_tool:
+        tc = state.current_tool
+        elements.append(Text(f"{get_spinner()} Executing: ", style=CYAN) + Text(tc.tool, style=f"bold {PRIMARY}"))
+
+        # Show parameters summary
+        params_str = ", ".join(f"{k}={repr(v)[:30]}" for k, v in list(tc.parameters.items())[:3])
+        if params_str:
+            elements.append(Text(f"   {params_str}", style="dim"))
+
+    # Show recent completed tools
+    completed = [tc for tc in state.tool_calls if tc.status == 'complete']
+    if completed:
+        elements.append(Text(""))
+        for tc in completed[-5:]:  # Show last 5
+            result_preview = (tc.result or "")[:50] + "..." if tc.result and len(tc.result) > 50 else (tc.result or "")
+            if tc.error:
+                elements.append(Text(f"  ✗ {tc.tool}: ", style="red") + Text(tc.error[:50], style="dim"))
+            else:
+                elements.append(Text(f"  ✓ {tc.tool}", style=GREEN))
+
+    if not elements:
+        return None
+
+    return Panel(
+        Group(*elements),
+        title=f"[{CYAN}]Tool Execution[/{CYAN}]",
+        border_style=CYAN,
+        padding=(0, 2)
+    )
+
+
 def build_display(state: DebateState) -> Group:
     """Build full display from current state."""
     panels = []
@@ -507,6 +591,11 @@ def build_display(state: DebateState) -> Group:
     # Stage 0: Analysis
     if state.stage >= 0:
         panels.append(build_analysis_panel(state))
+
+    # Tool execution (if any)
+    tool_panel = build_tool_panel(state)
+    if tool_panel:
+        panels.append(tool_panel)
 
     # Stage 1: Proposals
     if state.stage >= 1:
@@ -577,6 +666,76 @@ async def stream_sse(
 
 
 # ============================================================
+# Tool Execution
+# ============================================================
+
+async def execute_tool_call(
+    tool_call: ToolCall,
+    working_directory: str,
+) -> Dict[str, Any]:
+    """Execute a tool call locally and return the result."""
+    from synod.tools import ToolExecutor
+
+    executor = ToolExecutor(working_directory)
+
+    tool_call.status = 'running'
+
+    try:
+        result = await executor.execute(
+            tool_call.tool,
+            tool_call.parameters,
+            skip_confirmation=False,  # Prompt for confirmation
+        )
+
+        tool_call.result = result.output
+        if result.error:
+            tool_call.error = result.error
+
+        return {
+            "call_id": tool_call.call_id,
+            "status": result.status.value,
+            "output": result.output,
+            "error": result.error,
+            "metadata": result.metadata,
+        }
+
+    except Exception as e:
+        tool_call.status = 'error'
+        tool_call.error = str(e)
+        return {
+            "call_id": tool_call.call_id,
+            "status": "error",
+            "output": "",
+            "error": str(e),
+            "metadata": {},
+        }
+
+
+async def send_tool_result(
+    api_url: str,
+    api_key: str,
+    debate_id: str,
+    result: Dict[str, Any],
+) -> bool:
+    """Send tool execution result back to the cloud."""
+    url = f"{api_url.rstrip('/').replace('/debate', '')}/debate/{debate_id}/tool-result"
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                url,
+                headers={
+                    "Authorization": api_key,
+                    "Content-Type": "application/json",
+                },
+                json=result,
+            )
+            return response.status_code == 200
+    except Exception:
+        return False
+
+
+# ============================================================
 # Main Entry Point
 # ============================================================
 
@@ -587,6 +746,7 @@ async def run_cloud_debate(
     bishops: Optional[List[str]] = None,
     pope: Optional[str] = None,
     api_url: str = "https://api.synod.run/debate",
+    working_directory: Optional[str] = None,
 ) -> DebateState:
     """Run a debate via Synod Cloud with live display.
 
@@ -597,16 +757,46 @@ async def run_cloud_debate(
         bishops: Optional list of bishop models to use
         pope: Optional pope model to use
         api_url: Cloud API URL
+        working_directory: Directory for tool execution (default: cwd)
 
     Returns:
         Final DebateState with results
     """
     state = DebateState()
+    work_dir = working_directory or os.getcwd()
 
     with Live(console=console, refresh_per_second=8, transient=True) as live:
         async for event in stream_sse(api_url, api_key, query, context, bishops, pope):
-            handle_event(state, event)
-            live.update(build_display(state))
+            event_type = event.get('type')
+
+            # Handle tool calls specially
+            if event_type == 'tool_call':
+                handle_event(state, event)
+                live.update(build_display(state))
+
+                # Execute the tool locally
+                if state.current_tool:
+                    live.update(build_display(state))
+
+                    # Execute tool outside of live context for interactive prompts
+                    live.stop()
+
+                    result = await execute_tool_call(state.current_tool, work_dir)
+
+                    live.start()
+                    live.update(build_display(state))
+
+                    # Send result back to cloud if we have a debate_id
+                    if state.debate_id:
+                        await send_tool_result(api_url, api_key, state.debate_id, result)
+                    else:
+                        # Store for later - debate_id comes in 'complete' event
+                        state.current_tool.result = result.get('output', '')
+                        state.current_tool.error = result.get('error')
+
+            else:
+                handle_event(state, event)
+                live.update(build_display(state))
 
             # Small delay for smoother animation
             await asyncio.sleep(0.05)
