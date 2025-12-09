@@ -319,16 +319,8 @@ async def _arun_query(prompt: str, file_context: str, archives: Optional[Council
                 synthesis=state.pope_content
             )
 
-        # Handle errors from cloud
+        # Handle errors from cloud (already displayed by cloud_debate.py)
         if state.error:
-            console.print(
-                Panel(
-                    Text(f"❌ {state.error}", style="bold red"),
-                    title="[red]Error[/red]",
-                    border_style="red",
-                    padding=(1, 2)
-                )
-            )
             return
 
         # Display archives status if in interactive mode
