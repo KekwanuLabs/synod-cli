@@ -8,7 +8,35 @@
 
 [Website](https://synod.run) | [Dashboard](https://synod.run/dashboard) | [PyPI](https://pypi.org/project/synod-cli/)
 
-Synod is a CLI coding agent that harnesses multiple AI models through **adversarial debate**. Instead of relying on a single LLM, Synod orchestrates debates among multiple state-of-the-art models to produce battle-tested solutions.
+---
+
+*In ancient councils, bishops gathered to debate truth through rigorous discourse.*
+
+*Now, AI models convene to do the same for your code.*
+
+---
+
+## The Story
+
+For centuries, the most important decisions weren't made by a single authority. They were forged through **structured debate**.
+
+In ecclesiastical councils—called *synods*—bishops from different regions would gather, each bringing their own perspective. They'd propose, critique, and challenge each other's positions. Only after rigorous discourse would the presiding authority synthesize a final judgment, drawing from the best arguments presented.
+
+This model of collective intelligence solved a fundamental problem: **no single perspective, however wise, captures the whole truth.**
+
+We built Synod on the same principle.
+
+## What is Synod?
+
+Synod is a CLI coding agent that orchestrates **adversarial debates** among multiple AI models to solve your coding problems.
+
+Instead of asking one AI and hoping it doesn't hallucinate, Synod convenes a council:
+
+- **Bishops** (Claude, GPT-4, Gemini, Grok, DeepSeek, and more) independently propose solutions
+- Each Bishop **critiques the others**, hunting for bugs, edge cases, and flaws
+- The **Pope** (the most capable model) observes silently, then synthesizes the best answer
+
+The result: battle-tested solutions that survive adversarial review.
 
 ## Quick Start
 
@@ -28,18 +56,78 @@ That's it. No API keys to copy, no configuration files.
 ## How It Works
 
 ```
-You → Synod CLI → Synod Cloud → Multiple AI Models
-                      ↓
-              Adversarial Debate
-                      ↓
-              Best Solution ← Pope Synthesis
+┌─────────────────────────────────────────────────────────────┐
+│                                                             │
+│   You: "How do I implement rate limiting?"                  │
+│                                                             │
+│                         ↓                                   │
+│                                                             │
+│   ┌─────────┐  ┌─────────┐  ┌─────────┐                    │
+│   │ Bishop  │  │ Bishop  │  │ Bishop  │   Stage 1:         │
+│   │ Claude  │  │  GPT-4  │  │ Gemini  │   Proposals        │
+│   └────┬────┘  └────┬────┘  └────┬────┘                    │
+│        │            │            │                          │
+│        └────────────┼────────────┘                          │
+│                     ↓                                       │
+│        ┌────────────────────────┐                          │
+│        │   Adversarial Debate   │   Stage 2:               │
+│        │   "Your solution has   │   Critiques              │
+│        │    a race condition"   │                          │
+│        └───────────┬────────────┘                          │
+│                    ↓                                        │
+│        ┌────────────────────────┐                          │
+│        │      Pope Synthesis    │   Stage 3:               │
+│        │   Best of all worlds   │   Final Answer           │
+│        └────────────────────────┘                          │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-1. **You ask a question** in the CLI
-2. **Synod Cloud orchestrates** a debate among AI "Bishops" (Claude, GPT, Gemini, etc.)
-3. **Bishops propose solutions** independently, then **critique each other**
-4. **The Pope** (most capable model) synthesizes the best answer
-5. **Real-time streaming** shows debate progress as it happens
+### The Debate Process
+
+**Stage 0: Classification**
+Before convening the council, Synod analyzes your query. Trivial questions get fast answers. Complex problems get full debates.
+
+**Stage 1: Bishop Proposals**
+Multiple AI models independently propose solutions in parallel. Each brings different strengths—Claude for reasoning, GPT for breadth, DeepSeek for algorithms.
+
+**Stage 2: Adversarial Critiques**
+Here's where the magic happens. Each Bishop reviews the others' proposals like a hostile code reviewer. They hunt for:
+- Bugs and edge cases
+- Security vulnerabilities
+- Performance issues
+- Design flaws
+
+If the Bishops agree (high consensus), we skip to synthesis. If they disagree, they debate until convergence.
+
+**Stage 3: Pope Synthesis**
+The Pope has been watching silently—observing proposals and critiques without bias. Now it synthesizes the final answer, combining the best ideas:
+
+> *"Algorithm from DeepSeek, error handling from Claude, but I'm adding input validation they all missed."*
+
+The Pope can override consensus if it spots a flaw everyone missed.
+
+## Why This Works
+
+### Single Model Problems
+
+Ask one AI to write code. It might:
+- Hallucinate an API that doesn't exist
+- Miss an edge case
+- Use a deprecated pattern
+- Have a subtle security flaw
+
+You won't know until runtime. Or production.
+
+### Adversarial Debate Solution
+
+With Synod:
+- Bishop A proposes a solution
+- Bishop B says "that has a race condition"
+- Bishop C says "also, you're not handling the empty case"
+- The Pope synthesizes a solution that addresses all critiques
+
+**Mistakes don't survive peer review from multiple SOTA models.**
 
 ## Features
 
@@ -65,13 +153,13 @@ You → Synod CLI → Synod Cloud → Multiple AI Models
 
 ## Pricing
 
-| Tier | Price | Debates/Day | Models |
-|------|-------|-------------|--------|
+| Tier | Price | Debates/Day | Bishops |
+|------|-------|-------------|---------|
 | Free | $0 | 10 | 3 |
 | Pro | $12/mo | Unlimited | 7 |
 | Team | $29/mo | Unlimited | 7 + shared keys |
 
-**BYOK Mode**: Use your own API keys from providers. You pay them directly, Synod just orchestrates.
+**BYOK Mode**: Bring your own API keys. You pay the providers directly, Synod just orchestrates.
 
 ## Commands
 
@@ -87,7 +175,7 @@ synod --help       # All commands
 ### In Interactive Mode
 
 ```
-synod> How do I implement rate limiting?
+synod> How do I implement a LRU cache?
 synod> /help       # Show commands
 synod> /clear      # New conversation
 synod> /exit       # Quit
@@ -155,6 +243,17 @@ The Council will be able to read, edit, and execute files here.
 
 The CLI is a thin client. All debate orchestration happens in Synod Cloud.
 
+## The Name
+
+A **synod** (from Greek *σύνοδος*, "assembly") is a council of church officials convened to decide on matters of doctrine. The most famous—the Council of Nicaea in 325 AD—brought together bishops from across the Roman Empire to debate and establish foundational Christian doctrine.
+
+We borrowed the model, not the religion:
+- **Bishops**: Independent experts who propose and critique
+- **Pope**: The synthesizing authority who renders final judgment
+- **Debate**: Adversarial discourse that stress-tests ideas
+
+Ancient wisdom. Modern implementation.
+
 ## Development
 
 ```bash
@@ -188,8 +287,10 @@ Copyright (c) 2025 [KekwanuLabs](https://kekwanu.com)
 
 <div align="center">
 
-**Synod: Ancient Councils. Modern Intelligence. Open Source.**
+*The council is always in session.*
 
-[Website](https://synod.run) · [Report Bug](https://github.com/KekwanuLabs/synod-cli/issues) · [PyPI](https://pypi.org/project/synod-cli/)
+**[synod.run](https://synod.run)**
+
+[Report Bug](https://github.com/KekwanuLabs/synod-cli/issues) · [Request Feature](https://github.com/KekwanuLabs/synod-cli/issues) · [PyPI](https://pypi.org/project/synod-cli/)
 
 </div>
