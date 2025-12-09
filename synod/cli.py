@@ -18,7 +18,7 @@ import webbrowser
 from pathlib import Path
 from typing import Optional
 
-from synod.core.cloud_debate import run_debate_sync
+from synod.core.cloud_debate import run_cloud_debate
 from synod.core.theme import PRIMARY, CYAN, GOLD, GREEN, SynodStyles
 from synod.core.display import (
     show_launch_screen,
@@ -267,7 +267,7 @@ async def _arun_query(prompt: str, file_context: str, archives: Optional[Council
     try:
         # Run debate via cloud with beautiful live display
         # cloud_debate.py handles all SSE streaming and panel rendering
-        state = run_debate_sync(
+        state = await run_cloud_debate(
             api_key=api_key,
             query=prompt,
             context=full_context if full_context else None,
