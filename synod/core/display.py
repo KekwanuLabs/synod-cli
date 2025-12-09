@@ -226,14 +226,6 @@ def show_launch_screen(
 
             console.print(Align.center(info_table))
 
-        # Setup prompt if needed
-        if not bishops or not pope:
-            console.print()
-            console.print(
-                Text("→ Run 'synod config' to select your bishops and pope", style="warning"),
-                justify="center"
-            )
-
         console.print()  # Extra spacing
 
     else:
@@ -310,15 +302,6 @@ def show_launch_screen(
         if project_text:
             renderables.append(Text("\n"))
             renderables.append(Align.center(project_text))
-
-        # If no bishops configured, show setup prompt
-        if not bishops or not pope:
-            setup_prompt = Text(
-                "\n→ Run 'synod config' to select your bishops and pope",
-                style="warning",
-                justify="center",
-            )
-            renderables.append(setup_prompt)
 
         # Group everything
         content_group = Group(*renderables)
