@@ -346,6 +346,7 @@ def parse_slash_command(text: str) -> Tuple[Optional[str], str]:
 def _register_default_commands():
     """Register the default set of slash commands."""
 
+    # ========== SESSION COMMANDS ==========
     register_command(
         "exit",
         "Exit the Synod session",
@@ -361,22 +362,9 @@ def _register_default_commands():
     )
 
     register_command(
-        "config",
-        "Open dashboard to manage your account",
-        aliases=["settings"],
-        category="configuration"
-    )
-
-    register_command(
-        "bishops",
-        "Open API keys page to configure models",
-        category="configuration"
-    )
-
-    register_command(
-        "pope",
-        "Open API keys page to configure models",
-        category="configuration"
+        "resume",
+        "Continue a previous session",
+        category="session"
     )
 
     register_command(
@@ -398,22 +386,94 @@ def _register_default_commands():
     )
 
     register_command(
-        "context",
-        "View current context usage across all bishops",
-        category="debug"
-    )
-
-    register_command(
-        "help",
-        "Show available commands and keyboard shortcuts",
-        aliases=["?"],
-        category="general"
-    )
-
-    register_command(
         "compact",
         "Compact conversation history to save context",
         category="session"
+    )
+
+    register_command(
+        "rewind",
+        "Undo recent changes and restore checkpoint",
+        aliases=["undo"],
+        category="session"
+    )
+
+    # ========== GIT COMMANDS ==========
+    register_command(
+        "commit",
+        "Create a commit with AI-generated message",
+        category="git"
+    )
+
+    register_command(
+        "pr",
+        "Create a pull request with debate-synthesized description",
+        category="git"
+    )
+
+    register_command(
+        "diff",
+        "Show and analyze current git changes",
+        category="git"
+    )
+
+    # ========== REVIEW COMMANDS ==========
+    register_command(
+        "review",
+        "Code review mode - critique without changes",
+        category="review"
+    )
+
+    register_command(
+        "critique",
+        "Run adversarial critique on specific files",
+        category="review"
+    )
+
+    # ========== CONFIGURATION COMMANDS ==========
+    register_command(
+        "config",
+        "Open dashboard to manage your account",
+        aliases=["settings"],
+        category="configuration"
+    )
+
+    register_command(
+        "bishops",
+        "Open API keys page to configure models",
+        category="configuration"
+    )
+
+    register_command(
+        "pope",
+        "Open API keys page to configure models",
+        category="configuration"
+    )
+
+    register_command(
+        "memory",
+        "View adversarial memory dashboard and stats",
+        category="configuration"
+    )
+
+    register_command(
+        "hooks",
+        "Configure automation hooks",
+        category="configuration"
+    )
+
+    # ========== WORKSPACE COMMANDS ==========
+    register_command(
+        "search",
+        "Intelligent code search with parallel strategies",
+        aliases=["find", "grep"],
+        category="workspace"
+    )
+
+    register_command(
+        "context",
+        "View current context usage across all bishops",
+        category="workspace"
     )
 
     register_command(
@@ -435,10 +495,24 @@ def _register_default_commands():
         category="workspace"
     )
 
+    # ========== GENERAL COMMANDS ==========
+    register_command(
+        "help",
+        "Show available commands and keyboard shortcuts",
+        aliases=["?"],
+        category="general"
+    )
+
     register_command(
         "version",
         "Show Synod version information",
         aliases=["v"],
+        category="general"
+    )
+
+    register_command(
+        "init",
+        "Initialize .synod/SYNOD.md for this project",
         category="general"
     )
 

@@ -27,7 +27,8 @@ from rich.spinner import Spinner
 from rich.syntax import Syntax
 from rich import box
 
-from .theme import PRIMARY, CYAN, ACCENT, SECONDARY, GOLD, GREEN, format_model_name
+from .theme import PRIMARY, CYAN, ACCENT, SECONDARY, GOLD, GREEN, GRAY, format_model_name
+from .auto_context import gather_auto_context, display_auto_context_summary
 
 console = Console()
 
@@ -240,6 +241,10 @@ def handle_event(state: DebateState, event: dict) -> None:
         state.error = event['message']
 
     # Tool execution events
+    elif event_type == 'tools_required':
+        # Receive debate_id early so we can send tool results back
+        state.debate_id = event['debate_id']
+
     elif event_type == 'tool_call':
         tool_call = ToolCall(
             call_id=event['call_id'],
@@ -623,6 +628,8 @@ async def stream_sse(
     context: Optional[str] = None,
     bishops: Optional[List[str]] = None,
     pope: Optional[str] = None,
+    project_path: Optional[str] = None,
+    files: Optional[Dict[str, str]] = None,  # Auto-context files
 ) -> AsyncIterator[dict]:
     """Stream SSE events from Synod Cloud.
 
@@ -630,12 +637,22 @@ async def stream_sse(
         Parsed SSE event dictionaries
     """
     payload = {"query": query}
+
+    # Build files payload (combines manual context with auto-context)
+    files_payload = {}
     if context:
-        payload["files"] = {"context": context}
+        files_payload["context"] = context
+    if files:
+        files_payload.update(files)
+    if files_payload:
+        payload["files"] = files_payload
+
     if bishops:
         payload["bishops"] = bishops
     if pope:
         payload["pope"] = pope
+    if project_path:
+        payload["project_path"] = project_path
 
     async with httpx.AsyncClient(timeout=300.0) as client:
         async with client.stream(
@@ -711,33 +728,164 @@ async def execute_tool_call(
         }
 
 
-async def send_tool_result(
+async def send_tool_results(
     api_url: str,
     api_key: str,
     debate_id: str,
-    result: Dict[str, Any],
-) -> bool:
-    """Send tool execution result back to the cloud."""
-    url = f"{api_url.rstrip('/').replace('/debate', '')}/debate/{debate_id}/tool-result"
+    results: List[Dict[str, Any]],
+) -> AsyncIterator[dict]:
+    """Send tool execution results back to the cloud and stream the response.
 
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                url,
-                headers={
-                    "Authorization": api_key,
-                    "Content-Type": "application/json",
-                },
-                json=result,
-            )
-            return response.status_code == 200
-    except Exception:
-        return False
+    Args:
+        api_url: Base API URL
+        api_key: Synod API key
+        debate_id: ID of the debate
+        results: List of tool results to send
+
+    Yields:
+        SSE events from the continued synthesis
+    """
+    # Construct the tool-result endpoint URL
+    base_url = api_url.rstrip('/').replace('/debate', '')
+    url = f"{base_url}/debate/{debate_id}/tool-result"
+
+    payload = {
+        "results": [
+            {
+                "call_id": r["call_id"],
+                "content": r.get("output", ""),
+                "is_error": r.get("status") == "error",
+            }
+            for r in results
+        ]
+    }
+
+    async with httpx.AsyncClient(timeout=300.0) as client:
+        async with client.stream(
+            "POST",
+            url,
+            headers={
+                "Authorization": api_key,
+                "Content-Type": "application/json",
+            },
+            json=payload,
+        ) as response:
+            if response.status_code != 200:
+                error_body = await response.aread()
+                try:
+                    error_json = json.loads(error_body)
+                    yield {"type": "error", "message": error_json.get("error", "Unknown error")}
+                except:
+                    yield {"type": "error", "message": f"HTTP {response.status_code}: {error_body.decode()}"}
+                return
+
+            async for line in response.aiter_lines():
+                if line.startswith("data: "):
+                    try:
+                        event = json.loads(line[6:])
+                        yield event
+                    except json.JSONDecodeError:
+                        pass
 
 
 # ============================================================
 # Main Entry Point
 # ============================================================
+
+async def process_events(
+    event_stream: AsyncIterator[dict],
+    state: DebateState,
+    live: Live,
+    api_url: str,
+    api_key: str,
+    work_dir: str,
+) -> bool:
+    """Process SSE events and handle tool calls.
+
+    Returns:
+        True if we have pending tool calls that need to be sent back
+    """
+    pending_tool_results: List[Dict[str, Any]] = []
+
+    async for event in event_stream:
+        event_type = event.get('type')
+
+        # Handle tool calls specially
+        if event_type == 'tool_call':
+            handle_event(state, event)
+            live.update(build_display(state))
+
+            # Execute the tool locally
+            if state.current_tool:
+                # Execute tool outside of live context for interactive prompts
+                live.stop()
+
+                result = await execute_tool_call(state.current_tool, work_dir)
+
+                live.start()
+                live.update(build_display(state))
+
+                # Store result for batch sending
+                pending_tool_results.append(result)
+
+        elif event_type == 'complete':
+            handle_event(state, event)
+            live.update(build_display(state))
+            # Debate is complete, no more tool calls
+            return False
+
+        elif event_type == 'error':
+            handle_event(state, event)
+            live.update(build_display(state))
+            return False
+
+        else:
+            handle_event(state, event)
+            live.update(build_display(state))
+
+        # Small delay for smoother animation
+        await asyncio.sleep(0.05)
+
+    # If we have pending tool results and a debate_id, we need to send them back
+    if pending_tool_results and state.debate_id:
+        # Send all tool results back to the cloud
+        async for event in send_tool_results(api_url, api_key, state.debate_id, pending_tool_results):
+            event_type = event.get('type')
+
+            if event_type == 'tool_call':
+                handle_event(state, event)
+                live.update(build_display(state))
+
+                # Execute the new tool
+                if state.current_tool:
+                    live.stop()
+                    result = await execute_tool_call(state.current_tool, work_dir)
+                    live.start()
+                    live.update(build_display(state))
+                    pending_tool_results.append(result)
+
+            elif event_type == 'complete':
+                handle_event(state, event)
+                live.update(build_display(state))
+                return False
+
+            elif event_type == 'error':
+                handle_event(state, event)
+                live.update(build_display(state))
+                return False
+
+            else:
+                handle_event(state, event)
+                live.update(build_display(state))
+
+            await asyncio.sleep(0.05)
+
+        # If we still have pending results after this round, recurse
+        if pending_tool_results:
+            return True
+
+    return False
+
 
 async def run_cloud_debate(
     api_key: str,
@@ -747,6 +895,7 @@ async def run_cloud_debate(
     pope: Optional[str] = None,
     api_url: str = "https://api.synod.run/debate",
     working_directory: Optional[str] = None,
+    project_path: Optional[str] = None,
 ) -> DebateState:
     """Run a debate via Synod Cloud with live display.
 
@@ -758,48 +907,107 @@ async def run_cloud_debate(
         pope: Optional pope model to use
         api_url: Cloud API URL
         working_directory: Directory for tool execution (default: cwd)
+        project_path: Project path for memory scoping (default: working_directory)
 
     Returns:
         Final DebateState with results
     """
     state = DebateState()
     work_dir = working_directory or os.getcwd()
+    proj_path = project_path or work_dir
+
+    # Gather auto-context (zero-latency, runs in parallel with user seeing spinner)
+    auto_files, auto_file_paths = await gather_auto_context(
+        query=query,
+        root_path=proj_path,
+    )
+    if auto_file_paths:
+        display_auto_context_summary(auto_files, auto_file_paths)
 
     with Live(console=console, refresh_per_second=8, transient=True) as live:
-        async for event in stream_sse(api_url, api_key, query, context, bishops, pope):
+        # Process initial debate stream with auto-context
+        event_stream = stream_sse(
+            url=api_url,
+            api_key=api_key,
+            query=query,
+            context=context,
+            bishops=bishops,
+            pope=pope,
+            project_path=proj_path,
+            files=auto_files if auto_files else None,
+        )
+
+        pending_tool_results: List[Dict[str, Any]] = []
+
+        async for event in event_stream:
             event_type = event.get('type')
 
-            # Handle tool calls specially
+            # Handle tool calls
             if event_type == 'tool_call':
                 handle_event(state, event)
                 live.update(build_display(state))
 
-                # Execute the tool locally
                 if state.current_tool:
-                    live.update(build_display(state))
-
-                    # Execute tool outside of live context for interactive prompts
+                    # Execute tool (stop live for prompts)
                     live.stop()
-
                     result = await execute_tool_call(state.current_tool, work_dir)
-
                     live.start()
                     live.update(build_display(state))
+                    pending_tool_results.append(result)
 
-                    # Send result back to cloud if we have a debate_id
-                    if state.debate_id:
-                        await send_tool_result(api_url, api_key, state.debate_id, result)
-                    else:
-                        # Store for later - debate_id comes in 'complete' event
-                        state.current_tool.result = result.get('output', '')
-                        state.current_tool.error = result.get('error')
+            elif event_type == 'complete':
+                handle_event(state, event)
+                live.update(build_display(state))
+
+            elif event_type == 'error':
+                handle_event(state, event)
+                live.update(build_display(state))
 
             else:
                 handle_event(state, event)
                 live.update(build_display(state))
 
-            # Small delay for smoother animation
             await asyncio.sleep(0.05)
+
+        # Handle tool result loop if we have pending tools
+        MAX_TOOL_ROUNDS = 10
+        round_count = 0
+
+        while pending_tool_results and state.debate_id and round_count < MAX_TOOL_ROUNDS:
+            round_count += 1
+            results_to_send = pending_tool_results[:]
+            pending_tool_results.clear()
+
+            # Send results and process response
+            async for event in send_tool_results(api_url, api_key, state.debate_id, results_to_send):
+                event_type = event.get('type')
+
+                if event_type == 'tool_call':
+                    handle_event(state, event)
+                    live.update(build_display(state))
+
+                    if state.current_tool:
+                        live.stop()
+                        result = await execute_tool_call(state.current_tool, work_dir)
+                        live.start()
+                        live.update(build_display(state))
+                        pending_tool_results.append(result)
+
+                elif event_type == 'complete':
+                    handle_event(state, event)
+                    live.update(build_display(state))
+                    pending_tool_results.clear()  # Done
+
+                elif event_type == 'error':
+                    handle_event(state, event)
+                    live.update(build_display(state))
+                    pending_tool_results.clear()  # Stop on error
+
+                else:
+                    handle_event(state, event)
+                    live.update(build_display(state))
+
+                await asyncio.sleep(0.05)
 
     # Final render (non-transient)
     console.print(build_display(state))

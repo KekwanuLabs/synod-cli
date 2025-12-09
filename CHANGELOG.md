@@ -5,6 +5,20 @@ All notable changes to Synod will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2025-12-09
+
+### Added
+- **Automatic code context**: Synod now intelligently includes relevant files before debates start
+  - Zero-latency query analysis (regex-based, no LLM calls)
+  - Detects file mentions and symbol names in your queries
+  - Memory-guided context boosting from past insights
+- **`/search` command**: Search your codebase with parallel strategies (ripgrep, glob, symbol search)
+- **Memory-code linking**: Memories now track which files they relate to for smarter retrieval
+
+### Changed
+- Debates are now more accurate due to automatic inclusion of relevant code context
+- Memory system stores file path associations for project-scoped memories
+
 ## [0.3.0] - 2025-11-27
 
 ### Added

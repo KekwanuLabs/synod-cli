@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Optional
 
 from synod.core.cloud_debate import run_cloud_debate
-from synod.core.theme import PRIMARY, CYAN, GOLD, GREEN, SynodStyles
+from synod.core.theme import PRIMARY, CYAN, GOLD, GREEN, ACCENT, SynodStyles
 from synod.core.display import (
     show_launch_screen,
     animate_logo,
@@ -29,11 +29,41 @@ from synod.core.display import (
     TAGLINE,
     SUBTITLE,
 )
-from synod.core.session import get_current_session
+from synod.core.session import get_current_session, get_recent_sessions
 from synod.core.indexer import quick_index
 from synod.core.chat_interface import SynodChatInterface
 from synod.core.archives import CouncilArchives
 from synod.core.slash_commands import get_command, parse_slash_command, get_all_commands
+from synod.core.project_context import (
+    load_project_context,
+    display_context_on_startup,
+    handle_init_command,
+    handle_memory_command,
+)
+from synod.core.checkpoints import (
+    get_checkpoint_manager,
+    handle_rewind_command,
+    create_checkpoint,
+)
+from synod.core.hooks import (
+    get_hook_manager,
+    run_hooks,
+    handle_hooks_command,
+    HookEvent,
+)
+from synod.core.git_commands import (
+    handle_diff_command,
+    handle_commit_command,
+    handle_pr_command,
+    review_pr,
+    is_git_repo,
+)
+from synod.core.custom_commands import (
+    initialize_custom_commands,
+    get_custom_command,
+    is_custom_command,
+    display_custom_commands,
+)
 
 # ============================================================================
 # CONFIG - API Key storage
@@ -633,6 +663,68 @@ def whoami():
 
 
 @app.command()
+def review(
+    pr: Optional[int] = typer.Option(None, "--pr", "-p", help="PR number to review"),
+    diff: bool = typer.Option(False, "--diff", "-d", help="Review current uncommitted changes"),
+):
+    """
+    Run adversarial code review on a PR or diff.
+
+    Each bishop AI reviews the code independently, then the Pope synthesizes
+    the best critique. This catches issues that single-model reviews miss.
+
+    Examples:
+        synod review --pr 123    # Review PR #123
+        synod review --diff      # Review uncommitted changes
+    """
+    api_key = get_api_key()
+    if not api_key:
+        show_onboarding_required()
+        return
+
+    if not is_git_repo():
+        console.print(f"\n[red]Not a git repository[/red]\n")
+        raise typer.Exit(1)
+
+    async def run_review():
+        # Create a debate runner function
+        async def debate_fn(query, context):
+            return await run_cloud_debate(
+                api_key=api_key,
+                query=query,
+                context=context,
+            )
+
+        if pr:
+            await review_pr(pr_number=pr, run_debate_fn=debate_fn)
+        elif diff:
+            await handle_diff_command()
+            # Run review on current changes
+            from synod.core.git_commands import get_git_diff
+            diff_content = get_git_diff()
+            if diff_content:
+                query = f"""Review this code diff for issues:
+
+```diff
+{diff_content[:15000]}
+```
+
+Provide a thorough code review covering:
+1. Critical issues (bugs, security)
+2. Moderate issues (performance, edge cases)
+3. Minor issues (style, naming)
+4. What's good about these changes"""
+                await debate_fn(query, None)
+            else:
+                console.print("[yellow]No changes to review[/yellow]")
+        else:
+            # Try to find PR for current branch
+            await review_pr(pr_number=None, run_debate_fn=debate_fn)
+
+    asyncio.run(run_review())
+
+
+@app.command()
 def status():
     """Show your Synod account status and usage."""
     import httpx
@@ -726,6 +818,7 @@ async def _handle_slash_command(
     args: str,
     session,
     archives,
+    debate_fn=None,
 ) -> bool:
     """Handle a slash command.
 
@@ -734,13 +827,16 @@ async def _handle_slash_command(
         args: Arguments passed to the command
         session: Current session
         archives: Council archives
+        debate_fn: Function to run a debate (for commands that need it)
 
     Returns:
         True if the session should exit, False to continue
     """
     from synod.core.session import display_session_summary
     from rich.table import Table
+    from datetime import datetime
 
+    # ========== SESSION COMMANDS ==========
     if command in ['exit', 'quit', 'q']:
         # Exit command
         try:
@@ -759,18 +855,20 @@ async def _handle_slash_command(
         console.print(f"[dim]Starting fresh with empty context.[/dim]\n")
         return False
 
-    elif command in ['config', 'settings']:
-        # Open dashboard in browser
-        console.print(f"\n[{CYAN}]Opening dashboard in browser...[/{CYAN}]")
-        console.print(f"[dim]Manage your account at synod.run/dashboard[/dim]\n")
-        webbrowser.open("https://synod.run/dashboard")
-        return False
+    elif command == 'resume':
+        # Resume a previous session
+        sessions = get_recent_sessions(limit=10)
+        if not sessions:
+            console.print(f"\n[{CYAN}]No sessions to resume.[/{CYAN}]\n")
+            return False
 
-    elif command in ['bishops', 'pope']:
-        # Open API keys page where BYOK models are configured
-        console.print(f"\n[{CYAN}]Model selection is configured via API keys.[/{CYAN}]")
-        console.print(f"[dim]Opening API keys page...[/dim]\n")
-        webbrowser.open("https://synod.run/dashboard/keys")
+        console.print(f"\n[{CYAN}]Recent Sessions:[/{CYAN}]\n")
+        for i, s in enumerate(sessions, 1):
+            date_str = datetime.fromtimestamp(s.start_time).strftime("%Y-%m-%d %H:%M")
+            console.print(f"  {i}. {date_str} - {s.debates} debates, ${s.total_cost:.4f}")
+
+        console.print(f"\n[dim]Session context will be restored in a future update.[/dim]")
+        console.print(f"[dim]For now, use /history to view past sessions.[/dim]\n")
         return False
 
     elif command == 'cost':
@@ -781,49 +879,9 @@ async def _handle_slash_command(
         console.print(f"[dim]  Debates: {session.debates}[/dim]\n")
         return False
 
-    elif command == 'context':
-        # Show context usage (simplified - no local pope model)
-        tokens_used = session.total_tokens
-        console.print(f"\n[{CYAN}]Session Context:[/{CYAN}]")
-        console.print(f"[dim]  Total Tokens: {tokens_used:,}[/dim]")
-        console.print(f"[dim]  View full usage at synod.run/dashboard[/dim]\n")
-        return False
-
-    elif command in ['help', '?']:
-        # Show help with all commands
-        console.print(f"\n[{CYAN}]Available Commands:[/{CYAN}]\n")
-
-        table = Table(show_header=False, box=None, padding=(0, 2))
-        table.add_column("Command", style=CYAN, width=25)
-        table.add_column("Description", style="dim")
-
-        for cmd in get_all_commands():
-            display = cmd.display_name
-            table.add_row(display, cmd.description)
-
-        console.print(table)
-        console.print(f"\n[dim]Type / followed by a command name, or just / to see the menu.[/dim]\n")
-        return False
-
-    elif command == 'compact':
-        # Compact conversation
-        console.print(f"\n[{CYAN}]Compacting conversation history...[/{CYAN}]")
-        # Archives auto-compact, but we can trigger it
-        archives.compact()
-        console.print(f"[{GREEN}]✓ Conversation compacted![/{GREEN}]\n")
-        return False
-
-    elif command in ['version', 'v']:
-        # Show version
-        console.print(f"\n[{CYAN}]Synod v{VERSION}[/{CYAN}]")
-        console.print(f"[dim]{TAGLINE_FULL}[/dim]\n")
-        return False
-
     elif command == 'history':
         # Show recent history
-        from synod.core.session import get_recent_sessions
         sessions = get_recent_sessions(limit=5)
-
         if not sessions:
             console.print(f"\n[{CYAN}]No session history found.[/{CYAN}]\n")
         else:
@@ -839,6 +897,127 @@ async def _handle_slash_command(
         display_session_summary(session)
         return False
 
+    elif command == 'compact':
+        # Compact conversation
+        console.print(f"\n[{CYAN}]Compacting conversation history...[/{CYAN}]")
+        archives.compact()
+        console.print(f"[{GREEN}]✓ Conversation compacted![/{GREEN}]\n")
+        return False
+
+    elif command in ['rewind', 'undo']:
+        # Checkpoint/undo system
+        await handle_rewind_command(args)
+        return False
+
+    # ========== GIT COMMANDS ==========
+    elif command == 'commit':
+        await handle_commit_command(args, run_debate_fn=debate_fn)
+        return False
+
+    elif command == 'pr':
+        await handle_pr_command(args, run_debate_fn=debate_fn)
+        return False
+
+    elif command == 'diff':
+        await handle_diff_command(args)
+        return False
+
+    # ========== REVIEW COMMANDS ==========
+    elif command == 'review':
+        # Code review mode
+        if args.strip():
+            # Review specific file or PR
+            target = args.strip()
+            if target.isdigit():
+                await review_pr(pr_number=int(target), run_debate_fn=debate_fn)
+            else:
+                # Review a file
+                if os.path.exists(target):
+                    with open(target, 'r') as f:
+                        content = f.read()
+                    query = f"""Review this file for issues:
+
+File: {target}
+```
+{content[:15000]}
+```
+
+Provide a thorough code review."""
+                    if debate_fn:
+                        await debate_fn(query, None)
+                else:
+                    console.print(f"[red]File not found: {target}[/red]")
+        else:
+            console.print(f"\n[{CYAN}]Usage: /review <file|pr-number>[/{CYAN}]")
+            console.print(f"[dim]Or run: synod review --pr 123[/dim]\n")
+        return False
+
+    elif command == 'critique':
+        # Critique specific files
+        if args.strip():
+            files = args.strip().split()
+            content_parts = []
+            for f in files:
+                if os.path.exists(f):
+                    with open(f, 'r') as fp:
+                        content_parts.append(f"### {f}\n```\n{fp.read()[:5000]}\n```")
+
+            if content_parts and debate_fn:
+                query = f"""Run an adversarial critique on this code:
+
+{chr(10).join(content_parts)}
+
+Identify:
+1. Security vulnerabilities
+2. Performance issues
+3. Bug risks
+4. Improvements"""
+                await debate_fn(query, None)
+        else:
+            console.print(f"\n[{CYAN}]Usage: /critique <file1> [file2] ...[/{CYAN}]\n")
+        return False
+
+    # ========== CONFIGURATION COMMANDS ==========
+    elif command in ['config', 'settings']:
+        # Open dashboard in browser
+        console.print(f"\n[{CYAN}]Opening dashboard in browser...[/{CYAN}]")
+        console.print(f"[dim]Manage your account at synod.run/dashboard[/dim]\n")
+        webbrowser.open("https://synod.run/dashboard")
+        return False
+
+    elif command in ['bishops', 'pope']:
+        # Open API keys page
+        console.print(f"\n[{CYAN}]Model selection is configured via API keys.[/{CYAN}]")
+        console.print(f"[dim]Opening API keys page...[/dim]\n")
+        webbrowser.open("https://synod.run/dashboard/keys")
+        return False
+
+    elif command == 'memory':
+        # Get API key for cloud memory visualization
+        api_key = get_api_key()
+        project_path = os.getcwd()
+        await handle_memory_command(args, api_key=api_key, project_path=project_path)
+        return False
+
+    elif command == 'hooks':
+        await handle_hooks_command(args)
+        return False
+
+    # ========== WORKSPACE COMMANDS ==========
+    elif command in ('search', 'find', 'grep'):
+        # Intelligent code search with parallel strategies
+        from .core.code_search import handle_search_command
+        await handle_search_command(args, root_path=os.getcwd())
+        return False
+
+    elif command == 'context':
+        # Show context usage
+        tokens_used = session.total_tokens
+        console.print(f"\n[{CYAN}]Session Context:[/{CYAN}]")
+        console.print(f"[dim]  Total Tokens: {tokens_used:,}[/dim]")
+        console.print(f"[dim]  View full usage at synod.run/dashboard[/dim]\n")
+        return False
+
     elif command in ['index', 'reindex']:
         # Re-index workspace
         console.print(f"\n[{CYAN}]Re-indexing workspace...[/{CYAN}]")
@@ -849,15 +1028,14 @@ async def _handle_slash_command(
         return False
 
     elif command == 'files':
-        # List indexed files - use quick_index which loads from cache
+        # List indexed files
         indexed = quick_index(os.getcwd())
-
         if not indexed or not indexed.files:
             console.print(f"\n[{CYAN}]No files indexed yet.[/{CYAN}]")
             console.print(f"[dim]Run /index to index the workspace.[/dim]\n")
         else:
             console.print(f"\n[{CYAN}]Indexed Files ({len(indexed.files)}):[/{CYAN}]")
-            for f in indexed.files[:20]:  # Show first 20
+            for f in indexed.files[:20]:
                 console.print(f"[dim]  {f}[/dim]")
             if len(indexed.files) > 20:
                 console.print(f"[dim]  ... and {len(indexed.files) - 20} more[/dim]")
@@ -875,7 +1053,6 @@ async def _handle_slash_command(
                 try:
                     with open(file_path, 'r', encoding='utf-8') as f:
                         content = f.read()
-                    # Add as a synthetic exchange so it appears in context
                     archives.add_exchange(
                         query=f"[User added file: {file_path}]",
                         synthesis=f"```\n{content[:5000]}\n```" if len(content) > 5000 else f"```\n{content}\n```"
@@ -887,9 +1064,46 @@ async def _handle_slash_command(
                 console.print(f"[{ACCENT}]File not found: {file_path}[/{ACCENT}]\n")
         return False
 
+    # ========== GENERAL COMMANDS ==========
+    elif command in ['help', '?']:
+        # Show help with all commands
+        console.print(f"\n[{CYAN}]Available Commands:[/{CYAN}]\n")
+
+        table = Table(show_header=False, box=None, padding=(0, 2))
+        table.add_column("Command", style=CYAN, width=25)
+        table.add_column("Description", style="dim")
+
+        for cmd in get_all_commands():
+            display = cmd.display_name
+            table.add_row(display, cmd.description)
+
+        console.print(table)
+        console.print(f"\n[dim]Type / followed by a command name, or just / to see the menu.[/dim]\n")
+        return False
+
+    elif command in ['version', 'v']:
+        # Show version
+        console.print(f"\n[{CYAN}]Synod v{VERSION}[/{CYAN}]")
+        console.print(f"[dim]{TAGLINE_FULL}[/dim]\n")
+        return False
+
+    elif command == 'init':
+        await handle_init_command(args)
+        return False
+
+    # ========== CUSTOM COMMANDS ==========
+    elif is_custom_command(command):
+        custom_cmd = get_custom_command(command)
+        if custom_cmd and debate_fn:
+            prompt = custom_cmd.render_prompt(args)
+            console.print(f"\n[{CYAN}]Running custom command: /{command}[/{CYAN}]\n")
+            await debate_fn(prompt, None)
+        return False
+
     else:
-        # Unknown command (shouldn't reach here if get_command worked)
-        console.print(f"[{ACCENT}]Command /{command} not implemented yet.[/{ACCENT}]\n")
+        # Unknown command
+        console.print(f"[{ACCENT}]Unknown command: /{command}[/{ACCENT}]")
+        console.print(f"[dim]Type /help to see available commands[/dim]\n")
         return False
 
 
@@ -912,6 +1126,21 @@ async def _interactive_session():
         import sys
         sys.exit(0)
 
+    # Load project context (.synod/SYNOD.md)
+    project_context = load_project_context(project_path)
+
+    # Initialize custom commands from .synod/commands/
+    initialize_custom_commands(project_path)
+
+    # Initialize checkpoint manager
+    checkpoint_manager = get_checkpoint_manager(project_path)
+
+    # Initialize hook manager
+    hook_manager = get_hook_manager(project_path)
+
+    # Run session start hooks
+    run_hooks(HookEvent.SESSION_START, working_directory=project_path)
+
     # Index project files (silently if already indexed, with progress if new)
     from synod.core.indexer import is_workspace_indexed
     already_indexed = is_workspace_indexed(project_path)
@@ -932,6 +1161,9 @@ async def _interactive_session():
         animate=True,
     )
 
+    # Show loaded context info
+    display_context_on_startup(project_context)
+
     # Show welcome
     welcome_text = Text()
     welcome_text.append("Synod Interactive Session\n", style=f"bold {PRIMARY}")
@@ -944,8 +1176,45 @@ async def _interactive_session():
     # Initialize Council Archives for context management
     archives = CouncilArchives(max_tokens=100000)
 
+    # Add project context to archives if present
+    if project_context.has_context:
+        archives.add_exchange(
+            query="[Project context loaded]",
+            synthesis=project_context.get_combined_context()
+        )
+
     # Initialize chat interface
     chat = SynodChatInterface()
+
+    # Get API key for debate function
+    api_key = get_api_key()
+
+    # Create debate function for slash commands
+    async def debate_fn(query: str, context: str = None):
+        """Run a debate via cloud."""
+        full_context = context or ""
+        if archives:
+            ctx_str = archives.get_context_for_debate()
+            if ctx_str:
+                full_context = f"{ctx_str}\n\n{full_context}" if full_context else ctx_str
+
+        state = await run_cloud_debate(
+            api_key=api_key,
+            query=query,
+            context=full_context if full_context else None,
+        )
+
+        session = get_current_session()
+        session.record_debate()
+        if state.total_tokens:
+            session.total_tokens += state.total_tokens
+        if state.cost_usd:
+            session.total_cost += state.cost_usd
+
+        if archives and state.pope_content:
+            archives.add_exchange(query=query, synthesis=state.pope_content)
+
+        return state
 
     message_queue = []
 
@@ -978,6 +1247,9 @@ async def _interactive_session():
                 except Exception as e:
                     console.print(f"[dim]Warning: Could not save session: {e}[/dim]")
 
+                # Run session end hooks
+                run_hooks(HookEvent.SESSION_END, working_directory=project_path)
+
                 console.print(f"\n[{GOLD}]👋 Goodbye! Session ended.[/{GOLD}]")
                 display_session_summary(session)
                 break
@@ -992,17 +1264,23 @@ async def _interactive_session():
                 if command_name:
                     cmd = get_command(command_name)
 
-                    if cmd:
-                        # Handle built-in commands
+                    if cmd or is_custom_command(command_name):
+                        # Handle built-in or custom commands
                         should_exit = await _handle_slash_command(
-                            cmd.name, args, session, archives
+                            cmd.name if cmd else command_name,
+                            args,
+                            session,
+                            archives,
+                            debate_fn=debate_fn,
                         )
                         if should_exit:
+                            # Run session end hooks
+                            run_hooks(HookEvent.SESSION_END, working_directory=project_path)
                             break
                         continue
                     else:
                         console.print(f"[{ACCENT}]Unknown command: /{command_name}[/{ACCENT}]")
-                        console.print(f"[dim]Type / to see available commands[/dim]\n")
+                        console.print(f"[dim]Type /help to see available commands[/dim]\n")
                         continue
 
             # Check for exit commands (explicit or natural language)
@@ -1018,15 +1296,27 @@ async def _interactive_session():
                 except Exception as e:
                     console.print(f"[dim]Warning: Could not save session: {e}[/dim]")
 
+                # Run session end hooks
+                run_hooks(HookEvent.SESSION_END, working_directory=project_path)
+
                 # Display summary
                 console.print(f"\n[{GOLD}]👋 Goodbye! Session ended.[/{GOLD}]")
                 display_session_summary(session)
                 break
 
+            # Run pre-debate hooks
+            hook_result = run_hooks(HookEvent.PRE_DEBATE, query=user_input, working_directory=project_path)
+            if not hook_result.allow:
+                console.print(f"[yellow]Blocked by hook: {hook_result.message}[/yellow]\n")
+                continue
+
             # Run query via cloud
             try:
                 await _arun_query(user_input, "", archives=archives)
                 console.print()
+
+                # Run post-debate hooks
+                run_hooks(HookEvent.POST_DEBATE, query=user_input, working_directory=project_path)
 
                 # Process queued messages if any
                 if message_queue:
@@ -1054,10 +1344,14 @@ async def _interactive_session():
             except Exception as e:
                 console.print(f"[dim]Warning: Could not save session: {e}[/dim]")
 
+            # Run session end hooks
+            run_hooks(HookEvent.SESSION_END, working_directory=project_path)
+
             # Display summary
             display_session_summary(session)
             break
         except EOFError:
+            run_hooks(HookEvent.SESSION_END, working_directory=project_path)
             break
 
 def main():

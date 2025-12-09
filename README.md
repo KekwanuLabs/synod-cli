@@ -4,7 +4,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 
-**Ancient Councils. Modern Intelligence. Open Source.**
+**Ancient Councils. Modern Intelligence. Adversarial Memory.**
+
+> *Memory you can trust. Every insight verified by multiple AI models, hardened by adversarial debate.*
 
 [Website](https://synod.run) | [Dashboard](https://synod.run/dashboard) | [PyPI](https://pypi.org/project/synod-cli/)
 
@@ -37,6 +39,45 @@ Instead of asking one AI and hoping it doesn't hallucinate, Synod convenes a cou
 - The **Pope** (the most capable model) observes silently, then synthesizes the best answer
 
 The result: battle-tested solutions that survive adversarial review.
+
+## Adversarial Memory
+
+Synod memories are **verified by multiple AI models before storage**. Every insight is battle-tested through debate.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Synod Adversarial Memory:                                  │
+│                                                             │
+│    Claude ──┐                                               │
+│    GPT ─────┼→ Critique each other → Pope verifies → Store │
+│    Gemini ──┘                           ↑                   │
+│                                   (Battle-tested)           │
+│                                                             │
+│  Confidence = f(consensus, critique_survival, rounds)       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Why it matters:**
+- Memories from high-consensus debates get higher confidence scores
+- Insights that survived adversarial critique are more trustworthy
+- Skills are only learned when multiple models agreed on the approach
+- Automatic decay removes stale memories over time
+- Cross-project learning from your coding patterns
+
+**What Synod remembers:**
+- Your coding preferences and patterns
+- Project architecture and conventions
+- Known bugs and gotchas
+- Why certain decisions were made
+- Successful approaches (skills) to reuse
+
+**Memory Commands:**
+```bash
+synod> /memory           # View memory stats
+synod> /memory show      # Display all memories
+synod> /memory graph     # Visualize memory relationships
+synod> /memory clear     # Clear project memories
+```
 
 ## Quick Start
 
@@ -140,6 +181,7 @@ With Synod:
 - Query classification skips debate for trivial questions
 - Consensus detection exits early when models agree
 - Parallel execution for speed
+- Automatic code context (includes relevant files without you asking)
 
 ### Privacy-First Memory
 - Learns from your sessions (patterns, not raw code)
@@ -150,6 +192,85 @@ With Synod:
 - Real-time streaming with rich formatting
 - Animated debate stages
 - Interactive REPL mode
+
+### Project Context (SYNOD.md)
+Like Claude Code's CLAUDE.md, Synod reads project instructions from:
+- `.synod/SYNOD.md` - Project-specific guidelines (commit to git)
+- `.synod/SYNOD.local.md` - Local preferences (gitignored)
+- `~/.synod/SYNOD.md` - User-wide preferences
+
+```bash
+synod> /init          # Create .synod/SYNOD.md
+synod> /memory        # View loaded context
+synod> /memory show   # Display full context
+```
+
+### Custom Slash Commands
+Create reusable prompts as markdown files:
+
+```bash
+# Create .synod/commands/review.md
+---
+description: Run security review
+---
+Review this code for security vulnerabilities: $ARGUMENTS
+```
+
+Then use it: `synod> /review src/auth.py`
+
+Supports `$ARGUMENTS`, `$1`, `$2` for argument interpolation.
+
+### Git Integration
+AI-powered git workflow:
+
+```bash
+synod> /diff          # Show current changes
+synod> /commit        # AI-generated commit message
+synod> /pr            # Create PR with AI description
+```
+
+### Adversarial Code Review
+Run adversarial review on PRs or diffs:
+
+```bash
+synod review --pr 123   # Review PR #123
+synod review --diff     # Review uncommitted changes
+
+synod> /review 123      # Review PR in interactive mode
+synod> /critique file.py  # Critique specific files
+```
+
+### Hooks System
+Automate workflows with hooks (like git hooks, but for AI):
+
+```json
+// .synod/hooks.json
+{
+  "hooks": [
+    {
+      "name": "format-on-edit",
+      "event": "post_tool_use",
+      "command": "if [ \"$SYNOD_TOOL\" = \"file_editor\" ]; then npx prettier --write \"$SYNOD_FILE\"; fi"
+    }
+  ]
+}
+```
+
+Available events: `pre_tool_use`, `post_tool_use`, `session_start`, `session_end`, `pre_debate`, `post_debate`, `file_modified`
+
+```bash
+synod> /hooks                  # List configured hooks
+synod> /hooks add <name> <event> <command>
+synod> /hooks remove <name>
+```
+
+### Checkpoint/Undo System
+Automatic checkpoints before file changes:
+
+```bash
+synod> /rewind            # Show available checkpoints
+synod> /rewind <id>       # Restore specific checkpoint
+```
 
 ## Pricing
 
@@ -169,6 +290,8 @@ synod login        # Authenticate via browser
 synod logout       # Clear credentials
 synod whoami       # Show current user
 synod status       # Check account status
+synod review --pr 123  # Adversarial PR review
+synod review --diff    # Review uncommitted changes
 synod --help       # All commands
 ```
 
@@ -176,10 +299,46 @@ synod --help       # All commands
 
 ```
 synod> How do I implement a LRU cache?
-synod> /help       # Show commands
+synod> /help       # Show all commands
 synod> /clear      # New conversation
 synod> /exit       # Quit
 ```
+
+### All Slash Commands
+
+| Command | Description |
+|---------|-------------|
+| **Session** | |
+| `/exit`, `/quit`, `/q` | Exit the session |
+| `/clear`, `/reset`, `/new` | Clear conversation history |
+| `/resume` | Load previous session |
+| `/cost` | Show session cost |
+| `/history` | View recent sessions |
+| `/stats` | Detailed session statistics |
+| `/compact` | Compact conversation history |
+| `/rewind` | Undo changes from checkpoints |
+| **Git** | |
+| `/commit` | AI-generated commit message |
+| `/pr` | Create PR with AI description |
+| `/diff` | Show current changes |
+| **Review** | |
+| `/review <file\|pr>` | Run code review |
+| `/critique <files>` | Adversarial critique |
+| **Configuration** | |
+| `/config` | Open dashboard |
+| `/bishops`, `/pope` | Configure models (via web) |
+| `/memory` | View project context |
+| `/hooks` | Manage automation hooks |
+| **Workspace** | |
+| `/context` | Show context usage |
+| `/index` | Re-index workspace |
+| `/files` | List indexed files |
+| `/add <file>` | Add file to context |
+| `/search <query>` | Search codebase |
+| `/init` | Create .synod/SYNOD.md |
+| **General** | |
+| `/help`, `/?` | Show all commands |
+| `/version` | Show version |
 
 ## Security
 
@@ -206,11 +365,22 @@ The Council will be able to read, edit, and execute files here.
 - **Memory is semantic** - Only extracted insights are stored as embeddings, not raw text
 - **BYOK available** - Use your own API keys; we never see them (encrypted at rest)
 
-### Credentials
+### Credentials & Config Files
 
-- Stored locally at `~/.synod/config.json`
-- API key format: `sk_...`
-- Never committed to git (add `.synod/` to `.gitignore`)
+**User-level** (`~/.synod/`):
+- `config.json` - API key and settings
+- `SYNOD.md` - User-wide AI instructions
+- `commands/` - Custom slash commands
+- `hooks.json` - User-level hooks
+
+**Project-level** (`.synod/`):
+- `SYNOD.md` - Project guidelines (commit to git)
+- `SYNOD.local.md` - Local preferences (gitignored)
+- `commands/` - Project slash commands
+- `hooks.json` - Project hooks
+- `checkpoints/` - Auto-saved undo points
+
+API key format: `sk_...`
 
 ## Architecture
 
