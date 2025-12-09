@@ -9,14 +9,13 @@ This module handles:
 import os
 import json
 from pathlib import Path
-from typing import Optional
 from rich.console import Console
-from rich.panel import Panel
-from rich.prompt import Prompt
 from rich.text import Text
 
-from .config import CONFIG_DIR
-from .theme import PRIMARY, GOLD, GREEN, CYAN
+from .theme import GREEN, CYAN
+
+# Config directory for Synod CLI
+CONFIG_DIR = os.path.join(Path.home(), ".synod-cli")
 
 # File to store trusted workspaces
 TRUSTED_WORKSPACES_FILE = os.path.join(CONFIG_DIR, "trusted_workspaces.json")
@@ -88,7 +87,7 @@ async def prompt_workspace_trust(workspace_path: str) -> bool:
 
     # Security guide
     workspace_text.append(
-        " Security guide: https://docs.synod.dev/security\n\n",
+        " Learn more: https://github.com/KekwanuLabs/synod-cli#security\n\n",
         style="dim"
     )
 
