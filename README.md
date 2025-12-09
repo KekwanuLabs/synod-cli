@@ -20,7 +20,7 @@
 
 For centuries, the most important decisions weren't made by a single authority. They were forged through **structured debate**.
 
-In ecclesiastical councils—called *synods*—bishops from different regions would gather, each bringing their own perspective. They'd propose, critique, and challenge each other's positions. Only after rigorous discourse would the presiding authority synthesize a final judgment, drawing from the best arguments presented.
+In ecclesiastical councils (called *synods*), bishops from different regions would gather, each bringing their own perspective. They'd propose, critique, and challenge each other's positions. Only after rigorous discourse would the presiding authority synthesize a final judgment, drawing from the best arguments presented.
 
 This model of collective intelligence solved a fundamental problem: **no single perspective, however wise, captures the whole truth.**
 
@@ -89,7 +89,7 @@ That's it. No API keys to copy, no configuration files.
 Before convening the council, Synod analyzes your query. Trivial questions get fast answers. Complex problems get full debates.
 
 **Stage 1: Bishop Proposals**
-Multiple AI models independently propose solutions in parallel. Each brings different strengths—Claude for reasoning, GPT for breadth, DeepSeek for algorithms.
+Multiple AI models independently propose solutions in parallel. Each brings different strengths: Claude for reasoning, GPT for breadth, DeepSeek for algorithms.
 
 **Stage 2: Adversarial Critiques**
 Here's where the magic happens. Each Bishop reviews the others' proposals like a hostile code reviewer. They hunt for:
@@ -101,7 +101,7 @@ Here's where the magic happens. Each Bishop reviews the others' proposals like a
 If the Bishops agree (high consensus), we skip to synthesis. If they disagree, they debate until convergence.
 
 **Stage 3: Pope Synthesis**
-The Pope has been watching silently—observing proposals and critiques without bias. Now it synthesizes the final answer, combining the best ideas:
+The Pope has been watching silently, observing proposals and critiques without bias. Now it synthesizes the final answer, combining the best ideas:
 
 > *"Algorithm from DeepSeek, error handling from Claude, but I'm adding input validation they all missed."*
 
@@ -245,7 +245,7 @@ The CLI is a thin client. All debate orchestration happens in Synod Cloud.
 
 ## The Name
 
-A **synod** (from Greek *σύνοδος*, "assembly") is a council of church officials convened to decide on matters of doctrine. The most famous—the Council of Nicaea in 325 AD—brought together bishops from across the Roman Empire to debate and establish foundational Christian doctrine.
+A **synod** (from Greek *σύνοδος*, "assembly") is a council of church officials convened to decide on matters of doctrine. The most famous, the Council of Nicaea in 325 AD, brought together bishops from across the Roman Empire to debate and establish foundational Christian doctrine.
 
 We borrowed the model, not the religion:
 - **Bishops**: Independent experts who propose and critique

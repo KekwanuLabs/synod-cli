@@ -167,7 +167,7 @@ def display_session_summary(session: SynodSession) -> None:
     summary.append(f"Tokens:         {session.total_tokens:,}\n", style="dim")
     summary.append(f"Cost:           ${session.total_cost:.4f}\n\n", style="dim")
 
-    summary.append("[dim]Full usage details at synod.run/dashboard[/dim]", style="dim")
+    summary.append("Full usage details at synod.run/dashboard", style="dim")
 
     console.print(Panel(summary, border_style="cyan", box=ROUNDED))
     console.print()
