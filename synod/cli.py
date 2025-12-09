@@ -760,17 +760,17 @@ async def _handle_slash_command(
         return False
 
     elif command in ['config', 'settings']:
-        # Open settings in browser
-        console.print(f"\n[{CYAN}]Opening settings in browser...[/{CYAN}]")
-        console.print(f"[dim]Configure bishops, pope, and BYOK mode at synod.run[/dim]\n")
-        webbrowser.open("https://synod.run/dashboard/settings")
+        # Open dashboard in browser
+        console.print(f"\n[{CYAN}]Opening dashboard in browser...[/{CYAN}]")
+        console.print(f"[dim]Manage your account at synod.run/dashboard[/dim]\n")
+        webbrowser.open("https://synod.run/dashboard")
         return False
 
     elif command in ['bishops', 'pope']:
-        # Open settings in browser
-        console.print(f"\n[{CYAN}]Bishop and Pope selection is done on the web.[/{CYAN}]")
-        console.print(f"[dim]Opening dashboard...[/dim]\n")
-        webbrowser.open("https://synod.run/dashboard/settings")
+        # Open API keys page where BYOK models are configured
+        console.print(f"\n[{CYAN}]Model selection is configured via API keys.[/{CYAN}]")
+        console.print(f"[dim]Opening API keys page...[/dim]\n")
+        webbrowser.open("https://synod.run/dashboard/keys")
         return False
 
     elif command == 'cost':

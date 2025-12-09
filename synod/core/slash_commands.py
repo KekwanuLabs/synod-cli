@@ -362,20 +362,20 @@ def _register_default_commands():
 
     register_command(
         "config",
-        "Open configuration panel to change bishops/pope",
+        "Open dashboard to manage your account",
         aliases=["settings"],
         category="configuration"
     )
 
     register_command(
         "bishops",
-        "View or change your bishop models",
+        "Open API keys page to configure models",
         category="configuration"
     )
 
     register_command(
         "pope",
-        "View or change your pope model",
+        "Open API keys page to configure models",
         category="configuration"
     )
 
