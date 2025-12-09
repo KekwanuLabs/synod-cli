@@ -5,7 +5,9 @@ import os
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from pathlib import Path
-from .config import DATA_DIR
+
+# Data directory for conversation storage
+DATA_DIR = os.path.join(Path.home(), ".synod-cli", "conversations")
 
 
 def ensure_data_dir():

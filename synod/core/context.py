@@ -40,21 +40,3 @@ def read_file_content(file_paths: List[str], base_dir: Optional[str] = None) -> 
             context_lines.append(f"--- Error reading {rel_path}: {e} ---")
 
     return "\n".join(context_lines)
-
-# Example usage (for testing purposes, not part of actual CLI execution)
-if __name__ == "__main__":
-    # Create some dummy files for testing
-    with open("test_file_1.py", "w") as f:
-        f.write("def hello_world():\n    print('Hello, World!')\n")
-    with open("test_file_2.txt", "w") as f:
-        f.write("This is a test file.\nIt has multiple lines.\n")
-    
-    # Test reading existing files
-    context = read_file_content(["test_file_1.py", "test_file_2.txt", "non_existent_file.md"])
-    print("--- Generated Context ---")
-    print(context)
-    print("--- End Generated Context ---")
-
-    # Clean up dummy files
-    os.remove("test_file_1.py")
-    os.remove("test_file_2.txt")

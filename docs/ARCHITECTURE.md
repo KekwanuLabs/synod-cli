@@ -1,8 +1,8 @@
 # Synod Architecture Documentation
 
-**Last Updated**: 2025-11-27
-**Version**: 0.2.0
-**Status**: Active Development - Interactive Mode & Slash Commands Complete ✨
+**Last Updated**: 2025-12-06
+**Version**: 0.3.0
+**Status**: Active Development - Memory System Design Complete ✨
 
 > ⚠️ **IMPORTANT**: This document must be kept up-to-date with every architectural change. Future Claude instances should update this file whenever making significant changes to the codebase.
 
@@ -12,12 +12,13 @@
 1. [Project Vision](#project-vision)
 2. [System Architecture](#system-architecture)
 3. [Intelligent Debate System](#intelligent-debate-system)
-4. [Color & Design System](#color--design-system)
-5. [Module Structure](#module-structure)
-6. [Data Flow](#data-flow)
-7. [Session Management](#session-management)
-8. [File System Integration](#file-system-integration)
-9. [Implementation Status](#implementation-status)
+4. [Memory System](#memory-system)
+5. [Color & Design System](#color--design-system)
+6. [Module Structure](#module-structure)
+7. [Data Flow](#data-flow)
+8. [Session Management](#session-management)
+9. [File System Integration](#file-system-integration)
+10. [Implementation Status](#implementation-status)
 
 ---
 
@@ -311,6 +312,115 @@ complexity_critic_count = {
 
 ---
 
+## Memory System
+
+### Overview
+
+The Synod Memory System enables persistent, intelligent context that improves over time. It remembers user preferences, coding patterns, project context, and prior debate insights across sessions.
+
+**Design Decisions:**
+
+| Component | Choice | Rationale |
+|-----------|--------|-----------|
+| Vector Database | Qdrant Cloud | Managed, scalable, free tier |
+| Embedding Model | OpenAI text-embedding-3-small | Fast (~50ms), cheap ($0.02/1M tokens) |
+| Memory Extraction | Grok 4.1 Fast (free) | Zero cost extraction |
+| CLI Cache | Local SQLite | Offline support, fast retrieval |
+
+### Memory Architecture
+
+```
+Query → Memory Retrieval → Qdrant Cloud
+              ↓                    │
+         Embedding         ┌──────┴──────┐
+         OpenAI            │  user_memories │
+     text-embed-3-small    │  project_memories │
+              ↓            └──────────────────┘
+         SQLite Cache              │
+         ~/.synod/cache/           │
+              ↓                    ↓
+         DEBATE PIPELINE (with memory context)
+              ↓
+         Memory Extraction (Grok 4.1 Fast - FREE)
+              ↓
+         Store to Qdrant + Update Cache
+```
+
+### Memory Types
+
+**User Memories** (cross-project):
+- `preference`: User's stated or demonstrated preferences
+- `pattern`: Observed coding patterns or habits
+- `fact`: Knowledge about user's skills, tools, environment
+- `correction`: Explicit corrections of previous assumptions
+
+**Project Memories** (project-specific):
+- `architecture`: High-level structural decisions
+- `pattern`: Code patterns used in this project
+- `convention`: Naming, formatting, organizational conventions
+- `bug`: Known bugs, edge cases, gotchas
+- `decision`: Why certain choices were made
+- `file_context`: Important file/folder context
+
+### Memory Flow
+
+1. **Retrieval** (on new query):
+   - Embed query using text-embedding-3-small (~50ms)
+   - Parallel search: SQLite cache + Qdrant user + Qdrant project
+   - Rank by: similarity × confidence × decay × importance
+   - Select top 3 user + 5 project memories (~500 tokens)
+
+2. **Injection** (into prompts):
+   - Stage 0 (Classification): User preferences, project domains
+   - Stage 1 (Proposals): All relevant memories
+   - Stage 3 (Synthesis): All relevant memories
+
+3. **Extraction** (post-debate):
+   - Grok 4.1 Fast analyzes query + synthesis
+   - Extracts 0-5 memory candidates as JSON
+   - Embed each memory
+   - Deduplicate against existing (cosine > 0.85)
+   - Store to SQLite cache → async sync to Qdrant
+
+### SQLite Cache
+
+Located at `~/.synod/cache/memory_cache.db`:
+- Mirrors Qdrant for offline access
+- Fast local retrieval (<10ms)
+- Sync queue for offline writes
+- Background sync when online
+
+### Memory Lifecycle
+
+**Decay Formula:**
+```python
+if days_since_access <= 30:
+    decay = 1.0
+else:
+    weeks_over = (days_since_access - 30) / 7
+    decay = max(0.3, 1.0 - 0.05 * weeks_over)
+```
+
+**Cleanup** (weekly):
+- Delete memories with decay < 0.3
+- Delete superseded memories > 90 days old
+- Compact inactive project memories
+
+### Cost Analysis
+
+| Operation | Cost | Frequency |
+|-----------|------|-----------|
+| Memory Extraction | $0 (Grok free) | Per debate |
+| Query Embedding | ~$0.00002 | Per query |
+| Memory Embeddings | ~$0.00006 | Per debate (avg 3) |
+| Qdrant Storage | $0 (free tier) | Ongoing |
+
+**Total: <$0.01/month per active user**
+
+> **Full Design**: See [MEMORY_SYSTEM.md](/MEMORY_SYSTEM.md) for complete architecture, schemas, and implementation details.
+
+---
+
 ## Intelligent Debate System
 
 ### Domain Classification (19 Domains)
@@ -517,6 +627,18 @@ synod/
 │   ├── debate.py              # Main intelligent debate orchestrator
 │   ├── classifier.py          # Stage 0: Free pre-debate analysis
 │   ├── expertise.py           # Dynamic bishop expertise weighting
+│   │
+│   │── # === MEMORY SYSTEM === ✨ NEW
+│   ├── memory/
+│   │   ├── __init__.py        # Memory module exports
+│   │   ├── types.py           # Memory dataclasses and enums
+│   │   ├── extractor.py       # Grok 4.1 Fast memory extraction
+│   │   ├── embedder.py        # OpenAI text-embedding-3-small client
+│   │   ├── qdrant_client.py   # Qdrant Cloud operations
+│   │   ├── cache.py           # SQLite local cache operations
+│   │   ├── retriever.py       # Search, rank, and select memories
+│   │   ├── injector.py        # Format memories for prompt injection
+│   │   └── sync.py            # Background sync operations
 │   │
 │   │── # === API CLIENTS ===
 │   ├── openrouter.py          # OpenRouter API client (streaming SSE)

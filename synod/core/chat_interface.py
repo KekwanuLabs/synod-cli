@@ -276,37 +276,3 @@ async def get_chat_input(context_info: Optional[str] = None) -> str:
     """
     chat = SynodChatInterface()
     return await chat.get_input(context_info)
-
-
-# Example usage (for testing)
-if __name__ == "__main__":
-    async def test():
-        """Test the chat interface."""
-        chat = SynodChatInterface()
-
-        print("Synod Chat Interface Test")
-        print("=" * 50)
-        print()
-
-        while True:
-            try:
-                user_input = await chat.get_input()
-
-                if not user_input:
-                    continue
-
-                if user_input.lower() in ['exit', 'quit', 'q']:
-                    print("\nGoodbye!")
-                    break
-
-                print(f"\nYou entered: {user_input}")
-                print(f"Length: {len(user_input)} chars")
-                print(f"Lines: {len(user_input.splitlines())}")
-                print()
-
-            except EOFError:
-                print("\nExiting...")
-                break
-
-    # Run test
-    asyncio.run(test())

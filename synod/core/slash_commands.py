@@ -7,7 +7,7 @@ Provides a command palette similar to Claude Code with:
 """
 
 from dataclasses import dataclass, field
-from typing import Callable, Optional, List, Dict, Any, Awaitable, Union
+from typing import Callable, Optional, List, Dict, Any, Awaitable, Union, Tuple
 from enum import Enum
 import asyncio
 
@@ -318,7 +318,7 @@ async def show_command_selector(initial_filter: str = "") -> Optional[SlashComma
     return await selector.show(initial_filter)
 
 
-def parse_slash_command(text: str) -> tuple[Optional[str], str]:
+def parse_slash_command(text: str) -> Tuple[Optional[str], str]:
     """Parse input text for a slash command.
 
     Args:

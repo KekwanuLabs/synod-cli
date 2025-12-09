@@ -7,7 +7,7 @@ project to include as context for the bishops.
 import re
 import subprocess
 from pathlib import Path
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional, Tuple, Any
 from dataclasses import dataclass
 
 from rich.table import Table
@@ -40,7 +40,7 @@ class ContextSuggester:
         """
         self.project = indexed_project
 
-    def analyze_query(self, query: str) -> Dict[str, any]:
+    def analyze_query(self, query: str) -> Dict[str, Any]:
         """Analyze query to extract hints about relevant files.
 
         Args:
