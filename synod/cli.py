@@ -101,6 +101,9 @@ def show_welcome_story() -> None:
     """Show the animated welcome story (logo + narrative)."""
     import time
 
+    # Clear screen for fresh start
+    console.clear()
+
     # Show animated logo
     animate_logo()
     console.print()
@@ -896,6 +899,9 @@ async def _interactive_session():
     if not is_onboarded():
         console.print(f"\n[red]Not authenticated. Run 'synod login' first.[/red]\n")
         return
+
+    # Clear screen for fresh start
+    console.clear()
 
     # Check workspace trust before indexing
     from synod.core.workspace import check_workspace_trust
