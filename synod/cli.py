@@ -97,11 +97,11 @@ def _typewriter_centered(text: str, color: str = "", delay: float = 0.02) -> Non
         pass
 
 
-def show_onboarding_required() -> None:
-    """Show beautiful message asking user to complete web onboarding."""
+def show_welcome_story() -> None:
+    """Show the animated welcome story (logo + narrative)."""
     import time
 
-    # Show animated logo first - this is always the starting point
+    # Show animated logo
     animate_logo()
     console.print()
 
@@ -147,43 +147,80 @@ def show_onboarding_required() -> None:
     time.sleep(0.6)
     console.print()
 
-    # Build the setup panel (no typewriter - just display)
-    content = Text()
-    content.append("To get started, please complete setup on the web:\n\n", style="white")
-    content.append("  1. ", style=f"bold {CYAN}")
-    content.append("Sign up at ", style="dim")
-    content.append("https://synod.run", style=f"bold {CYAN} underline")
-    content.append("\n", style="dim")
-    content.append("  2. ", style=f"bold {CYAN}")
-    content.append("Configure your LLM providers (BYOK or Managed)\n", style="dim")
-    content.append("  3. ", style=f"bold {CYAN}")
-    content.append("Run: ", style="dim")
-    content.append("synod login", style=f"bold {GREEN}")
-    content.append(" to authenticate automatically\n\n", style="dim")
-    content.append("After setup, you'll have access to:\n", style="white")
-    content.append("  • AI models debating to find the best solution\n", style="dim")
-    content.append("  • 7 top providers (Anthropic, OpenAI, Google, xAI, DeepSeek, Zhipu, Mistral)\n", style="dim")
-    content.append("  • Real-time debate streaming\n", style="dim")
-    content.append("  • Usage analytics and cost tracking\n", style="dim")
 
-    panel = Panel(
-        content,
-        title=f"[{GOLD}]⚙️  Setup Required[/{GOLD}]",
-        border_style=GOLD,
-        padding=(1, 2),
-    )
+def start_login_flow() -> Optional[str]:
+    """Start the browser-based login flow and return API key if successful."""
+    port = _find_free_port()
+    auth_url = f"https://synod.run/cli-auth?port={port}"
 
-    console.print(panel)
+    console.print(f"[{CYAN}]Opening browser to sign in...[/{CYAN}]")
     console.print()
 
-    # Offer to open the web dashboard
-    console.print(f"[{CYAN}]Press Enter to open synod.run in your browser, or Ctrl+C to exit...[/{CYAN}]")
+    try:
+        webbrowser.open(auth_url)
+    except Exception:
+        console.print(f"[yellow]Could not open browser automatically.[/yellow]")
+        console.print(f"Please visit: {auth_url}")
+        console.print()
+
+    console.print(f"[{GOLD}]Waiting for authentication...[/{GOLD}]")
+    console.print(f"[dim]Complete sign-in in your browser. This will timeout in 2 minutes.[/dim]")
+    console.print()
+
+    # Wait for callback
+    api_key = _run_callback_server(port, timeout=120)
+    return api_key
+
+
+def show_first_run_welcome() -> bool:
+    """Show welcome for first-time users and start login flow.
+
+    Returns True if login was successful, False otherwise.
+    """
+    # Show the animated story
+    show_welcome_story()
+
+    # Prompt to start login
+    console.print(f"[{CYAN}]Press Enter to sign in and get started, or Ctrl+C to exit...[/{CYAN}]")
+    console.print()
+
     try:
         input()
-        webbrowser.open("https://synod.run/signup")
     except (KeyboardInterrupt, EOFError):
-        pass
+        return False
 
+    # Start login flow
+    api_key = start_login_flow()
+
+    if not api_key:
+        console.print(f"\n[red]Authentication timed out or was cancelled.[/red]")
+        console.print(f"[dim]Run 'synod login' to try again.[/dim]\n")
+        return False
+
+    # Validate and save
+    if not api_key.startswith("sk_"):
+        console.print(f"\n[red]Invalid API key received.[/red]")
+        console.print(f"[dim]Run 'synod login' to try again.[/dim]\n")
+        return False
+
+    # Save the key
+    cfg = load_config()
+    cfg["api_key"] = api_key
+    save_config(cfg)
+
+    console.print()
+    console.print(f"[{GREEN}]✓ Successfully authenticated![/{GREEN}]")
+    console.print()
+
+    return True
+
+
+def show_onboarding_required() -> None:
+    """Show a simple message when API key is missing (for subcommands)."""
+    console.print()
+    console.print(f"[{GOLD}]Authentication required[/{GOLD}]")
+    console.print()
+    console.print(f"[dim]Run [/{dim}][{GREEN}]synod login[/{GREEN}][dim] to authenticate, or just run [/{dim}][{GREEN}]synod[/{GREEN}][dim] to get started.[/{dim}]")
     console.print()
 
 # Version (dynamic from package metadata)
@@ -671,8 +708,11 @@ def default_command(
     if ctx.invoked_subcommand is None:
         # No command provided, launch interactive mode
         if not is_onboarded():
-            # First time user - show onboarding message
-            show_onboarding_required()
+            # First time user - show welcome and auto-start login
+            if show_first_run_welcome():
+                # Login successful - proceed to interactive session
+                asyncio.run(_interactive_session())
+            # If login failed, show_first_run_welcome already printed error message
         else:
             # Already configured - launch interactive mode directly
             asyncio.run(_interactive_session())
@@ -852,9 +892,9 @@ async def _handle_slash_command(
 
 async def _interactive_session():
     """Interactive REPL-style session with message queuing."""
-    # Check if user has API key configured
+    # Safety check - main flow should have already ensured API key exists
     if not is_onboarded():
-        show_onboarding_required()
+        console.print(f"\n[red]Not authenticated. Run 'synod login' first.[/red]\n")
         return
 
     # Check workspace trust before indexing
