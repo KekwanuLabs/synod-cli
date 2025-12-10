@@ -25,6 +25,9 @@ from synod.core.display import (
     animate_logo,
     console,
     get_version,
+    check_for_updates,
+    show_update_notice,
+    auto_upgrade,
     TAGLINE_FULL,
     TAGLINE,
     SUBTITLE,
@@ -782,6 +785,25 @@ def status():
         raise typer.Exit(1)
 
 
+@app.command()
+def upgrade():
+    """Upgrade Synod CLI to the latest version."""
+    current = VERSION
+    console.print(f"\n[{CYAN}]Checking for updates...[/{CYAN}]")
+
+    new_version = check_for_updates(current)
+
+    if new_version:
+        console.print(f"[yellow]New version available: {current} → {new_version}[/yellow]")
+        if auto_upgrade():
+            raise typer.Exit(0)
+        else:
+            console.print(f"\n[dim]Manual upgrade: pipx upgrade synod-cli[/dim]")
+            raise typer.Exit(1)
+    else:
+        console.print(f"[green]✓ Already on latest version ({current})[/green]\n")
+
+
 # Main callback - handles default behavior and --version
 @app.callback(invoke_without_command=True)
 def default_command(
@@ -1170,6 +1192,11 @@ async def _interactive_session():
         pope=None,  # Selected in cloud
         animate=True,
     )
+
+    # Check for updates (non-blocking, 2s timeout)
+    new_version = check_for_updates(VERSION)
+    if new_version:
+        show_update_notice(new_version, VERSION)
 
     # Show loaded context info
     display_context_on_startup(project_context)

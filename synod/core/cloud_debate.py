@@ -28,6 +28,7 @@ from rich.syntax import Syntax
 from rich import box
 
 from .theme import PRIMARY, CYAN, ACCENT, SECONDARY, GOLD, GREEN, GRAY, format_model_name
+from .display import get_version
 from .auto_context import gather_auto_context, display_auto_context_summary
 
 console = Console()
@@ -1109,6 +1110,8 @@ async def stream_sse(
     if project_path:
         payload["project_path"] = project_path
 
+    cli_version = get_version()
+
     async with httpx.AsyncClient(timeout=300.0) as client:
         async with client.stream(
             "POST",
@@ -1116,6 +1119,7 @@ async def stream_sse(
             headers={
                 "Authorization": api_key,
                 "Content-Type": "application/json",
+                "X-Synod-Version": cli_version,
             },
             json=payload,
         ) as response:
@@ -1222,6 +1226,7 @@ async def send_tool_results(
             headers={
                 "Authorization": api_key,
                 "Content-Type": "application/json",
+                "X-Synod-Version": get_version(),
             },
             json=payload,
         ) as response:

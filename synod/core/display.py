@@ -41,6 +41,100 @@ def get_version() -> str:
         return "0.2.0"  # Fallback
 
 
+def check_for_updates(current_version: str) -> Optional[str]:
+    """Check PyPI for newer version. Returns new version string or None.
+
+    This is non-blocking and fails silently to not disrupt the user experience.
+    """
+    import threading
+    import urllib.request
+    import json
+
+    result = {"new_version": None}
+
+    def _check():
+        try:
+            url = "https://pypi.org/pypi/synod-cli/json"
+            with urllib.request.urlopen(url, timeout=2) as response:
+                data = json.loads(response.read().decode())
+                latest = data["info"]["version"]
+
+                # Compare versions (simple string comparison works for semver)
+                if latest != current_version:
+                    # Parse versions to compare properly
+                    def parse_version(v):
+                        return tuple(int(x) for x in v.split('.'))
+
+                    if parse_version(latest) > parse_version(current_version):
+                        result["new_version"] = latest
+        except Exception:
+            pass  # Fail silently
+
+    # Run in background thread with timeout
+    thread = threading.Thread(target=_check, daemon=True)
+    thread.start()
+    thread.join(timeout=2)  # Wait max 2 seconds
+
+    return result["new_version"]
+
+
+def show_update_notice(new_version: str, current_version: str) -> None:
+    """Display update notification to user."""
+    console = Console()
+    console.print()
+    console.print(Panel(
+        f"[bold yellow]Update available![/bold yellow] [dim]{current_version}[/dim] → [bold green]{new_version}[/bold green]\n\n"
+        f"[white]Run:[/white] [cyan]synod upgrade[/cyan]\n"
+        f"[dim]or:[/dim]  [dim]pipx upgrade synod-cli[/dim]",
+        border_style="yellow",
+        title="[yellow]New Version[/yellow]",
+        width=50,
+    ))
+
+
+def auto_upgrade() -> bool:
+    """Attempt to auto-upgrade synod-cli. Returns True if successful."""
+    import subprocess
+    import sys
+
+    console = Console()
+    console.print("\n[cyan]Upgrading Synod CLI...[/cyan]\n")
+
+    # Try pipx first (preferred for CLI tools)
+    try:
+        result = subprocess.run(
+            ["pipx", "upgrade", "synod-cli"],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        if result.returncode == 0:
+            console.print("[green]✓ Upgraded successfully via pipx![/green]")
+            console.print("[dim]Restart synod to use the new version.[/dim]")
+            return True
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+
+    # Fall back to pip
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "install", "--upgrade", "synod-cli"],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        if result.returncode == 0:
+            console.print("[green]✓ Upgraded successfully via pip![/green]")
+            console.print("[dim]Restart synod to use the new version.[/dim]")
+            return True
+        else:
+            console.print(f"[red]Upgrade failed: {result.stderr}[/red]")
+    except (FileNotFoundError, subprocess.TimeoutExpired) as e:
+        console.print(f"[red]Upgrade failed: {e}[/red]")
+
+    return False
+
+
 # ============================================================================
 # BRANDING - Single source of truth for taglines
 # ============================================================================

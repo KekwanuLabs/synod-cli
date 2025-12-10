@@ -97,8 +97,11 @@ synod> /memory clear     # Clear project memories
 ## Quick Start
 
 ```bash
-# Install
+# Install (recommended)
 pipx install synod-cli
+
+# Or with pip
+pip install synod-cli
 
 # Login (opens browser)
 synod login
@@ -108,6 +111,8 @@ synod
 ```
 
 That's it. No API keys to copy, no configuration files.
+
+> **Tip:** Use `pipx` for CLI tools - it installs in isolated environments and makes upgrades easy with `pipx upgrade synod-cli`
 
 ## How It Works
 
