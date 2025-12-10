@@ -1271,42 +1271,60 @@ async def run_cloud_debate(
 
         pending_tool_results: List[Dict[str, Any]] = []
 
-        # Process events directly from async generator
-        # NOTE: We iterate directly instead of using wait_for because
-        # asyncio.wait_for cancels on timeout, which closes the httpx stream
+        # Process events with animated waiting using asyncio.shield
+        # shield() prevents cancellation on timeout while allowing animations
+        event_iter = event_stream.__aiter__()
+        pending_task: Optional[asyncio.Task] = None
+        stream_done = False
+
         try:
-            async for event in event_stream:
-                event_type = event.get('type')
+            while not stream_done:
+                try:
+                    # Create task if we don't have one pending
+                    if pending_task is None:
+                        pending_task = asyncio.create_task(event_iter.__anext__())
 
-                # Handle tool calls
-                if event_type == 'tool_call':
-                    handle_event(state, event)
-                    live.update(build_display(state))
+                    # Wait with timeout, but shield the task from cancellation
+                    event = await asyncio.wait_for(asyncio.shield(pending_task), timeout=0.1)
+                    pending_task = None  # Task completed, clear it
 
-                    if state.current_tool:
-                        # Execute tool (stop live for prompts)
-                        live.stop()
-                        result = await execute_tool_call(state.current_tool, work_dir)
-                        live.start()
+                    event_type = event.get('type')
+
+                    # Handle tool calls
+                    if event_type == 'tool_call':
+                        handle_event(state, event)
                         live.update(build_display(state))
-                        pending_tool_results.append(result)
 
-                elif event_type == 'complete':
-                    handle_event(state, event)
+                        if state.current_tool:
+                            # Execute tool (stop live for prompts)
+                            live.stop()
+                            result = await execute_tool_call(state.current_tool, work_dir)
+                            live.start()
+                            live.update(build_display(state))
+                            pending_tool_results.append(result)
+
+                    elif event_type == 'complete':
+                        handle_event(state, event)
+                        live.update(build_display(state))
+                        stream_done = True
+
+                    elif event_type == 'error':
+                        handle_event(state, event)
+                        live.update(build_display(state))
+                        stream_done = True
+
+                    else:
+                        handle_event(state, event)
+                        live.update(build_display(state))
+
+                except asyncio.TimeoutError:
+                    # No event yet - advance animation and continue waiting
+                    advance_animation()
                     live.update(build_display(state))
-                    break
 
-                elif event_type == 'error':
-                    handle_event(state, event)
-                    live.update(build_display(state))
-                    break
-
-                else:
-                    handle_event(state, event)
-                    live.update(build_display(state))
-
-                # Advance animation on each event for visual feedback
-                advance_animation()
+                except StopAsyncIteration:
+                    # Stream ended
+                    stream_done = True
 
         except httpx.ReadError as e:
             state.error = f"Network error: {str(e)}"
@@ -1316,6 +1334,15 @@ async def run_cloud_debate(
             if not state.error:
                 state.error = f"Unexpected error: {str(e)}"
                 live.update(build_display(state))
+
+        finally:
+            # Clean up any pending task
+            if pending_task is not None and not pending_task.done():
+                pending_task.cancel()
+                try:
+                    await pending_task
+                except (asyncio.CancelledError, StopAsyncIteration):
+                    pass
 
         # Check for unexpected stream end
         if not state.complete and not state.error:
@@ -1331,41 +1358,56 @@ async def run_cloud_debate(
             results_to_send = pending_tool_results[:]
             pending_tool_results.clear()
 
-            # Send results and process response
+            # Send results and process response with animations
             tool_stream = send_tool_results(api_url, api_key, state.debate_id, results_to_send)
+            tool_iter = tool_stream.__aiter__()
+            tool_task: Optional[asyncio.Task] = None
+            tool_done = False
 
             try:
-                async for event in tool_stream:
-                    event_type = event.get('type')
+                while not tool_done:
+                    try:
+                        if tool_task is None:
+                            tool_task = asyncio.create_task(tool_iter.__anext__())
 
-                    if event_type == 'tool_call':
-                        handle_event(state, event)
-                        live.update(build_display(state))
+                        event = await asyncio.wait_for(asyncio.shield(tool_task), timeout=0.1)
+                        tool_task = None
 
-                        if state.current_tool:
-                            live.stop()
-                            result = await execute_tool_call(state.current_tool, work_dir)
-                            live.start()
+                        event_type = event.get('type')
+
+                        if event_type == 'tool_call':
+                            handle_event(state, event)
                             live.update(build_display(state))
-                            pending_tool_results.append(result)
 
-                    elif event_type == 'complete':
-                        handle_event(state, event)
+                            if state.current_tool:
+                                live.stop()
+                                result = await execute_tool_call(state.current_tool, work_dir)
+                                live.start()
+                                live.update(build_display(state))
+                                pending_tool_results.append(result)
+
+                        elif event_type == 'complete':
+                            handle_event(state, event)
+                            live.update(build_display(state))
+                            pending_tool_results.clear()  # Done
+                            tool_done = True
+
+                        elif event_type == 'error':
+                            handle_event(state, event)
+                            live.update(build_display(state))
+                            pending_tool_results.clear()  # Stop on error
+                            tool_done = True
+
+                        else:
+                            handle_event(state, event)
+                            live.update(build_display(state))
+
+                    except asyncio.TimeoutError:
+                        advance_animation()
                         live.update(build_display(state))
-                        pending_tool_results.clear()  # Done
-                        break
 
-                    elif event_type == 'error':
-                        handle_event(state, event)
-                        live.update(build_display(state))
-                        pending_tool_results.clear()  # Stop on error
-                        break
-
-                    else:
-                        handle_event(state, event)
-                        live.update(build_display(state))
-
-                    advance_animation()
+                    except StopAsyncIteration:
+                        tool_done = True
 
             except httpx.ReadError as e:
                 state.error = f"Network error during tool processing: {str(e)}"
@@ -1377,6 +1419,14 @@ async def run_cloud_debate(
                     state.error = f"Unexpected error during tool processing: {str(e)}"
                     live.update(build_display(state))
                 break
+
+            finally:
+                if tool_task is not None and not tool_task.done():
+                    tool_task.cancel()
+                    try:
+                        await tool_task
+                    except (asyncio.CancelledError, StopAsyncIteration):
+                        pass
 
     # Final render (non-transient)
     console.print(build_display(state))
