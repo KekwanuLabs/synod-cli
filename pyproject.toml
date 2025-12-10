@@ -1,14 +1,14 @@
 [project]
 name = "synod-cli"
 version = "2.2.6"
-description = "Intelligent multi-model coding agent with adversarial debate. Ancient Councils. Modern Intelligence. Open Source."
+description = "AI coding agent with adversarial debate. Multiple models critique each other, only battle-tested answers survive. Infinite memory that never forgets."
 readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}
 authors = [
     {name = "KekwanuLabs", email = "hello@kekwanu.com"}
 ]
-keywords = ["ai", "llm", "coding-assistant", "cli", "debate", "openrouter", "claude", "gpt"]
+keywords = ["ai", "llm", "coding-assistant", "cli", "adversarial-debate", "multi-model", "claude", "gpt", "gemini", "memory", "coding-agent", "code-review"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",

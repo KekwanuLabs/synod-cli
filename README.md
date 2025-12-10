@@ -6,9 +6,24 @@
 
 **Ancient Councils. Modern Intelligence. Adversarial Memory.**
 
-> *Memory you can trust. Every insight verified by multiple AI models, hardened by adversarial debate.*
+> *The only AI coding agent where mistakes don't survive peer review.*
 
 [Website](https://synod.run) | [Dashboard](https://synod.run/dashboard) | [PyPI](https://pypi.org/project/synod-cli/)
+
+---
+
+<div align="center">
+
+### Why Synod?
+
+| Problem | Synod Solution |
+|---------|----------------|
+| Single AI hallucinates | **Multiple models catch each other's mistakes** |
+| Context limits run out | **Infinite memory that never forgets** |
+| No memory between sessions | **Battle-tested insights persist forever** |
+| Can't trust AI suggestions | **Every answer survives adversarial review** |
+
+</div>
 
 ---
 
@@ -173,20 +188,28 @@ With Synod:
 ## Features
 
 ### Multi-Model Debate
-- 7 top AI providers: Anthropic, OpenAI, Google, xAI, DeepSeek, Zhipu, Mistral
-- Adversarial critiques catch errors single models miss
-- Pope synthesis combines the best ideas
+- **7 top AI providers**: Anthropic, OpenAI, Google, xAI, DeepSeek, Zhipu, Mistral
+- **Adversarial critiques** catch errors single models miss
+- **Pope synthesis** combines the best ideas from each model
+- **Battle-tested answers** that survive hostile code review
+
+### Infinite Memory & Context
+- **Never runs out**: Semantic memory that grows with you
+- **Cross-project learning**: Patterns from one project help another
+- **Verified memories**: Only insights that survived debate get stored
+- **Confidence scoring**: High-consensus memories ranked higher
+- **Smart retrieval**: Only relevant memories injected (no token waste)
 
 ### Smart & Fast
-- Query classification skips debate for trivial questions
-- Consensus detection exits early when models agree
-- Parallel execution for speed
-- Automatic code context (includes relevant files without you asking)
+- **Intelligent routing**: Trivial questions get fast answers, complex problems get full debates
+- **Consensus detection**: Early exit when models agree (saves tokens)
+- **Parallel execution**: All bishops propose simultaneously
+- **Token efficiency**: Pay for intelligence, not repetition
 
-### Privacy-First Memory
-- Learns from your sessions (patterns, not raw code)
-- Semantic search across past insights
-- Your code is never stored
+### Privacy-First
+- **Your code stays local**: Only queries sent to cloud
+- **No raw storage**: Memories are semantic embeddings, not text
+- **BYOK available**: Bring your own API keys (encrypted at rest)
 
 ### Beautiful CLI
 - Real-time streaming with rich formatting
@@ -274,11 +297,11 @@ synod> /rewind <id>       # Restore specific checkpoint
 
 ## Pricing
 
-| Tier | Price | Debates/Day | Bishops |
-|------|-------|-------------|---------|
-| Free | $0 | 10 | 3 |
-| Pro | $12/mo | Unlimited | 7 |
-| Team | $29/mo | Unlimited | 7 + shared keys |
+| Tier | Price | Debates/Day | Bishops | Memory |
+|------|-------|-------------|---------|--------|
+| Free | $0 | 10 | 3 | 1,000 memories (30-day retention) |
+| Pro | $12/mo | Unlimited | 7 | Unlimited (forever) |
+| Team | $29/mo | Unlimited | 7 + shared | Unlimited + shared team memory |
 
 **BYOK Mode**: Bring your own API keys. You pay the providers directly, Synod just orchestrates.
 
