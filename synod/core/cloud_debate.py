@@ -271,6 +271,9 @@ def handle_event(state: DebateState, event: dict) -> None:
 # ============================================================
 
 SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+THINKING_FRAMES = ["🧠", "💭", "💡", "✨", "🔮", "⚡"]
+STREAMING_FRAMES = ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█", "▇", "▆", "▅", "▄", "▃", "▂"]
+PULSE_FRAMES = ["◉", "◎", "○", "◎"]
 _frame_idx = 0
 
 
@@ -280,6 +283,30 @@ def get_spinner() -> str:
     frame = SPINNER_FRAMES[_frame_idx % len(SPINNER_FRAMES)]
     _frame_idx += 1
     return frame
+
+
+def get_thinking_indicator() -> str:
+    """Get animated thinking indicator."""
+    global _frame_idx
+    return THINKING_FRAMES[_frame_idx % len(THINKING_FRAMES)]
+
+
+def get_streaming_bar() -> str:
+    """Get animated streaming bar."""
+    global _frame_idx
+    return STREAMING_FRAMES[_frame_idx % len(STREAMING_FRAMES)]
+
+
+def get_pulse() -> str:
+    """Get pulsing indicator."""
+    global _frame_idx
+    return PULSE_FRAMES[_frame_idx % len(PULSE_FRAMES)]
+
+
+def advance_animation() -> None:
+    """Advance the global animation frame."""
+    global _frame_idx
+    _frame_idx += 1
 
 
 def build_analysis_panel(state: DebateState) -> Panel:
@@ -321,8 +348,13 @@ def build_analysis_panel(state: DebateState) -> Panel:
             elements.append(Text(""))
             elements.append(Text(f"💡 {state.reasoning}", style="dim italic"))
     else:
-        # Still analyzing
-        elements.append(Text(f"{get_spinner()} Analyzing query...", style=CYAN))
+        # Still analyzing - show animated analysis
+        think = get_thinking_indicator()
+        spinner = get_spinner()
+        bar = get_streaming_bar()
+        elements.append(Text(f"{think} {spinner} Analyzing query {bar}", style=CYAN))
+        elements.append(Text(""))
+        elements.append(Text("   Classifying complexity, domains, and selecting bishops...", style="dim"))
 
     return Panel(
         Group(*elements),
@@ -336,10 +368,12 @@ def build_proposals_panel(state: DebateState) -> Panel:
     """Build Stage 1 proposals panel with grid display."""
     elements = []
 
-    # Pope observer
-    cursor_frames = ["●", "○", "◐", "◑", "◒", "◓"]
-    cursor = cursor_frames[_frame_idx % len(cursor_frames)]
-    elements.append(Text(f"👑 Pope {format_model_name(state.pope)} is observing {cursor}", style="grey50"))
+    # Pope observer with animated watching
+    observer_frames = ["👁️ ", "👀", "🔍", "🧐", "👁️ ", "👀"]
+    observer = observer_frames[_frame_idx % len(observer_frames)]
+    pulse = get_pulse()
+    elements.append(Text(f"👑 Pope {format_model_name(state.pope)} is observing ", style="grey50") +
+                   Text(f"{observer} {pulse}", style=GOLD))
     elements.append(Text(""))
 
     # Build grid table for bishops
@@ -350,7 +384,7 @@ def build_proposals_panel(state: DebateState) -> Panel:
         for bishop in state.bishops:
             table.add_column(format_model_name(bishop), justify="center", width=25)
 
-        # Status row
+        # Status row with enhanced animations
         status_cells = []
         for bishop in state.bishops:
             status = state.bishop_status.get(bishop, 'pending')
@@ -358,9 +392,14 @@ def build_proposals_panel(state: DebateState) -> Panel:
                 tokens = state.bishop_tokens.get(bishop, 0)
                 status_cells.append(Text(f"✓ {tokens} tokens", style=GREEN))
             elif status == 'running':
-                status_cells.append(Text(f"{get_spinner()} streaming...", style=CYAN))
+                # More expressive running animation
+                bar = get_streaming_bar()
+                think = get_thinking_indicator()
+                status_cells.append(Text(f"{think} {bar} reasoning...", style=CYAN))
             else:
-                status_cells.append(Text("○ waiting", style="dim"))
+                # Waiting animation
+                spinner = get_spinner()
+                status_cells.append(Text(f"{spinner} waiting...", style="dim"))
         table.add_row(*status_cells)
 
         # Approach row (if available)
@@ -430,16 +469,21 @@ def build_critiques_panel(state: DebateState) -> Panel:
             padding=(0, 2)
         )
 
-    # Round info
+    # Round info with animated swords
+    sword_frames = ["⚔️ ", "🗡️ ", "⚔️ ", "🛡️ "]
+    sword = sword_frames[_frame_idx % len(sword_frames)]
     if state.current_round > 0:
-        elements.append(Text(f"⚔️ Round {state.current_round}/{state.max_rounds} • {state.critique_pairs} disagreeing pairs", style=GOLD))
+        elements.append(Text(f"{sword}Round {state.current_round}/{state.max_rounds} • {state.critique_pairs} disagreeing pairs", style=GOLD))
     else:
-        elements.append(Text("⚔️ Adversarial critique phase", style=GOLD))
+        spinner = get_spinner()
+        elements.append(Text(f"{sword}{spinner} Adversarial critique phase starting...", style=GOLD))
 
-    # Pope observer
-    cursor_frames = ["●", "○", "◐", "◑"]
-    cursor = cursor_frames[_frame_idx % len(cursor_frames)]
-    elements.append(Text(f"👑 Pope {format_model_name(state.pope)} is observing {cursor}", style="grey50"))
+    # Pope observer with gavel animation
+    gavel_frames = ["⚖️ ", "🔨", "⚖️ ", "📜"]
+    gavel = gavel_frames[_frame_idx % len(gavel_frames)]
+    pulse = get_pulse()
+    elements.append(Text(f"👑 Pope {format_model_name(state.pope)} presiding ", style="grey50") +
+                   Text(f"{gavel} {pulse}", style=GOLD))
     elements.append(Text(""))
 
     # Critique summaries table (if we have summaries)
@@ -508,19 +552,29 @@ def build_synthesis_panel(state: DebateState) -> Panel:
         md = Markdown(state.pope_content, code_theme="monokai")
         elements.append(md)
     elif state.pope_status == 'running':
-        elements.append(Text(f"{get_spinner()} {format_model_name(state.pope)} synthesizing...", style=SECONDARY))
+        # Pope is synthesizing - beautiful animation
+        think = get_thinking_indicator()
+        spinner = get_spinner()
+        bar = get_streaming_bar()
+        elements.append(Text(f"👑 {think} {spinner} ", style=SECONDARY) +
+                       Text(f"{format_model_name(state.pope)} synthesizing wisdom ", style=f"bold {SECONDARY}") +
+                       Text(f"{bar}", style=GOLD))
         if state.pope_content:
             elements.append(Text(""))
-            # Show partial content with cursor
+            # Show partial content with animated cursor
             lines = state.pope_content.split('\n')
             # Show last 10 lines for streaming effect
             visible_lines = '\n'.join(lines[-10:]) if len(lines) > 10 else state.pope_content
-            elements.append(Text(visible_lines + "█", style="white"))
+            cursor_frames = ["█", "▓", "▒", "░", "▒", "▓"]
+            cursor = cursor_frames[_frame_idx % len(cursor_frames)]
+            elements.append(Text(visible_lines + cursor, style="white"))
     else:
+        # Waiting state with animation
+        spinner = get_spinner()
         if state.debate_skipped:
-            elements.append(Text("○ Waiting to synthesize (debate skipped)...", style="dim"))
+            elements.append(Text(f"{spinner} Preparing synthesis (debate skipped)...", style="dim"))
         else:
-            elements.append(Text("○ Waiting for critiques...", style="dim"))
+            elements.append(Text(f"{spinner} Awaiting debate conclusion...", style="dim"))
 
     return Panel(
         Group(*elements),
@@ -924,7 +978,7 @@ async def run_cloud_debate(
     if auto_file_paths:
         display_auto_context_summary(auto_files, auto_file_paths)
 
-    with Live(console=console, refresh_per_second=8, transient=True) as live:
+    with Live(console=console, refresh_per_second=12, transient=True) as live:
         # Process initial debate stream with auto-context
         event_stream = stream_sse(
             url=api_url,
@@ -939,35 +993,50 @@ async def run_cloud_debate(
 
         pending_tool_results: List[Dict[str, Any]] = []
 
-        async for event in event_stream:
-            event_type = event.get('type')
+        # Create async iterator from stream
+        event_iter = event_stream.__aiter__()
+        stream_done = False
 
-            # Handle tool calls
-            if event_type == 'tool_call':
-                handle_event(state, event)
-                live.update(build_display(state))
+        while not stream_done:
+            try:
+                # Wait for next event with timeout so animations keep playing
+                event = await asyncio.wait_for(event_iter.__anext__(), timeout=0.1)
+                event_type = event.get('type')
 
-                if state.current_tool:
-                    # Execute tool (stop live for prompts)
-                    live.stop()
-                    result = await execute_tool_call(state.current_tool, work_dir)
-                    live.start()
+                # Handle tool calls
+                if event_type == 'tool_call':
+                    handle_event(state, event)
                     live.update(build_display(state))
-                    pending_tool_results.append(result)
 
-            elif event_type == 'complete':
-                handle_event(state, event)
+                    if state.current_tool:
+                        # Execute tool (stop live for prompts)
+                        live.stop()
+                        result = await execute_tool_call(state.current_tool, work_dir)
+                        live.start()
+                        live.update(build_display(state))
+                        pending_tool_results.append(result)
+
+                elif event_type == 'complete':
+                    handle_event(state, event)
+                    live.update(build_display(state))
+                    stream_done = True
+
+                elif event_type == 'error':
+                    handle_event(state, event)
+                    live.update(build_display(state))
+                    stream_done = True
+
+                else:
+                    handle_event(state, event)
+                    live.update(build_display(state))
+
+            except asyncio.TimeoutError:
+                # No event received - just refresh animation
+                advance_animation()
                 live.update(build_display(state))
 
-            elif event_type == 'error':
-                handle_event(state, event)
-                live.update(build_display(state))
-
-            else:
-                handle_event(state, event)
-                live.update(build_display(state))
-
-            await asyncio.sleep(0.05)
+            except StopAsyncIteration:
+                stream_done = True
 
         # Handle tool result loop if we have pending tools
         MAX_TOOL_ROUNDS = 10
@@ -978,36 +1047,50 @@ async def run_cloud_debate(
             results_to_send = pending_tool_results[:]
             pending_tool_results.clear()
 
-            # Send results and process response
-            async for event in send_tool_results(api_url, api_key, state.debate_id, results_to_send):
-                event_type = event.get('type')
+            # Send results and process response with animated waiting
+            tool_stream = send_tool_results(api_url, api_key, state.debate_id, results_to_send)
+            tool_iter = tool_stream.__aiter__()
+            tool_done = False
 
-                if event_type == 'tool_call':
-                    handle_event(state, event)
-                    live.update(build_display(state))
+            while not tool_done:
+                try:
+                    event = await asyncio.wait_for(tool_iter.__anext__(), timeout=0.1)
+                    event_type = event.get('type')
 
-                    if state.current_tool:
-                        live.stop()
-                        result = await execute_tool_call(state.current_tool, work_dir)
-                        live.start()
+                    if event_type == 'tool_call':
+                        handle_event(state, event)
                         live.update(build_display(state))
-                        pending_tool_results.append(result)
 
-                elif event_type == 'complete':
-                    handle_event(state, event)
+                        if state.current_tool:
+                            live.stop()
+                            result = await execute_tool_call(state.current_tool, work_dir)
+                            live.start()
+                            live.update(build_display(state))
+                            pending_tool_results.append(result)
+
+                    elif event_type == 'complete':
+                        handle_event(state, event)
+                        live.update(build_display(state))
+                        pending_tool_results.clear()  # Done
+                        tool_done = True
+
+                    elif event_type == 'error':
+                        handle_event(state, event)
+                        live.update(build_display(state))
+                        pending_tool_results.clear()  # Stop on error
+                        tool_done = True
+
+                    else:
+                        handle_event(state, event)
+                        live.update(build_display(state))
+
+                except asyncio.TimeoutError:
+                    # No event - refresh animation
+                    advance_animation()
                     live.update(build_display(state))
-                    pending_tool_results.clear()  # Done
 
-                elif event_type == 'error':
-                    handle_event(state, event)
-                    live.update(build_display(state))
-                    pending_tool_results.clear()  # Stop on error
-
-                else:
-                    handle_event(state, event)
-                    live.update(build_display(state))
-
-                await asyncio.sleep(0.05)
+                except StopAsyncIteration:
+                    tool_done = True
 
     # Final render (non-transient)
     console.print(build_display(state))
