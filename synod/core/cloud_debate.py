@@ -790,9 +790,25 @@ def build_synthesis_panel(state: DebateState) -> Panel:
 
 
 def build_error_panel(state: DebateState) -> Panel:
-    """Build error panel."""
+    """Build error panel with user-friendly messages."""
+    error_msg = state.error
+
+    # Make rate limit errors more user-friendly
+    if "rate limit" in error_msg.lower():
+        return Panel(
+            Text.from_markup(
+                "[bold yellow]Daily debate limit reached[/bold yellow]\n\n"
+                "You've used all 10 free debates for today.\n"
+                "Your limit resets at midnight UTC.\n\n"
+                "[dim]Upgrade to Pro for unlimited debates: [cyan]synod.run/pricing[/cyan][/dim]"
+            ),
+            title="[yellow]⏰ Limit Reached[/yellow]",
+            border_style="yellow",
+            padding=(1, 2)
+        )
+
     return Panel(
-        Text(f"❌ {state.error}", style="bold red"),
+        Text(f"❌ {error_msg}", style="bold red"),
         title="[red]Error[/red]",
         border_style="red",
         padding=(1, 2)
@@ -1476,9 +1492,11 @@ async def run_cloud_debate(
                     await pending_task
                 except (asyncio.CancelledError, StopAsyncIteration, GeneratorExit):
                     pass
-            # Close the async generator properly
+            # Close the async generator properly - suppress all errors
             try:
                 await event_stream.aclose()
+            except (GeneratorExit, StopAsyncIteration, asyncio.CancelledError, RuntimeError):
+                pass
             except Exception:
                 pass
 
@@ -1571,8 +1589,8 @@ async def run_cloud_debate(
     if state.complete and state.pope_content:
         console.print("")  # Blank line after stages
         console.print(Markdown(state.pope_content, code_theme="monokai"))
-    elif state.error:
-        console.print(build_error_panel(state))
+    # Note: Error panel is already shown in build_display() via live view
+    # No need to print it again here
 
     return state
 
