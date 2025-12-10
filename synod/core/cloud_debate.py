@@ -109,6 +109,19 @@ class DebateState:
     memories_stored: int = 0
     memory_tokens: int = 0
 
+    # Stage 0 Progress Tracking
+    analysis_started: bool = False
+    memory_search_done: bool = False
+    classification_done: bool = False
+    context_hints_received: bool = False
+
+    # Context hints (from API)
+    search_keywords: List[str] = field(default_factory=list)
+    search_symbols: List[str] = field(default_factory=list)
+    search_type: str = ""  # 'broad' | 'focused' | 'definition'
+    language_hints: List[str] = field(default_factory=list)
+    memory_hints: List[str] = field(default_factory=list)
+
     # Tool execution
     tool_calls: List[ToolCall] = field(default_factory=list)
     current_tool: Optional[ToolCall] = None
@@ -145,6 +158,18 @@ def handle_event(state: DebateState, event: dict) -> None:
         state.pope = event['pope']
         state.reasoning = event.get('reasoning', '')
         state.bishop_status = {b: 'pending' for b in state.bishops}
+        state.classification_done = True
+
+    elif event_type == 'context_hints':
+        # Context analysis from the API
+        state.context_hints_received = True
+        query_analysis = event.get('query_analysis', {})
+        state.search_keywords = query_analysis.get('keywords', [])
+        state.search_symbols = query_analysis.get('symbol_names', [])
+        state.language_hints = query_analysis.get('language_hints', [])
+        search_strategy = event.get('search_strategy', {})
+        state.search_type = search_strategy.get('search_type', '')
+        state.memory_hints = event.get('memory_hints', [])
 
     elif event_type == 'bishop_start':
         state.bishop_status[event['model']] = 'running'
@@ -217,6 +242,7 @@ def handle_event(state: DebateState, event: dict) -> None:
     elif event_type == 'memory_retrieved':
         state.memories_retrieved = event.get('user_memories', 0) + event.get('project_memories', 0)
         state.memory_tokens = event.get('tokens', 0)
+        state.memory_search_done = True
 
     elif event_type == 'memory_extracted':
         state.memories_stored = event.get('stored', 0)
@@ -315,11 +341,11 @@ def advance_animation() -> None:
 
 
 def build_analysis_panel(state: DebateState) -> Panel:
-    """Build Stage 0 analysis panel."""
+    """Build Stage 0 analysis panel with detailed progress."""
     elements = []
 
     if state.complexity:
-        # Analysis complete
+        # Analysis complete - show results
         elements.append(Text("✓ Analysis complete", style=f"bold {GREEN}"))
         elements.append(Text(""))
 
@@ -340,7 +366,21 @@ def build_analysis_panel(state: DebateState) -> Panel:
 
         # Memory retrieved
         if state.memories_retrieved > 0:
-            elements.append(Text(f"Memory: ", style="dim") + Text(f"{state.memories_retrieved} relevant learnings found", style=CYAN))
+            elements.append(Text(f"Memory: ", style="dim") + Text(f"{state.memories_retrieved} relevant learnings found ({state.memory_tokens} tokens)", style=CYAN))
+        elif state.memory_search_done:
+            elements.append(Text(f"Memory: ", style="dim") + Text("No prior learnings found (fresh query)", style="dim"))
+
+        # Context hints (if received)
+        if state.context_hints_received:
+            hints_parts = []
+            if state.search_keywords:
+                hints_parts.append(f"keywords: {', '.join(state.search_keywords[:3])}")
+            if state.language_hints:
+                hints_parts.append(f"lang: {', '.join(state.language_hints)}")
+            if state.search_type:
+                hints_parts.append(f"search: {state.search_type}")
+            if hints_parts:
+                elements.append(Text(f"Context: ", style="dim") + Text(" | ".join(hints_parts), style="dim"))
 
         # Bishops selected
         elements.append(Text(""))
@@ -353,13 +393,45 @@ def build_analysis_panel(state: DebateState) -> Panel:
             elements.append(Text(""))
             elements.append(Text(f"💡 {state.reasoning}", style="dim italic"))
     else:
-        # Still analyzing - show animated analysis
+        # Still analyzing - show detailed animated progress
         think = get_thinking_indicator()
         spinner = get_spinner()
         bar = get_streaming_bar()
-        elements.append(Text(f"{think} {spinner} Analyzing query {bar}", style=CYAN))
+        pulse = get_pulse()
+
+        elements.append(Text(f"{think} Stage 0: Analysis in Progress", style=f"bold {CYAN}"))
         elements.append(Text(""))
-        elements.append(Text("   Classifying complexity, domains, and selecting bishops...", style="dim"))
+
+        # Show what's happening in parallel
+        # Memory search status
+        if state.memory_search_done:
+            if state.memories_retrieved > 0:
+                elements.append(Text(f"  ✓ Memory search: ", style="dim") +
+                              Text(f"{state.memories_retrieved} learnings found", style=GREEN))
+            else:
+                elements.append(Text(f"  ✓ Memory search: ", style="dim") +
+                              Text("No prior context", style="dim"))
+        else:
+            elements.append(Text(f"  {spinner} Memory search: ", style="dim") +
+                          Text(f"Searching vector database {bar}", style=CYAN))
+
+        # Query classification status
+        if state.classification_done:
+            elements.append(Text(f"  ✓ Classification: ", style="dim") +
+                          Text("Complete", style=GREEN))
+        else:
+            elements.append(Text(f"  {spinner} Classification: ", style="dim") +
+                          Text(f"Analyzing complexity & selecting bishops {pulse}", style=CYAN))
+
+        # Context hints status
+        if state.context_hints_received:
+            elements.append(Text(f"  ✓ Context analysis: ", style="dim") +
+                          Text("Ready", style=GREEN))
+            if state.search_keywords:
+                elements.append(Text(f"      Keywords: {', '.join(state.search_keywords[:4])}", style="dim"))
+        else:
+            elements.append(Text(f"  {spinner} Context analysis: ", style="dim") +
+                          Text(f"Extracting search hints {bar}", style=CYAN))
 
     return Panel(
         Group(*elements),
