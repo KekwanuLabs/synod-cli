@@ -1271,14 +1271,11 @@ async def run_cloud_debate(
 
         pending_tool_results: List[Dict[str, Any]] = []
 
-        # Create async iterator from stream
-        event_iter = event_stream.__aiter__()
-        stream_done = False
-
-        while not stream_done:
-            try:
-                # Wait for next event with timeout so animations keep playing
-                event = await asyncio.wait_for(event_iter.__anext__(), timeout=0.1)
+        # Process events directly from async generator
+        # NOTE: We iterate directly instead of using wait_for because
+        # asyncio.wait_for cancels on timeout, which closes the httpx stream
+        try:
+            async for event in event_stream:
                 event_type = event.get('type')
 
                 # Handle tool calls
@@ -1297,40 +1294,33 @@ async def run_cloud_debate(
                 elif event_type == 'complete':
                     handle_event(state, event)
                     live.update(build_display(state))
-                    stream_done = True
+                    break
 
                 elif event_type == 'error':
                     handle_event(state, event)
                     live.update(build_display(state))
-                    stream_done = True
+                    break
 
                 else:
                     handle_event(state, event)
                     live.update(build_display(state))
 
-            except asyncio.TimeoutError:
-                # No event received - just refresh animation
+                # Advance animation on each event for visual feedback
                 advance_animation()
+
+        except httpx.ReadError as e:
+            state.error = f"Network error: {str(e)}"
+            live.update(build_display(state))
+
+        except Exception as e:
+            if not state.error:
+                state.error = f"Unexpected error: {str(e)}"
                 live.update(build_display(state))
 
-            except StopAsyncIteration:
-                # Stream ended - check if it was expected (complete/error) or unexpected
-                if not state.complete and not state.error:
-                    # Unexpected stream closure
-                    state.error = "Connection to server closed unexpectedly. Please try again."
-                    live.update(build_display(state))
-                stream_done = True
-
-            except httpx.ReadError as e:
-                state.error = f"Network error: {str(e)}"
-                live.update(build_display(state))
-                stream_done = True
-
-            except Exception as e:
-                if not state.error:
-                    state.error = f"Unexpected error: {str(e)}"
-                    live.update(build_display(state))
-                stream_done = True
+        # Check for unexpected stream end
+        if not state.complete and not state.error:
+            state.error = "Connection to server closed unexpectedly. Please try again."
+            live.update(build_display(state))
 
         # Handle tool result loop if we have pending tools
         MAX_TOOL_ROUNDS = 10
@@ -1341,14 +1331,11 @@ async def run_cloud_debate(
             results_to_send = pending_tool_results[:]
             pending_tool_results.clear()
 
-            # Send results and process response with animated waiting
+            # Send results and process response
             tool_stream = send_tool_results(api_url, api_key, state.debate_id, results_to_send)
-            tool_iter = tool_stream.__aiter__()
-            tool_done = False
 
-            while not tool_done:
-                try:
-                    event = await asyncio.wait_for(tool_iter.__anext__(), timeout=0.1)
+            try:
+                async for event in tool_stream:
                     event_type = event.get('type')
 
                     if event_type == 'tool_call':
@@ -1366,29 +1353,30 @@ async def run_cloud_debate(
                         handle_event(state, event)
                         live.update(build_display(state))
                         pending_tool_results.clear()  # Done
-                        tool_done = True
+                        break
 
                     elif event_type == 'error':
                         handle_event(state, event)
                         live.update(build_display(state))
                         pending_tool_results.clear()  # Stop on error
-                        tool_done = True
+                        break
 
                     else:
                         handle_event(state, event)
                         live.update(build_display(state))
 
-                except asyncio.TimeoutError:
-                    # No event - refresh animation
                     advance_animation()
-                    live.update(build_display(state))
 
-                except StopAsyncIteration:
-                    # Stream ended - check if expected or unexpected
-                    if not state.complete and not state.error:
-                        state.error = "Connection to server closed unexpectedly during tool processing. Please try again."
-                        live.update(build_display(state))
-                    tool_done = True
+            except httpx.ReadError as e:
+                state.error = f"Network error during tool processing: {str(e)}"
+                live.update(build_display(state))
+                break
+
+            except Exception as e:
+                if not state.error:
+                    state.error = f"Unexpected error during tool processing: {str(e)}"
+                    live.update(build_display(state))
+                break
 
     # Final render (non-transient)
     console.print(build_display(state))
