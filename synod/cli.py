@@ -840,6 +840,23 @@ async def _handle_slash_command(
         display_session_summary(session)
         return True
 
+    elif command == 'logout':
+        # Logout command - clear API key and exit
+        try:
+            session.save()
+        except Exception as e:
+            console.print(f"[dim]Warning: Could not save session: {e}[/dim]")
+
+        # Clear API key
+        cfg = load_config()
+        cfg.pop("api_key", None)
+        save_config(cfg)
+
+        console.print(f"\n[{GREEN}]✓ Logged out successfully[/{GREEN}]")
+        console.print(f"[dim]Run 'synod login' to log in again[/dim]")
+        display_session_summary(session)
+        return True
+
     elif command in ['clear', 'reset', 'new']:
         # Clear conversation context
         archives.clear()
@@ -1274,6 +1291,30 @@ async def _interactive_session():
                         console.print(f"[{ACCENT}]Unknown command: /{command_name}[/{ACCENT}]")
                         console.print(f"[dim]Type /help to see available commands[/dim]\n")
                         continue
+
+            # Check for logout command
+            if user_input.strip().lower() == 'logout':
+                from synod.core.session import display_session_summary
+                session = get_current_session()
+
+                # Save session before logout
+                try:
+                    session.save()
+                except Exception as e:
+                    console.print(f"[dim]Warning: Could not save session: {e}[/dim]")
+
+                # Clear API key
+                cfg = load_config()
+                cfg.pop("api_key", None)
+                save_config(cfg)
+
+                # Run session end hooks
+                run_hooks(HookEvent.SESSION_END, working_directory=project_path)
+
+                console.print(f"\n[{GREEN}]✓ Logged out successfully[/{GREEN}]")
+                console.print(f"[dim]Run 'synod login' to log in again[/dim]")
+                display_session_summary(session)
+                break
 
             # Check for exit commands (explicit or natural language)
             exit_commands = ['exit', 'quit', 'q', 'bye', 'goodbye', 'stop']

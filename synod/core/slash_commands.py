@@ -355,6 +355,12 @@ def _register_default_commands():
     )
 
     register_command(
+        "logout",
+        "Logout from Synod Cloud and exit",
+        category="session"
+    )
+
+    register_command(
         "clear",
         "Clear conversation history and free up context",
         aliases=["reset", "new"],
