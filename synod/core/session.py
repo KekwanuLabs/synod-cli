@@ -41,11 +41,14 @@ class SynodSession:
     debates: int = 0
     files_modified: int = 0
     total_tokens: int = 0
-    total_cost: float = 0.0
+    total_cost: float = 0.0  # Only populated for managed mode
+    is_managed_mode: bool = False  # Track if user is on managed plan
+    total_debate_duration_ms: int = 0  # Actual debate time (not idle time)
 
-    def record_debate(self) -> None:
-        """Increment debate counter."""
+    def record_debate(self, duration_ms: int = 0) -> None:
+        """Increment debate counter and add debate duration."""
         self.debates += 1
+        self.total_debate_duration_ms += duration_ms
 
     def record_file_modification(self, count: int = 1) -> None:
         """Record file modifications."""
@@ -63,6 +66,8 @@ class SynodSession:
             "files_modified": self.files_modified,
             "total_tokens": self.total_tokens,
             "total_cost": self.total_cost,
+            "is_managed_mode": self.is_managed_mode,
+            "total_debate_duration_ms": self.total_debate_duration_ms,
         }
 
     def to_dict(self) -> Dict[str, Any]:
@@ -75,6 +80,8 @@ class SynodSession:
             "files_modified": self.files_modified,
             "total_tokens": self.total_tokens,
             "total_cost": self.total_cost,
+            "is_managed_mode": self.is_managed_mode,
+            "total_debate_duration_ms": self.total_debate_duration_ms,
         }
 
     def save(self) -> Path:
@@ -107,6 +114,8 @@ class SynodSession:
             files_modified=data.get("files_modified", 0),
             total_tokens=data.get("total_tokens", 0),
             total_cost=data.get("total_cost", 0.0),
+            is_managed_mode=data.get("is_managed_mode", False),
+            total_debate_duration_ms=data.get("total_debate_duration_ms", 0),
         )
 
 
@@ -154,8 +163,14 @@ def display_session_summary(session: SynodSession) -> None:
     console = Console()
 
     session_id = session.session_id[:32]
-    duration = session.get_duration()
-    duration_str = f"{int(duration // 60)}m {int(duration % 60)}s"
+
+    # Session duration (wall clock time)
+    session_duration = session.get_duration()
+    session_duration_str = f"{int(session_duration // 60)}m {int(session_duration % 60)}s"
+
+    # Actual debate time (time spent in debates, not idle)
+    debate_duration_sec = session.total_debate_duration_ms / 1000
+    debate_duration_str = f"{int(debate_duration_sec // 60)}m {int(debate_duration_sec % 60)}s"
 
     summary = Text()
     summary.append("\n🏛️  Council Dismissed\n\n", style="bold cyan")
@@ -163,9 +178,19 @@ def display_session_summary(session: SynodSession) -> None:
     summary.append("Session Summary\n", style="bold")
     summary.append(f"Session ID:     {session_id}\n", style="dim")
     summary.append(f"Debates:        {session.debates}\n", style="dim")
-    summary.append(f"Duration:       {duration_str}\n", style="dim")
+    summary.append(f"Session Time:   {session_duration_str}\n", style="dim")
+
+    # Only show debate time if there were debates
+    if session.debates > 0 and session.total_debate_duration_ms > 0:
+        summary.append(f"Debate Time:    {debate_duration_str}\n", style="dim")
+
     summary.append(f"Tokens:         {session.total_tokens:,}\n", style="dim")
-    summary.append(f"Cost:           ${session.total_cost:.4f}\n\n", style="dim")
+
+    # Show cost differently based on mode
+    if session.is_managed_mode:
+        summary.append(f"Cost:           ${session.total_cost:.4f}\n\n", style="dim")
+    else:
+        summary.append(f"Cost:           BYOK (billed to your providers)\n\n", style="dim")
 
     summary.append("Full usage details at synod.run/dashboard", style="dim")
 

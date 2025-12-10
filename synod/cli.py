@@ -303,14 +303,15 @@ async def _arun_query(prompt: str, file_context: str, archives: Optional[Council
             context=full_context if full_context else None,
         )
 
-        # Record debate in session
-        session.record_debate()
+        # Record debate in session (with actual debate duration)
+        session.record_debate(duration_ms=state.duration_ms or 0)
 
         # Update session with token usage from cloud
         if state.total_tokens:
             session.total_tokens += state.total_tokens
         if state.cost_usd:
             session.total_cost += state.cost_usd
+            session.is_managed_mode = True  # Cost only returned for managed mode
 
         # Add exchange to archives if provided (for conversation context)
         if archives and state.pope_content:
@@ -1214,11 +1215,12 @@ async def _interactive_session():
         )
 
         session = get_current_session()
-        session.record_debate()
+        session.record_debate(duration_ms=state.duration_ms or 0)
         if state.total_tokens:
             session.total_tokens += state.total_tokens
         if state.cost_usd:
             session.total_cost += state.cost_usd
+            session.is_managed_mode = True
 
         if archives and state.pope_content:
             archives.add_exchange(query=query, synthesis=state.pope_content)
