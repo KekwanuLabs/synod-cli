@@ -1454,6 +1454,10 @@ async def run_cloud_debate(
             state.error = f"Network error: {str(e)}"
             live.update(build_display(state))
 
+        except GeneratorExit:
+            # Generator closed early (e.g., error response) - this is normal
+            pass
+
         except Exception as e:
             if not state.error:
                 state.error = f"Unexpected error: {str(e)}"
@@ -1465,8 +1469,13 @@ async def run_cloud_debate(
                 pending_task.cancel()
                 try:
                     await pending_task
-                except (asyncio.CancelledError, StopAsyncIteration):
+                except (asyncio.CancelledError, StopAsyncIteration, GeneratorExit):
                     pass
+            # Close the async generator properly
+            try:
+                await event_stream.aclose()
+            except Exception:
+                pass
 
         # Check for unexpected stream end
         if not state.complete and not state.error:
