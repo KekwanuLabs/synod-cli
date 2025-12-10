@@ -6,7 +6,7 @@
 
 **Ancient Councils. Modern Intelligence. Adversarial Memory.**
 
-> *The only AI coding agent where mistakes don't survive peer review.*
+> *An AI coding agent where mistakes don't survive peer review.*
 
 [Website](https://synod.run) | [Dashboard](https://synod.run/dashboard) | [PyPI](https://pypi.org/project/synod-cli/)
 
@@ -188,7 +188,7 @@ With Synod:
 ## Features
 
 ### Multi-Model Debate
-- **7 top AI providers**: Anthropic, OpenAI, Google, xAI, DeepSeek, Zhipu, Mistral
+- **6 AI providers**: Anthropic, OpenAI, Google, xAI, DeepSeek, Zhipu
 - **Adversarial critiques** catch errors single models miss
 - **Pope synthesis** combines the best ideas from each model
 - **Battle-tested answers** that survive hostile code review
