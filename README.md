@@ -273,15 +273,15 @@ Automate workflows with hooks (like git hooks, but for AI):
 {
   "hooks": [
     {
-      "name": "format-on-edit",
-      "event": "post_tool_use",
-      "command": "if [ \"$SYNOD_TOOL\" = \"file_editor\" ]; then npx prettier --write \"$SYNOD_FILE\"; fi"
+      "name": "run-tests-after-debate",
+      "event": "post_debate",
+      "command": "npm test 2>/dev/null || echo 'Tests skipped'"
     }
   ]
 }
 ```
 
-Available events: `pre_tool_use`, `post_tool_use`, `session_start`, `session_end`, `pre_debate`, `post_debate`, `file_modified`
+Available events: `session_start`, `session_end`, `pre_debate`, `post_debate`
 
 ```bash
 synod> /hooks                  # List configured hooks
