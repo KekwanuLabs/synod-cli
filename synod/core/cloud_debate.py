@@ -186,12 +186,17 @@ def handle_event(state: DebateState, event: dict) -> None:
 
     elif event_type == 'critique_summary':
         # One-line summary for grid display
-        state.critique_summaries.append(CritiqueSummary(
+        # Avoid duplicates (same critic->target pair from different rounds)
+        new_summary = CritiqueSummary(
             critic=event['critic'],
             target=event['target'],
             severity=event['severity'],
             summary=event['summary']
-        ))
+        )
+        # Only add if this critic->target pair isn't already present
+        existing = [(c.critic, c.target) for c in state.critique_summaries]
+        if (new_summary.critic, new_summary.target) not in existing:
+            state.critique_summaries.append(new_summary)
 
     elif event_type == 'critique_complete':
         state.critique_status[event['critic']] = 'complete'
@@ -417,6 +422,24 @@ def build_proposals_panel(state: DebateState) -> Panel:
             table.add_row(*approach_cells)
 
         elements.append(table)
+
+    # Show full proposals once all bishops are complete (collapsible style)
+    all_complete = all(state.bishop_status.get(b) == 'complete' for b in state.bishops) if state.bishops else False
+    if all_complete and state.bishop_content:
+        elements.append(Text(""))
+        elements.append(Text("📜 Bishop Proposals:", style=f"bold {PRIMARY}"))
+        for bishop in state.bishops:
+            content = state.bishop_content.get(bishop, "")
+            if content:
+                # Show first 200 chars with expand indicator
+                tokens = state.bishop_tokens.get(bishop, 0)
+                preview = content[:300].replace('\n', ' ')
+                if len(content) > 300:
+                    preview += "..."
+                elements.append(Text(""))
+                elements.append(Text(f"  {format_model_name(bishop)} ", style=f"bold {CYAN}") +
+                              Text(f"({tokens} tokens)", style="dim"))
+                elements.append(Text(f"  {preview}", style="dim"))
 
     # Consensus score
     if state.consensus_score is not None:
@@ -1094,6 +1117,26 @@ async def run_cloud_debate(
 
     # Final render (non-transient)
     console.print(build_display(state))
+
+    # Print full proposals in a separate section (after the live display)
+    if state.bishop_content and state.complete:
+        console.print("")
+        console.print(Panel(
+            Text("📜 Full Bishop Proposals", style=f"bold {PRIMARY}"),
+            border_style=PRIMARY,
+            padding=(0, 1)
+        ))
+        for bishop in state.bishops:
+            content = state.bishop_content.get(bishop, "")
+            if content:
+                tokens = state.bishop_tokens.get(bishop, 0)
+                console.print("")
+                console.print(Panel(
+                    Markdown(content, code_theme="monokai"),
+                    title=f"[{CYAN}]{format_model_name(bishop)}[/{CYAN}] ({tokens} tokens)",
+                    border_style=CYAN,
+                    padding=(1, 2)
+                ))
 
     return state
 
