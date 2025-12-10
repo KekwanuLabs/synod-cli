@@ -1314,6 +1314,22 @@ async def run_cloud_debate(
                 live.update(build_display(state))
 
             except StopAsyncIteration:
+                # Stream ended - check if it was expected (complete/error) or unexpected
+                if not state.complete and not state.error:
+                    # Unexpected stream closure
+                    state.error = "Connection to server closed unexpectedly. Please try again."
+                    live.update(build_display(state))
+                stream_done = True
+
+            except httpx.ReadError as e:
+                state.error = f"Network error: {str(e)}"
+                live.update(build_display(state))
+                stream_done = True
+
+            except Exception as e:
+                if not state.error:
+                    state.error = f"Unexpected error: {str(e)}"
+                    live.update(build_display(state))
                 stream_done = True
 
         # Handle tool result loop if we have pending tools
@@ -1368,6 +1384,10 @@ async def run_cloud_debate(
                     live.update(build_display(state))
 
                 except StopAsyncIteration:
+                    # Stream ended - check if expected or unexpected
+                    if not state.complete and not state.error:
+                        state.error = "Connection to server closed unexpectedly during tool processing. Please try again."
+                        live.update(build_display(state))
                     tool_done = True
 
     # Final render (non-transient)
