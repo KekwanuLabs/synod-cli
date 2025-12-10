@@ -92,10 +92,11 @@ class DebateState:
     current_round: int = 0
     max_rounds: int = 3
     critique_pairs: int = 0
-    critique_status: Dict[str, str] = field(default_factory=dict)
+    critique_status: Dict[str, str] = field(default_factory=dict)  # "critic->target" -> 'running'|'complete'
     critique_content: Dict[str, str] = field(default_factory=dict)
-    critique_severity: Dict[str, str] = field(default_factory=dict)
+    critique_severity: Dict[str, str] = field(default_factory=dict)  # "critic->target" -> severity
     critique_summaries: List[CritiqueSummary] = field(default_factory=list)  # For grid display
+    running_critiques: List[Dict[str, str]] = field(default_factory=list)  # [{critic, target}, ...] for in-progress
     consensus_reached: bool = False
     consensus_reached_round: int = 0
 
@@ -137,6 +138,8 @@ class DebateState:
 
     # Timing
     start_time: float = field(default_factory=time.time)
+    stage_start_times: Dict[int, float] = field(default_factory=dict)  # stage -> start time
+    stage_end_times: Dict[int, float] = field(default_factory=dict)    # stage -> end time
 
 
 # ============================================================
@@ -148,8 +151,15 @@ def handle_event(state: DebateState, event: dict) -> None:
     event_type = event.get('type')
 
     if event_type == 'stage':
+        # End previous stage timing (if any)
+        prev_stage = state.stage
+        if prev_stage in state.stage_start_times and prev_stage not in state.stage_end_times:
+            state.stage_end_times[prev_stage] = time.time()
+
+        # Start new stage timing
         state.stage = event['stage']
         state.stage_name = event['name']
+        state.stage_start_times[state.stage] = time.time()
 
     elif event_type == 'analysis_complete':
         state.complexity = event['complexity']
@@ -207,25 +217,46 @@ def handle_event(state: DebateState, event: dict) -> None:
         state.critique_pairs = event['pairs']
 
     elif event_type == 'critique_start':
-        state.critique_status[event['critic']] = 'running'
+        critic = event['critic']
+        targets = event.get('targets', [])
+        target = targets[0] if targets else 'unknown'
+        key = f"{critic}->{target}"
+        state.critique_status[key] = 'running'
+        # Track running critique for display
+        state.running_critiques.append({'critic': critic, 'target': target})
 
     elif event_type == 'critique_summary':
         # One-line summary for grid display
-        # Avoid duplicates (same critic->target pair from different rounds)
+        critic = event['critic']
+        target = event['target']
+        key = f"{critic}->{target}"
+        # Mark as complete
+        state.critique_status[key] = 'complete'
+        state.critique_severity[key] = event['severity']
+        # Remove from running critiques
+        state.running_critiques = [c for c in state.running_critiques
+                                   if not (c['critic'] == critic and c['target'] == target)]
+        # Add to summaries (avoid duplicates)
         new_summary = CritiqueSummary(
-            critic=event['critic'],
-            target=event['target'],
+            critic=critic,
+            target=target,
             severity=event['severity'],
             summary=event['summary']
         )
-        # Only add if this critic->target pair isn't already present
         existing = [(c.critic, c.target) for c in state.critique_summaries]
         if (new_summary.critic, new_summary.target) not in existing:
             state.critique_summaries.append(new_summary)
 
     elif event_type == 'critique_complete':
-        state.critique_status[event['critic']] = 'complete'
-        state.critique_severity[event['critic']] = event['severity']
+        # Also handle critique_complete (backup for critique_summary)
+        critic = event.get('critic', '')
+        target = event.get('target', '')
+        if critic and target:
+            key = f"{critic}->{target}"
+            state.critique_status[key] = 'complete'
+            state.critique_severity[key] = event.get('severity', 'minor')
+            state.running_critiques = [c for c in state.running_critiques
+                                       if not (c['critic'] == critic and c['target'] == target)]
 
     elif event_type == 'critique_content':
         state.critique_content[event['critic']] = event['content']
@@ -267,6 +298,9 @@ def handle_event(state: DebateState, event: dict) -> None:
         state.cost_usd = event.get('cost_usd')
         state.memories_retrieved = event.get('memories_retrieved', state.memories_retrieved)
         state.memories_stored = event.get('memories_stored', state.memories_stored)
+        # End final stage timing
+        if state.stage in state.stage_start_times and state.stage not in state.stage_end_times:
+            state.stage_end_times[state.stage] = time.time()
 
     elif event_type == 'error':
         state.error = event['message']
@@ -309,57 +343,86 @@ PULSE_FRAMES = ["◉", "◎", "○", "◎"]
 WAVE_FRAMES = ["░▒▓█▓▒░", "▒▓█▓▒░░", "▓█▓▒░░▒", "█▓▒░░▒▓", "▓▒░░▒▓█", "▒░░▒▓█▓", "░░▒▓█▓▒", "░▒▓█▓▒░"]
 DOT_WAVE_FRAMES = ["·•●•·", "•●•··", "●•··•", "•··•●", "··•●•", "·•●•·"]
 PROGRESS_FRAMES = ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"]
+# Pope observation frames - calm, watching
+POPE_OBSERVE_FRAMES = ["👁️ ", "👁️ ", "👁️‍🗨️", "👁️ "]
+# Pope presiding frames - more authoritative
+POPE_PRESIDE_FRAMES = ["⚖️ ", "📜", "⚖️ ", "🔱"]
 _frame_idx = 0
+# Animation speed divisor - higher = slower animations
+ANIMATION_SPEED_DIVISOR = 4  # Animations change every 4 frames instead of every frame
+
+
+def _slow_frame_idx() -> int:
+    """Get slowed down frame index for animations."""
+    return _frame_idx // ANIMATION_SPEED_DIVISOR
 
 
 def get_spinner() -> str:
     """Get current spinner frame."""
-    global _frame_idx
-    frame = SPINNER_FRAMES[_frame_idx % len(SPINNER_FRAMES)]
-    _frame_idx += 1
-    return frame
+    return SPINNER_FRAMES[_slow_frame_idx() % len(SPINNER_FRAMES)]
 
 
 def get_thinking_indicator() -> str:
     """Get animated thinking indicator."""
-    global _frame_idx
-    return THINKING_FRAMES[_frame_idx % len(THINKING_FRAMES)]
+    return THINKING_FRAMES[_slow_frame_idx() % len(THINKING_FRAMES)]
 
 
 def get_streaming_bar() -> str:
     """Get animated streaming bar."""
-    global _frame_idx
-    return STREAMING_FRAMES[_frame_idx % len(STREAMING_FRAMES)]
+    return STREAMING_FRAMES[_slow_frame_idx() % len(STREAMING_FRAMES)]
 
 
 def get_pulse() -> str:
     """Get pulsing indicator."""
-    global _frame_idx
-    return PULSE_FRAMES[_frame_idx % len(PULSE_FRAMES)]
+    return PULSE_FRAMES[_slow_frame_idx() % len(PULSE_FRAMES)]
 
 
 def get_wave() -> str:
     """Get mesmerizing wave animation."""
-    global _frame_idx
-    return WAVE_FRAMES[_frame_idx % len(WAVE_FRAMES)]
+    return WAVE_FRAMES[_slow_frame_idx() % len(WAVE_FRAMES)]
 
 
 def get_dot_wave() -> str:
     """Get dot wave animation."""
-    global _frame_idx
-    return DOT_WAVE_FRAMES[_frame_idx % len(DOT_WAVE_FRAMES)]
+    return DOT_WAVE_FRAMES[_slow_frame_idx() % len(DOT_WAVE_FRAMES)]
 
 
 def get_progress_spinner() -> str:
     """Get braille progress spinner."""
-    global _frame_idx
-    return PROGRESS_FRAMES[_frame_idx % len(PROGRESS_FRAMES)]
+    return PROGRESS_FRAMES[_slow_frame_idx() % len(PROGRESS_FRAMES)]
+
+
+def get_pope_observe() -> str:
+    """Get pope observation animation frame."""
+    return POPE_OBSERVE_FRAMES[_slow_frame_idx() % len(POPE_OBSERVE_FRAMES)]
+
+
+def get_pope_preside() -> str:
+    """Get pope presiding animation frame."""
+    return POPE_PRESIDE_FRAMES[_slow_frame_idx() % len(POPE_PRESIDE_FRAMES)]
 
 
 def advance_animation() -> None:
     """Advance the global animation frame."""
     global _frame_idx
     _frame_idx += 1
+
+
+def get_stage_time(state: DebateState, stage: int) -> str:
+    """Get formatted time for a stage (elapsed or completed)."""
+    if stage in state.stage_end_times:
+        # Stage completed - show total time
+        duration = state.stage_end_times[stage] - state.stage_start_times.get(stage, state.start_time)
+        return f"{max(0, duration):.1f}s"  # Ensure non-negative
+    elif stage in state.stage_start_times:
+        # Stage in progress - show elapsed time
+        elapsed = time.time() - state.stage_start_times[stage]
+        return f"{max(0, elapsed):.1f}s"  # Ensure non-negative
+    elif stage == 0:
+        # Stage 0 starts at debate start
+        elapsed = time.time() - state.start_time
+        return f"{max(0, elapsed):.1f}s"  # Ensure non-negative
+    return ""
 
 
 def build_analysis_panel(state: DebateState) -> Panel:
@@ -455,9 +518,13 @@ def build_analysis_panel(state: DebateState) -> Panel:
             elements.append(Text(f"  {spinner} Context analysis: ", style="dim") +
                           Text(f"Extracting search hints {bar}", style=CYAN))
 
+    # Build title with timing
+    stage_time = get_stage_time(state, 0)
+    time_suffix = f" [{stage_time}]" if stage_time else ""
+
     return Panel(
         Group(*elements),
-        title=f"[{CYAN}]Stage 0: Analysis[/{CYAN}]",
+        title=f"[{CYAN}]Stage 0: Analysis{time_suffix}[/{CYAN}]",
         border_style=CYAN,
         padding=(0, 2)
     )
@@ -467,11 +534,10 @@ def build_proposals_panel(state: DebateState) -> Panel:
     """Build Stage 1 proposals panel with grid display."""
     elements = []
 
-    # Pope observer with animated watching
-    observer_frames = ["👁️ ", "👀", "🔍", "🧐", "👁️ ", "👀"]
-    observer = observer_frames[_frame_idx % len(observer_frames)]
+    # Pope observer with calm watching animation
+    observer = get_pope_observe()
     pulse = get_pulse()
-    elements.append(Text(f"👑 Pope {format_model_name(state.pope)} is observing ", style="grey50") +
+    elements.append(Text(f"👑 Pope {format_model_name(state.pope)} observing ", style="grey50") +
                    Text(f"{observer} {pulse}", style=GOLD))
     elements.append(Text(""))
 
@@ -564,9 +630,13 @@ def build_proposals_panel(state: DebateState) -> Panel:
             elements.append(Text(f"⚖️ Pope Assessment: ", style="dim") +
                           Text(f"{sim_pct}% similarity - skipping debate", style=GREEN))
 
+    # Build title with timing
+    stage_time = get_stage_time(state, 1)
+    time_suffix = f" [{stage_time}]" if stage_time else ""
+
     return Panel(
         Group(*elements),
-        title=f"[{CYAN}]Stage 1: Bishop Proposals[/{CYAN}]",
+        title=f"[{CYAN}]Stage 1: Bishop Proposals{time_suffix}[/{CYAN}]",
         border_style=CYAN,
         padding=(0, 2)
     )
@@ -576,59 +646,60 @@ def build_critiques_panel(state: DebateState) -> Panel:
     """Build Stage 2 critiques panel with summary grid."""
     elements = []
 
+    # Build title with timing
+    stage_time = get_stage_time(state, 2)
+    time_suffix = f" [{stage_time}]" if stage_time else ""
+
     # Check if debate was skipped
     if state.debate_skipped:
         elements.append(Text(f"✓ Debate skipped: {state.debate_skip_reason}", style=GREEN))
         return Panel(
             Group(*elements),
-            title=f"[{GOLD}]Stage 2: Adversarial Critiques[/{GOLD}]",
+            title=f"[{GOLD}]Stage 2: Adversarial Critiques{time_suffix}[/{GOLD}]",
             border_style=GOLD,
             padding=(0, 2)
         )
 
-    # Round info with animated swords
-    sword_frames = ["⚔️ ", "🗡️ ", "⚔️ ", "🛡️ "]
-    sword = sword_frames[_frame_idx % len(sword_frames)]
+    # Round info with progress indicator
     if state.current_round > 0:
-        elements.append(Text(f"{sword}Round {state.current_round}/{state.max_rounds} • {state.critique_pairs} disagreeing pairs", style=GOLD))
+        progress = get_progress_spinner()
+        elements.append(Text(f"🛡️ Round {state.current_round}/{state.max_rounds} • {state.critique_pairs} disagreeing pairs", style=GOLD))
     else:
         spinner = get_spinner()
-        elements.append(Text(f"{sword}{spinner} Adversarial critique phase starting...", style=GOLD))
+        elements.append(Text(f"🛡️ {spinner} Adversarial critique phase starting...", style=GOLD))
 
-    # Pope observer with gavel animation
-    gavel_frames = ["⚖️ ", "🔨", "⚖️ ", "📜"]
-    gavel = gavel_frames[_frame_idx % len(gavel_frames)]
+    # Pope presiding with authoritative animation
+    preside = get_pope_preside()
     pulse = get_pulse()
     elements.append(Text(f"👑 Pope {format_model_name(state.pope)} presiding ", style="grey50") +
-                   Text(f"{gavel} {pulse}", style=GOLD))
+                   Text(f"{preside} {pulse}", style=GOLD))
     elements.append(Text(""))
 
-    # Critique summaries table (if we have summaries)
-    if state.critique_summaries:
-        table = Table(box=box.SIMPLE, show_header=False, expand=True, padding=(0, 1))
-        table.add_column("Critique", style="dim", no_wrap=False)
+    # Show running critiques first (with animations)
+    if state.running_critiques:
+        for crit in state.running_critiques:
+            spinner = get_spinner()
+            progress = get_progress_spinner()
+            row_text = Text()
+            row_text.append(f"  {spinner} ", style=CYAN)
+            row_text.append(f"{format_model_name(crit['critic'])}", style=CYAN)
+            row_text.append(" → ", style="dim")
+            row_text.append(f"{format_model_name(crit['target'])} ", style=CYAN)
+            row_text.append(f"critiquing {progress}", style="dim italic")
+            elements.append(row_text)
 
+    # Show completed critiques (with checkmarks and summaries)
+    if state.critique_summaries:
         for crit in state.critique_summaries:
             severity_color = {'critical': 'red', 'moderate': GOLD, 'minor': GREEN}.get(crit.severity, GREEN)
             row_text = Text()
+            row_text.append(f"  ✓ ", style=GREEN)
             row_text.append(f"{format_model_name(crit.critic)}", style=CYAN)
             row_text.append(" → ", style="dim")
             row_text.append(f"{format_model_name(crit.target)} ", style=CYAN)
             row_text.append(f"[{crit.severity.upper()}] ", style=f"bold {severity_color}")
             row_text.append(crit.summary[:60], style="dim")
-            table.add_row(row_text)
-
-        elements.append(table)
-    else:
-        # Fallback to old status display
-        for critic, status in state.critique_status.items():
-            if status == 'complete':
-                severity = state.critique_severity.get(critic, 'minor')
-                severity_style = {'critical': 'red', 'moderate': GOLD, 'minor': GREEN}.get(severity, GREEN)
-                elements.append(Text(f"  ✓ {format_model_name(critic)} ", style=GREEN) +
-                            Text(f"[{severity.upper()}]", style=f"bold {severity_style}"))
-            else:
-                elements.append(Text(f"  {get_spinner()} {format_model_name(critic)} reviewing...", style=CYAN))
+            elements.append(row_text)
 
     # Consensus reached?
     if state.consensus_reached:
@@ -638,18 +709,18 @@ def build_critiques_panel(state: DebateState) -> Panel:
 
     return Panel(
         Group(*elements),
-        title=f"[{GOLD}]Stage 2: Adversarial Critiques[/{GOLD}]",
+        title=f"[{GOLD}]Stage 2: Adversarial Critiques{time_suffix}[/{GOLD}]",
         border_style=GOLD,
         padding=(0, 2)
     )
 
 
 def build_synthesis_panel(state: DebateState) -> Panel:
-    """Build Stage 3 synthesis panel."""
+    """Build Stage 3 synthesis panel for live display."""
     elements = []
 
     if state.pope_status == 'complete':
-        # Complete - show timing and content
+        # Complete - just show a brief summary (full content shown after live ends)
         elapsed = (time.time() - state.start_time)
         elements.append(Text(f"✓ {format_model_name(state.pope)} complete", style=GREEN))
         elements.append(Text(""))
@@ -658,33 +729,45 @@ def build_synthesis_panel(state: DebateState) -> Panel:
         stats_parts = [f"⏱ {elapsed:.1f}s", f"📊 {state.total_tokens:,} tokens"]
         if state.cost_usd:
             stats_parts.append(f"💰 ${state.cost_usd:.4f}")
-        if state.memories_retrieved > 0:
-            stats_parts.append(f"🧠 {state.memories_retrieved} memories used")
-        if state.memories_stored > 0:
-            stats_parts.append(f"💾 {state.memories_stored} learned")
         elements.append(Text(" | ".join(stats_parts), style="dim"))
         elements.append(Text(""))
 
-        # Render markdown content
-        md = Markdown(state.pope_content, code_theme="monokai")
-        elements.append(md)
+        # Show preview of content length
+        content_lines = len(state.pope_content.split('\n')) if state.pope_content else 0
+        elements.append(Text(f"📝 Generated {content_lines} lines of response", style="dim"))
+
     elif state.pope_status == 'running':
-        # Pope is synthesizing - beautiful animation
+        # Pope is synthesizing - calm progress animation
         think = get_thinking_indicator()
-        spinner = get_spinner()
-        bar = get_streaming_bar()
-        elements.append(Text(f"👑 {think} {spinner} ", style=SECONDARY) +
-                       Text(f"{format_model_name(state.pope)} synthesizing wisdom ", style=f"bold {SECONDARY}") +
-                       Text(f"{bar}", style=GOLD))
+        progress = get_progress_spinner()
+        elements.append(Text(f"👑 {think} ", style=SECONDARY) +
+                       Text(f"{format_model_name(state.pope)} synthesizing ", style=f"bold {SECONDARY}") +
+                       Text(f"{progress}", style=GOLD))
+
         if state.pope_content:
             elements.append(Text(""))
-            # Show partial content with animated cursor
-            lines = state.pope_content.split('\n')
-            # Show last 10 lines for streaming effect
-            visible_lines = '\n'.join(lines[-10:]) if len(lines) > 10 else state.pope_content
-            cursor_frames = ["█", "▓", "▒", "░", "▒", "▓"]
-            cursor = cursor_frames[_frame_idx % len(cursor_frames)]
-            elements.append(Text(visible_lines + cursor, style="white"))
+            # Show streaming content preview with markdown rendering
+            content = state.pope_content
+            lines = content.split('\n')
+            # Show last 15 lines for streaming effect
+            if len(lines) > 15:
+                visible_content = '\n'.join(lines[-15:])
+                elements.append(Text(f"... ({len(lines) - 15} lines above)", style="dim"))
+            else:
+                visible_content = content
+
+            # Render as markdown for code highlighting
+            try:
+                md = Markdown(visible_content, code_theme="monokai")
+                elements.append(md)
+            except Exception:
+                # Fallback to plain text if markdown fails
+                elements.append(Text(visible_content, style="white"))
+
+            # Animated cursor
+            cursor_frames = ["█", "▓", "▒", "░"]
+            cursor = cursor_frames[_slow_frame_idx() % len(cursor_frames)]
+            elements.append(Text(cursor, style=GOLD))
     else:
         # Waiting state with animation
         spinner = get_spinner()
@@ -693,9 +776,13 @@ def build_synthesis_panel(state: DebateState) -> Panel:
         else:
             elements.append(Text(f"{spinner} Awaiting debate conclusion...", style="dim"))
 
+    # Build title with timing
+    stage_time = get_stage_time(state, 3)
+    time_suffix = f" [{stage_time}]" if stage_time else ""
+
     return Panel(
         Group(*elements),
-        title=f"[{SECONDARY}]Stage 3: Pope Synthesis[/{SECONDARY}]",
+        title=f"[{SECONDARY}]Stage 3: Pope Synthesis{time_suffix}[/{SECONDARY}]",
         border_style=SECONDARY,
         padding=(1, 2)
     )
@@ -709,6 +796,42 @@ def build_error_panel(state: DebateState) -> Panel:
         border_style="red",
         padding=(1, 2)
     )
+
+
+def build_final_synthesis(state: DebateState) -> Group:
+    """Build the final synthesis output with proper markdown rendering.
+
+    This is displayed after the live view ends, showing only the final result
+    without re-displaying all the intermediate stages.
+    """
+    elements = []
+
+    # Header with stats
+    elapsed = (time.time() - state.start_time)
+    header_parts = [
+        f"✓ {format_model_name(state.pope)} synthesis complete",
+    ]
+    elements.append(Text(header_parts[0], style=f"bold {GREEN}"))
+    elements.append(Text(""))
+
+    # Stats line
+    stats_parts = [f"⏱ {elapsed:.1f}s", f"📊 {state.total_tokens:,} tokens"]
+    if state.cost_usd:
+        stats_parts.append(f"💰 ${state.cost_usd:.4f}")
+    if state.memories_retrieved > 0:
+        stats_parts.append(f"🧠 {state.memories_retrieved} memories")
+    if state.memories_stored > 0:
+        stats_parts.append(f"💾 {state.memories_stored} learned")
+    elements.append(Text(" | ".join(stats_parts), style="dim"))
+    elements.append(Text(""))
+
+    # Render the synthesis content with proper markdown
+    # Use Markdown renderer for proper code highlighting
+    if state.pope_content:
+        md = Markdown(state.pope_content, code_theme="monokai")
+        elements.append(md)
+
+    return Group(*elements)
 
 
 def build_tool_panel(state: DebateState) -> Optional[Panel]:
@@ -1245,6 +1368,7 @@ async def run_cloud_debate(
         Final DebateState with results
     """
     state = DebateState()
+    state.stage_start_times[0] = state.start_time  # Stage 0 starts immediately
     work_dir = working_directory or os.getcwd()
     proj_path = project_path or work_dir
 
@@ -1256,7 +1380,7 @@ async def run_cloud_debate(
     if auto_file_paths:
         display_auto_context_summary(auto_files, auto_file_paths)
 
-    with Live(console=console, refresh_per_second=12, transient=True) as live:
+    with Live(console=console, refresh_per_second=12, transient=False) as live:
         # Process initial debate stream with auto-context
         event_stream = stream_sse(
             url=api_url,
@@ -1428,28 +1552,13 @@ async def run_cloud_debate(
                     except (asyncio.CancelledError, StopAsyncIteration):
                         pass
 
-    # Final render (non-transient)
-    console.print(build_display(state))
-
-    # Print full proposals in a separate section (after the live display)
-    if state.bishop_content and state.complete:
-        console.print("")
-        console.print(Panel(
-            Text("📜 Full Bishop Proposals", style=f"bold {PRIMARY}"),
-            border_style=PRIMARY,
-            padding=(0, 1)
-        ))
-        for bishop in state.bishops:
-            content = state.bishop_content.get(bishop, "")
-            if content:
-                tokens = state.bishop_tokens.get(bishop, 0)
-                console.print("")
-                console.print(Panel(
-                    Markdown(content, code_theme="monokai"),
-                    title=f"[{CYAN}]{format_model_name(bishop)}[/{CYAN}] ({tokens} tokens)",
-                    border_style=CYAN,
-                    padding=(1, 2)
-                ))
+    # Final output - stages are already visible (transient=False)
+    # Just print the final synthesis content with proper markdown rendering
+    if state.complete and state.pope_content:
+        console.print("")  # Blank line after stages
+        console.print(Markdown(state.pope_content, code_theme="monokai"))
+    elif state.error:
+        console.print(build_error_panel(state))
 
     return state
 
