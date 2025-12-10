@@ -305,6 +305,10 @@ SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇",
 THINKING_FRAMES = ["🧠", "💭", "💡", "✨", "🔮", "⚡"]
 STREAMING_FRAMES = ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█", "▇", "▆", "▅", "▄", "▃", "▂"]
 PULSE_FRAMES = ["◉", "◎", "○", "◎"]
+# Mesmerizing gradient wave frames for status bar
+WAVE_FRAMES = ["░▒▓█▓▒░", "▒▓█▓▒░░", "▓█▓▒░░▒", "█▓▒░░▒▓", "▓▒░░▒▓█", "▒░░▒▓█▓", "░░▒▓█▓▒", "░▒▓█▓▒░"]
+DOT_WAVE_FRAMES = ["·•●•·", "•●•··", "●•··•", "•··•●", "··•●•", "·•●•·"]
+PROGRESS_FRAMES = ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"]
 _frame_idx = 0
 
 
@@ -332,6 +336,24 @@ def get_pulse() -> str:
     """Get pulsing indicator."""
     global _frame_idx
     return PULSE_FRAMES[_frame_idx % len(PULSE_FRAMES)]
+
+
+def get_wave() -> str:
+    """Get mesmerizing wave animation."""
+    global _frame_idx
+    return WAVE_FRAMES[_frame_idx % len(WAVE_FRAMES)]
+
+
+def get_dot_wave() -> str:
+    """Get dot wave animation."""
+    global _frame_idx
+    return DOT_WAVE_FRAMES[_frame_idx % len(DOT_WAVE_FRAMES)]
+
+
+def get_progress_spinner() -> str:
+    """Get braille progress spinner."""
+    global _frame_idx
+    return PROGRESS_FRAMES[_frame_idx % len(PROGRESS_FRAMES)]
 
 
 def advance_animation() -> None:
@@ -733,6 +755,162 @@ def build_tool_panel(state: DebateState) -> Optional[Panel]:
     )
 
 
+def get_current_action(state: DebateState) -> str:
+    """Get human-readable description of current action based on state."""
+    if state.error:
+        return "Error occurred"
+
+    if state.complete:
+        return "Complete"
+
+    # Stage 0: Analysis
+    if state.stage == 0:
+        if not state.memory_search_done and not state.classification_done:
+            return "Analyzing query"
+        elif not state.memory_search_done:
+            return "Searching memories"
+        elif not state.classification_done:
+            return "Classifying complexity"
+        else:
+            return "Selecting bishops"
+
+    # Stage 1: Proposals
+    if state.stage == 1:
+        running_bishops = [b for b, s in state.bishop_status.items() if s == 'running']
+        if running_bishops:
+            if len(running_bishops) == 1:
+                return f"{format_model_name(running_bishops[0])} proposing"
+            else:
+                return f"{len(running_bishops)} bishops proposing"
+        pending = [b for b, s in state.bishop_status.items() if s == 'pending']
+        if pending:
+            return "Awaiting proposals"
+        return "Assessing consensus"
+
+    # Stage 2: Critiques
+    if state.stage == 2:
+        if state.debate_skipped:
+            return "Debate skipped (high consensus)"
+        running_critics = [k for k, s in state.critique_status.items() if s == 'running']
+        if running_critics:
+            if len(running_critics) == 1:
+                parts = running_critics[0].split('→')
+                if len(parts) == 2:
+                    return f"{format_model_name(parts[0])} critiquing"
+            return f"{len(running_critics)} critiques in parallel"
+        if state.consensus_reached:
+            return "Consensus reached"
+        return f"Round {state.current_round} critiques"
+
+    # Stage 3: Synthesis
+    if state.stage == 3:
+        if state.pope_status == 'running':
+            return f"Pope {format_model_name(state.pope)} synthesizing"
+        elif state.pope_status == 'complete':
+            return "Synthesis complete"
+        return "Preparing synthesis"
+
+    return "Processing"
+
+
+def get_parallel_activities(state: DebateState) -> List[str]:
+    """Get list of activities happening in parallel for status display."""
+    activities = []
+
+    # Stage 1: Running bishops
+    if state.stage == 1:
+        for bishop, status in state.bishop_status.items():
+            if status == 'running':
+                tokens = state.bishop_tokens.get(bishop, 0)
+                activities.append(f"{format_model_name(bishop)}: {tokens} tokens")
+
+    # Stage 2: Running critiques
+    if state.stage == 2 and not state.debate_skipped:
+        for key, status in state.critique_status.items():
+            if status == 'running':
+                parts = key.split('→')
+                if len(parts) == 2:
+                    activities.append(f"{format_model_name(parts[0])}→{format_model_name(parts[1])}")
+
+    return activities
+
+
+def build_status_bar(state: DebateState) -> Text:
+    """Build Claude Code-style dynamic status bar with live animations.
+
+    Shows: [wave] Action... (parallel activities) · elapsed · ↓ tokens
+    """
+    # Get animated elements
+    wave = get_wave()
+    dot_wave = get_dot_wave()
+    progress = get_progress_spinner()
+
+    # Calculate elapsed time
+    elapsed = int(time.time() - state.start_time)
+    if elapsed < 60:
+        time_str = f"{elapsed}s"
+    elif elapsed < 3600:
+        mins = elapsed // 60
+        secs = elapsed % 60
+        time_str = f"{mins}m {secs}s"
+    else:
+        hours = elapsed // 3600
+        mins = (elapsed % 3600) // 60
+        time_str = f"{hours}h {mins}m"
+
+    # Get current action
+    action = get_current_action(state)
+
+    # Get parallel activities
+    parallel = get_parallel_activities(state)
+
+    # Build status text
+    status = Text()
+
+    # Leading wave animation
+    status.append(f" {progress} ", style=f"bold {CYAN}")
+
+    # Current action with ellipsis animation
+    ellipsis_frames = [".", "..", "...", ".."]
+    ellipsis = ellipsis_frames[_frame_idx % len(ellipsis_frames)]
+    status.append(f"{action}{ellipsis}", style=f"{CYAN}")
+
+    # Parallel activities (if any)
+    if parallel and len(parallel) <= 3:
+        status.append(" (", style="dim")
+        for i, activity in enumerate(parallel):
+            if i > 0:
+                status.append(" | ", style="dim")
+            status.append(activity, style=f"dim {GOLD}")
+        status.append(")", style="dim")
+    elif parallel:
+        status.append(f" ({len(parallel)} parallel)", style="dim")
+
+    # Separator
+    status.append(" ", style="dim")
+    status.append(dot_wave, style=f"dim {SECONDARY}")
+    status.append(" ", style="dim")
+
+    # Elapsed time
+    status.append(f"{time_str}", style="dim")
+    status.append(" · ", style="dim")
+
+    # Token counter with live accumulation indicator
+    token_indicator = "↓" if not state.complete else "✓"
+    status.append(f"{token_indicator} ", style=f"dim {'green' if state.complete else GOLD}")
+    status.append(f"{state.total_tokens:,}", style=f"{'green' if state.complete else GOLD}")
+    status.append(" tokens", style="dim")
+
+    # Cost if available
+    if state.cost_usd and state.cost_usd > 0:
+        status.append(f" · ${state.cost_usd:.4f}", style="dim")
+
+    # Trailing wave
+    status.append(f" {wave}", style=f"dim {CYAN}")
+
+    return status
+
+
 def build_display(state: DebateState) -> Group:
     """Build full display from current state."""
     panels = []
@@ -762,6 +940,11 @@ def build_display(state: DebateState) -> Group:
     # Stage 3: Synthesis
     if state.stage >= 3:
         panels.append(build_synthesis_panel(state))
+
+    # Status bar at bottom (only while in progress)
+    if not state.complete and not state.error:
+        panels.append(Text(""))  # Spacing
+        panels.append(build_status_bar(state))
 
     return Group(*panels)
 

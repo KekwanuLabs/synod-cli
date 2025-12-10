@@ -1,6 +1,6 @@
 [project]
 name = "synod-cli"
-version = "2.2.7"
+version = "2.2.8"
 description = "AI coding agent with adversarial debate. Multiple models critique each other, only battle-tested answers survive. Infinite memory that never forgets."
 readme = "README.md"
 requires-python = ">=3.8"

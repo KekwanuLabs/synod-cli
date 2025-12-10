@@ -206,10 +206,12 @@ With Synod:
 - **Parallel execution**: All bishops propose simultaneously
 - **Token efficiency**: Pay for intelligence, not repetition
 
-### Privacy-First
-- **Your code stays local**: Only queries sent to cloud
-- **No raw storage**: Memories are semantic embeddings, not text
-- **BYOK available**: Bring your own API keys (encrypted at rest)
+### Privacy-First (Zero Storage)
+- **Nothing is saved**: Your queries and code are never stored on our servers
+- **Pass-through only**: Data flows to AI providers and back, then it's gone
+- **Memories are semantic**: Only extracted insights stored as embeddings (not raw text)
+- **BYOK available**: Your API keys are encrypted at rest, never logged
+- **[Read our Privacy Policy](https://synod.run/privacy)**: Our commitment to your data
 
 ### Beautiful CLI
 - Real-time streaming with rich formatting
@@ -381,12 +383,22 @@ The Council will be able to read, edit, and execute files here.
 
 **Only trust workspaces you control.** Synod can read and modify files in trusted workspaces.
 
-### Data Privacy
+### Data Privacy Promise
 
-- **Your code stays local** - Only queries and context you provide are sent to Synod Cloud
-- **No raw code storage** - Synod Cloud doesn't store your code or conversation content
-- **Memory is semantic** - Only extracted insights are stored as embeddings, not raw text
-- **BYOK available** - Use your own API keys; we never see them (encrypted at rest)
+**We never store your queries or code. Ever.**
+
+| What | Stored? | Details |
+|------|---------|---------|
+| Your queries | ❌ No | Pass-through to AI providers only |
+| Your code | ❌ No | Never touches our servers |
+| Conversation content | ❌ No | Discarded after response |
+| Raw text | ❌ No | Only semantic embeddings for memory |
+| API keys (BYOK) | 🔒 Encrypted | AES-256 at rest, never logged |
+| Usage metadata | ✓ Yes | Token counts, timestamps (for billing) |
+
+**Memory stores insights, not content.** When Synod "remembers" that you prefer TypeScript, it stores a semantic embedding of that preference, not your actual code or conversation.
+
+Read our full [Privacy Policy](https://synod.run/privacy) for details.
 
 ### Credentials & Config Files
 
