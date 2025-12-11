@@ -1,4 +1,4 @@
-name: Auto Release & Publish
+name: Auto Release
 
 on:
   push:
@@ -34,14 +34,13 @@ jobs:
           echo "should_release=$CHANGED" >> $GITHUB_OUTPUT
           echo "Version changed: $CHANGED"
 
-  release-and-publish:
-    name: Create Release & Publish to PyPI
+  create-release:
+    name: Create GitHub Release
     needs: check-version
     if: needs.check-version.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      id-token: write  # Required for PyPI trusted publishing
 
     steps:
       - name: Checkout code
@@ -68,19 +67,5 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install build dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install build
-
-      - name: Build package
-        run: python -m build
-
-      - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        # No password needed - uses OIDC trusted publishing
+      # Note: PyPI publish happens via publish.yml triggered by release event
+      # If that doesn't work, manually run: gh workflow run publish.yml
