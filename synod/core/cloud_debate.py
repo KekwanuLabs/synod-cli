@@ -170,6 +170,9 @@ def handle_event(state: DebateState, event: dict) -> None:
         state.reasoning = event.get('reasoning', '')
         state.bishop_status = {b: 'pending' for b in state.bishops}
         state.classification_done = True
+        # Mark stage 0 as complete
+        if 0 not in state.stage_end_times:
+            state.stage_end_times[0] = time.time()
 
     elif event_type == 'context_hints':
         # Context analysis from the API
