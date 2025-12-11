@@ -1048,7 +1048,7 @@ def build_status_bar(state: DebateState) -> Text:
         status.append(f" · ${state.cost_usd:.4f}", style="dim")
 
     # Trailing wave
-    status.append(f" {wave}", style=f"dim {CYAN}")
+    status.append(f" {get_wave()}", style=f"dim {CYAN}")
 
     return status
 
