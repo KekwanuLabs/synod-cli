@@ -683,17 +683,16 @@ def build_critiques_panel(state: DebateState) -> Panel:
                    Text(f"{preside} {pulse}", style=GOLD))
     elements.append(Text(""))
 
-    # Show running critiques first (with animations)
+    # Show running critiques first (with spinner only - no redundant animations)
     if state.running_critiques:
         for crit in state.running_critiques:
             spinner = get_spinner()
-            progress = get_progress_spinner()
             row_text = Text()
             row_text.append(f"  {spinner} ", style=CYAN)
             row_text.append(f"{format_model_name(crit['critic'])}", style=CYAN)
             row_text.append(" → ", style="dim")
             row_text.append(f"{format_model_name(crit['target'])} ", style=CYAN)
-            row_text.append(f"critiquing {progress}", style="dim italic")
+            row_text.append("critiquing", style="dim italic")
             elements.append(row_text)
 
     # Show completed critiques (with checkmarks and summaries)
@@ -751,12 +750,10 @@ def build_synthesis_panel(state: DebateState) -> Panel:
         elements.append(Text(f"📝 Generated {content_lines} lines of response", style="dim"))
 
     elif state.pope_status == 'running':
-        # Pope is synthesizing - calm progress animation
+        # Pope is synthesizing - clean animation (thinking indicator only)
         think = get_thinking_indicator()
-        progress = get_progress_spinner()
         elements.append(Text(f"👑 {think} ", style=SECONDARY) +
-                       Text(f"{format_model_name(state.pope)} synthesizing ", style=f"bold {SECONDARY}") +
-                       Text(f"{progress}", style=GOLD))
+                       Text(f"{format_model_name(state.pope)} synthesizing", style=f"bold {SECONDARY}"))
 
         if state.pope_content:
             elements.append(Text(""))
@@ -989,14 +986,12 @@ def get_parallel_activities(state: DebateState) -> List[str]:
 
 
 def build_status_bar(state: DebateState) -> Text:
-    """Build Claude Code-style dynamic status bar with live animations.
+    """Build clean status bar with minimal animation.
 
-    Shows: [wave] Action... (parallel activities) · elapsed · ↓ tokens
+    Shows: [spinner] Action (parallel activities) · elapsed · ↓ tokens
     """
-    # Get animated elements
-    wave = get_wave()
-    dot_wave = get_dot_wave()
-    progress = get_progress_spinner()
+    # Get single animated element - keep it simple
+    spinner = get_spinner()
 
     # Calculate elapsed time
     elapsed = int(time.time() - state.start_time)
@@ -1017,16 +1012,12 @@ def build_status_bar(state: DebateState) -> Text:
     # Get parallel activities
     parallel = get_parallel_activities(state)
 
-    # Build status text
+    # Build status text - clean and simple
     status = Text()
 
-    # Leading wave animation
-    status.append(f" {progress} ", style=f"bold {CYAN}")
-
-    # Current action with ellipsis animation (fixed width to prevent text jumping)
-    ellipsis_frames = [".  ", ".. ", "...", ".. "]
-    ellipsis = ellipsis_frames[_frame_idx % len(ellipsis_frames)]
-    status.append(f"{action}{ellipsis}", style=f"{CYAN}")
+    # Spinner + action
+    status.append(f" {spinner} ", style=f"bold {CYAN}")
+    status.append(f"{action}", style=f"{CYAN}")
 
     # Parallel activities (if any)
     if parallel and len(parallel) <= 3:
@@ -1040,9 +1031,7 @@ def build_status_bar(state: DebateState) -> Text:
         status.append(f" ({len(parallel)} parallel)", style="dim")
 
     # Separator
-    status.append(" ", style="dim")
-    status.append(dot_wave, style=f"dim {SECONDARY}")
-    status.append(" ", style="dim")
+    status.append(" · ", style="dim")
 
     # Elapsed time
     status.append(f"{time_str}", style="dim")
