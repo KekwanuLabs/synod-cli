@@ -1435,6 +1435,9 @@ async def run_cloud_debate(
         display_auto_context_summary(auto_files, auto_file_paths)
 
     with Live(console=console, refresh_per_second=12, transient=False) as live:
+        # Show initial Stage 0 display immediately (timer starts counting)
+        live.update(build_display(state))
+
         # Process initial debate stream with auto-context
         event_stream = stream_sse(
             url=api_url,
