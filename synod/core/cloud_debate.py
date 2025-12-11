@@ -1137,65 +1137,33 @@ def build_status_bar(state: DebateState) -> Text:
 def build_display(state: DebateState) -> Group:
     """Build full display from current state.
 
-    Uses smart collapsing to keep content visible in small terminals.
-    Only the current/active stage is expanded; earlier stages are collapsed.
+    Shows all stages - terminal will scroll naturally if content exceeds height.
     """
     panels = []
-
-    # Get terminal height for smart collapsing
-    try:
-        from rich.console import Console
-        term_height = Console().size.height
-    except Exception:
-        term_height = 40  # Fallback
 
     # Error takes precedence
     if state.error:
         panels.append(build_error_panel(state))
         return Group(*panels)
 
-    # Determine which stages to collapse (earlier stages when terminal is small)
-    # Collapse earlier stages when we're in later stages and terminal is small
-    collapse_threshold = 30  # If terminal < 30 lines, start collapsing
-    should_collapse = term_height < collapse_threshold
-
-    # Stage 0: Analysis (collapse if we're past stage 1 and space is tight)
+    # Stage 0: Analysis
     if state.stage >= 0:
-        if should_collapse and state.stage >= 2:
-            # Show minimal summary for stage 0
-            elapsed = (time.time() - state.start_time)
-            summary = Text(f"✓ Analysis [{elapsed:.1f}s]", style="dim green")
-            panels.append(summary)
-        else:
-            panels.append(build_analysis_panel(state))
+        panels.append(build_analysis_panel(state))
 
     # Tool execution (if any)
     tool_panel = build_tool_panel(state)
     if tool_panel:
         panels.append(tool_panel)
 
-    # Stage 1: Proposals (collapse if we're in stage 3 and space is tight)
+    # Stage 1: Proposals
     if state.stage >= 1:
-        if should_collapse and state.stage >= 3:
-            # Show minimal summary for stage 1
-            bishop_count = len(state.bishop_proposals)
-            consensus = int(state.overall_similarity * 100)
-            summary = Text(f"✓ Proposals [{bishop_count} bishops, {consensus}% consensus]", style="dim green")
-            panels.append(summary)
-        else:
-            panels.append(build_proposals_panel(state))
+        panels.append(build_proposals_panel(state))
 
-    # Stage 2: Critiques (collapse if we're in stage 3 and space is tight)
+    # Stage 2: Critiques
     if state.stage >= 2:
-        if should_collapse and state.stage >= 3 and not state.debate_skipped:
-            # Show minimal summary for stage 2
-            critique_count = len(state.all_critiques)
-            summary = Text(f"✓ Debate [{critique_count} critiques, {state.rounds_completed} rounds]", style="dim green")
-            panels.append(summary)
-        else:
-            panels.append(build_critiques_panel(state))
+        panels.append(build_critiques_panel(state))
 
-    # Stage 3: Synthesis (always show full)
+    # Stage 3: Synthesis
     if state.stage >= 3:
         panels.append(build_synthesis_panel(state))
 
@@ -1512,7 +1480,8 @@ async def run_cloud_debate(
     proj_path = project_path or work_dir
 
     # Start Live display IMMEDIATELY so user sees Stage 0 animation right away
-    with Live(console=console, refresh_per_second=12, transient=False) as live:
+    # vertical_overflow="visible" allows content to scroll naturally when it exceeds terminal height
+    with Live(console=console, refresh_per_second=12, transient=False, vertical_overflow="visible") as live:
         # Show initial Stage 0 display immediately (timer starts counting)
         live.update(build_display(state))
 
