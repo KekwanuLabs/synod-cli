@@ -1426,17 +1426,34 @@ async def run_cloud_debate(
     work_dir = working_directory or os.getcwd()
     proj_path = project_path or work_dir
 
-    # Gather auto-context (zero-latency, runs in parallel with user seeing spinner)
-    auto_files, auto_file_paths = await gather_auto_context(
-        query=query,
-        root_path=proj_path,
-    )
-    if auto_file_paths:
-        display_auto_context_summary(auto_files, auto_file_paths)
-
+    # Start Live display IMMEDIATELY so user sees Stage 0 animation right away
     with Live(console=console, refresh_per_second=12, transient=False) as live:
         # Show initial Stage 0 display immediately (timer starts counting)
         live.update(build_display(state))
+
+        # Gather auto-context while showing Stage 0 animation
+        # Use a task so we can update display during context gathering
+        auto_context_task = asyncio.create_task(gather_auto_context(
+            query=query,
+            root_path=proj_path,
+        ))
+
+        # Update display while waiting for auto-context
+        while not auto_context_task.done():
+            try:
+                await asyncio.wait_for(asyncio.shield(auto_context_task), timeout=0.1)
+            except asyncio.TimeoutError:
+                advance_animation()
+                live.update(build_display(state))
+
+        auto_files, auto_file_paths = auto_context_task.result()
+
+        # Show auto-context summary (briefly pause live to print)
+        if auto_file_paths:
+            live.stop()
+            display_auto_context_summary(auto_files, auto_file_paths)
+            live.start()
+            live.update(build_display(state))
 
         # Process initial debate stream with auto-context
         event_stream = stream_sse(
