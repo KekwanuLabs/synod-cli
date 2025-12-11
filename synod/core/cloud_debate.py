@@ -661,10 +661,17 @@ def build_critiques_panel(state: DebateState) -> Panel:
             padding=(0, 2)
         )
 
-    # Round info with progress indicator
+    # Round info with progress indicator and explanation
     if state.current_round > 0:
         progress = get_progress_spinner()
-        elements.append(Text(f"🛡️ Round {state.current_round}/{state.max_rounds} • {state.critique_pairs} disagreeing pairs", style=GOLD))
+        round_text = Text()
+        round_text.append(f"🛡️ Round {state.current_round} of {state.max_rounds}", style=f"bold {GOLD}")
+        round_text.append(f" • ", style="dim")
+        round_text.append(f"{state.critique_pairs} disagreeing pairs", style=GOLD)
+        elements.append(round_text)
+        # Explain what determines rounds
+        if state.current_round == 1:
+            elements.append(Text("   Rounds continue until consensus (>85%) or max rounds reached", style="dim italic"))
     else:
         spinner = get_spinner()
         elements.append(Text(f"🛡️ {spinner} Adversarial critique phase starting...", style=GOLD))
@@ -706,7 +713,13 @@ def build_critiques_panel(state: DebateState) -> Panel:
     if state.consensus_reached:
         elements.append(Text(""))
         score_pct = int(state.consensus_score * 100) if state.consensus_score else 0
-        elements.append(Text(f"✓ Consensus reached at {score_pct}% after round {state.consensus_reached_round}", style=GREEN))
+        consensus_text = Text()
+        consensus_text.append("✓ ", style=GREEN)
+        consensus_text.append(f"Consensus reached!", style=f"bold {GREEN}")
+        consensus_text.append(f" ({score_pct}% agreement after round {state.consensus_reached_round})", style="dim")
+        elements.append(consensus_text)
+        if state.consensus_reached_round < state.max_rounds:
+            elements.append(Text(f"   Remaining {state.max_rounds - state.consensus_reached_round} rounds skipped", style="dim italic"))
 
     return Panel(
         Group(*elements),
@@ -1010,8 +1023,8 @@ def build_status_bar(state: DebateState) -> Text:
     # Leading wave animation
     status.append(f" {progress} ", style=f"bold {CYAN}")
 
-    # Current action with ellipsis animation
-    ellipsis_frames = [".", "..", "...", ".."]
+    # Current action with ellipsis animation (fixed width to prevent text jumping)
+    ellipsis_frames = [".  ", ".. ", "...", ".. "]
     ellipsis = ellipsis_frames[_frame_idx % len(ellipsis_frames)]
     status.append(f"{action}{ellipsis}", style=f"{CYAN}")
 
@@ -1585,10 +1598,17 @@ async def run_cloud_debate(
                         pass
 
     # Final output - stages are already visible (transient=False)
-    # Just print the final synthesis content with proper markdown rendering
+    # Print final synthesis content inside a bordered panel for visual consistency
     if state.complete and state.pope_content:
         console.print("")  # Blank line after stages
-        console.print(Markdown(state.pope_content, code_theme="monokai"))
+        # Create a panel with the full synthesis
+        synthesis_panel = Panel(
+            Markdown(state.pope_content, code_theme="monokai"),
+            title=f"[bold {GREEN}]✓ Final Synthesis[/bold {GREEN}]",
+            border_style=GREEN,
+            padding=(1, 2),
+        )
+        console.print(synthesis_panel)
     # Note: Error panel is already shown in build_display() via live view
     # No need to print it again here
 
