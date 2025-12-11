@@ -663,24 +663,33 @@ def build_critiques_panel(state: DebateState) -> Panel:
 
     # Round info with progress indicator and explanation
     if state.current_round > 0:
-        progress = get_progress_spinner()
         round_text = Text()
-        round_text.append(f"🛡️ Round {state.current_round} of {state.max_rounds}", style=f"bold {GOLD}")
+        if state.stage >= 3:
+            # Stage 2 complete - static display
+            round_text.append(f"🛡️ Completed {state.current_round} round{'s' if state.current_round > 1 else ''}", style=f"bold {GOLD}")
+        else:
+            # Still in progress
+            round_text.append(f"🛡️ Round {state.current_round} of {state.max_rounds}", style=f"bold {GOLD}")
         round_text.append(f" • ", style="dim")
         round_text.append(f"{state.critique_pairs} disagreeing pairs", style=GOLD)
         elements.append(round_text)
-        # Explain what determines rounds
-        if state.current_round == 1:
+        # Explain what determines rounds (only during active phase)
+        if state.current_round == 1 and state.stage < 3:
             elements.append(Text("   Rounds continue until consensus (>85%) or max rounds reached", style="dim italic"))
     else:
         spinner = get_spinner()
         elements.append(Text(f"🛡️ {spinner} Adversarial critique phase starting...", style=GOLD))
 
-    # Pope presiding with authoritative animation
-    preside = get_pope_preside()
-    pulse = get_pulse()
-    elements.append(Text(f"👑 Pope {format_model_name(state.pope)} presiding ", style="grey50") +
-                   Text(f"{preside} {pulse}", style=GOLD))
+    # Pope presiding - show animation only during active critiques, static when done
+    if state.stage >= 3 or state.consensus_reached:
+        # Stage 2 complete - static display
+        elements.append(Text(f"👑 Pope {format_model_name(state.pope)} presided", style="grey50"))
+    else:
+        # Active - show animation
+        preside = get_pope_preside()
+        pulse = get_pulse()
+        elements.append(Text(f"👑 Pope {format_model_name(state.pope)} presiding ", style="grey50") +
+                       Text(f"{preside} {pulse}", style=GOLD))
     elements.append(Text(""))
 
     # Show running critiques first (with spinner only - no redundant animations)
@@ -720,9 +729,15 @@ def build_critiques_panel(state: DebateState) -> Panel:
         if state.consensus_reached_round < state.max_rounds:
             elements.append(Text(f"   Remaining {state.max_rounds - state.consensus_reached_round} rounds skipped", style="dim italic"))
 
+    # Show completion status in title when stage 2 is done
+    if state.stage >= 3:
+        title = f"[{GOLD}]Stage 2: Adversarial Critiques{time_suffix} ✓[/{GOLD}]"
+    else:
+        title = f"[{GOLD}]Stage 2: Adversarial Critiques{time_suffix}[/{GOLD}]"
+
     return Panel(
         Group(*elements),
-        title=f"[{GOLD}]Stage 2: Adversarial Critiques{time_suffix}[/{GOLD}]",
+        title=title,
         border_style=GOLD,
         padding=(0, 2)
     )
@@ -733,21 +748,26 @@ def build_synthesis_panel(state: DebateState) -> Panel:
     elements = []
 
     if state.pope_status == 'complete':
-        # Complete - just show a brief summary (full content shown after live ends)
+        # Complete - show full synthesis content with stats
         elapsed = (time.time() - state.start_time)
-        elements.append(Text(f"✓ {format_model_name(state.pope)} complete", style=GREEN))
+        elements.append(Text(f"✓ {format_model_name(state.pope)} synthesis complete", style=f"bold {GREEN}"))
         elements.append(Text(""))
 
         # Stats line
         stats_parts = [f"⏱ {elapsed:.1f}s", f"📊 {state.total_tokens:,} tokens"]
         if state.cost_usd:
             stats_parts.append(f"💰 ${state.cost_usd:.4f}")
+        if state.memories_retrieved > 0:
+            stats_parts.append(f"🧠 {state.memories_retrieved} memories")
+        if state.memories_stored > 0:
+            stats_parts.append(f"💾 {state.memories_stored} learned")
         elements.append(Text(" | ".join(stats_parts), style="dim"))
         elements.append(Text(""))
 
-        # Show preview of content length
-        content_lines = len(state.pope_content.split('\n')) if state.pope_content else 0
-        elements.append(Text(f"📝 Generated {content_lines} lines of response", style="dim"))
+        # Show full synthesis content with markdown rendering
+        if state.pope_content:
+            md = Markdown(state.pope_content, code_theme="monokai")
+            elements.append(md)
 
     elif state.pope_status == 'running':
         # Pope is synthesizing - clean animation (thinking indicator only)
@@ -787,14 +807,21 @@ def build_synthesis_panel(state: DebateState) -> Panel:
         else:
             elements.append(Text(f"{spinner} Awaiting debate conclusion...", style="dim"))
 
-    # Build title with timing
+    # Build title with timing - show "Final Synthesis" when complete
     stage_time = get_stage_time(state, 3)
     time_suffix = f" [{stage_time}]" if stage_time else ""
 
+    if state.pope_status == 'complete':
+        title = f"[bold {GREEN}]✓ Final Synthesis{time_suffix}[/bold {GREEN}]"
+        border = GREEN
+    else:
+        title = f"[{SECONDARY}]Stage 3: Pope Synthesis{time_suffix}[/{SECONDARY}]"
+        border = SECONDARY
+
     return Panel(
         Group(*elements),
-        title=f"[{SECONDARY}]Stage 3: Pope Synthesis{time_suffix}[/{SECONDARY}]",
-        border_style=SECONDARY,
+        title=title,
+        border_style=border,
         padding=(1, 2)
     )
 
@@ -1586,20 +1613,8 @@ async def run_cloud_debate(
                     except (asyncio.CancelledError, StopAsyncIteration):
                         pass
 
-    # Final output - stages are already visible (transient=False)
-    # Print final synthesis content inside a bordered panel for visual consistency
-    if state.complete and state.pope_content:
-        console.print("")  # Blank line after stages
-        # Create a panel with the full synthesis
-        synthesis_panel = Panel(
-            Markdown(state.pope_content, code_theme="monokai"),
-            title=f"[bold {GREEN}]✓ Final Synthesis[/bold {GREEN}]",
-            border_style=GREEN,
-            padding=(1, 2),
-        )
-        console.print(synthesis_panel)
-    # Note: Error panel is already shown in build_display() via live view
-    # No need to print it again here
+    # Final output is now shown in the combined Stage 3/Final Synthesis panel
+    # No need for a separate print - it's all in build_synthesis_panel() when complete
 
     return state
 
