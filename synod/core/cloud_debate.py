@@ -157,10 +157,11 @@ def handle_event(state: DebateState, event: dict) -> None:
         if prev_stage in state.stage_start_times and prev_stage not in state.stage_end_times:
             state.stage_end_times[prev_stage] = time.time()
 
-        # Start new stage timing
+        # Start new stage timing (don't overwrite if already set, e.g. stage 0)
         state.stage = event['stage']
         state.stage_name = event['name']
-        state.stage_start_times[state.stage] = time.time()
+        if state.stage not in state.stage_start_times:
+            state.stage_start_times[state.stage] = time.time()
 
     elif event_type == 'analysis_complete':
         state.complexity = event['complexity']
