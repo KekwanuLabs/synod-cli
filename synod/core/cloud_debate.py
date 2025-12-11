@@ -100,6 +100,9 @@ class DebateState:
     running_critiques: List[Dict[str, str]] = field(default_factory=list)  # [{critic, target}, ...] for in-progress
     consensus_reached: bool = False
     consensus_reached_round: int = 0
+    # Round-specific tracking for persistent display
+    round_summaries: Dict[int, List[CritiqueSummary]] = field(default_factory=dict)  # round -> completed critiques
+    round_consensus: Dict[int, float] = field(default_factory=dict)  # round -> consensus after round
 
     # Pope synthesis
     pope_status: str = "pending"
@@ -220,6 +223,9 @@ def handle_event(state: DebateState, event: dict) -> None:
         state.current_round = event['round']
         state.max_rounds = event['maxRounds']
         state.critique_pairs = event['pairs']
+        # Initialize round tracking
+        if state.current_round not in state.round_summaries:
+            state.round_summaries[state.current_round] = []
 
     elif event_type == 'critique_start':
         critic = event['critic']
@@ -251,6 +257,9 @@ def handle_event(state: DebateState, event: dict) -> None:
         existing = [(c.critic, c.target) for c in state.critique_summaries]
         if (new_summary.critic, new_summary.target) not in existing:
             state.critique_summaries.append(new_summary)
+            # Also track by round for persistent display
+            if state.current_round in state.round_summaries:
+                state.round_summaries[state.current_round].append(new_summary)
 
     elif event_type == 'critique_complete':
         # Also handle critique_complete (backup for critique_summary)
@@ -268,6 +277,8 @@ def handle_event(state: DebateState, event: dict) -> None:
 
     elif event_type == 'critique_round_complete':
         state.consensus_score = event['consensusScore']
+        # Store consensus for this round (for persistent display)
+        state.round_consensus[state.current_round] = event['consensusScore']
 
     elif event_type == 'consensus_reached':
         state.consensus_reached = True
@@ -652,7 +663,7 @@ def build_proposals_panel(state: DebateState) -> Panel:
 
 
 def build_critiques_panel(state: DebateState) -> Panel:
-    """Build Stage 2 critiques panel with summary grid."""
+    """Build Stage 2 critiques panel with persistent round-by-round display."""
     elements = []
 
     # Build title with timing
@@ -669,73 +680,106 @@ def build_critiques_panel(state: DebateState) -> Panel:
             padding=(0, 2)
         )
 
-    # Round info with progress indicator and explanation
-    if state.current_round > 0:
-        round_text = Text()
-        if state.stage >= 3:
-            # Stage 2 complete - static display
-            round_text.append(f"🛡️ Completed {state.current_round} round{'s' if state.current_round > 1 else ''}", style=f"bold {GOLD}")
-        else:
-            # Still in progress
-            round_text.append(f"🛡️ Round {state.current_round} of {state.max_rounds}", style=f"bold {GOLD}")
-        round_text.append(f" • ", style="dim")
-        round_text.append(f"{state.critique_pairs} disagreeing pairs", style=GOLD)
-        elements.append(round_text)
-        # Explain what determines rounds (only during active phase)
-        if state.current_round == 1 and state.stage < 3:
-            elements.append(Text("   Rounds continue until consensus (>85%) or max rounds reached", style="dim italic"))
-    else:
-        spinner = get_spinner()
-        elements.append(Text(f"🛡️ {spinner} Adversarial critique phase starting...", style=GOLD))
-
     # Pope presiding - show animation only during active critiques, static when done
     if state.stage >= 3 or state.consensus_reached:
-        # Stage 2 complete - static display
-        elements.append(Text(f"👑 Pope {format_model_name(state.pope)} presided", style="grey50"))
+        elements.append(Text(f"👑 Pope {format_model_name(state.pope)} presided over debate", style="grey50"))
     else:
-        # Active - show animation
         preside = get_pope_preside()
         pulse = get_pulse()
         elements.append(Text(f"👑 Pope {format_model_name(state.pope)} presiding ", style="grey50") +
                        Text(f"{preside} {pulse}", style=GOLD))
     elements.append(Text(""))
 
-    # Show running critiques first (with spinner only - no redundant animations)
-    if state.running_critiques:
-        for crit in state.running_critiques:
-            spinner = get_spinner()
-            row_text = Text()
-            row_text.append(f"  {spinner} ", style=CYAN)
-            row_text.append(f"{format_model_name(crit['critic'])}", style=CYAN)
-            row_text.append(" → ", style="dim")
-            row_text.append(f"{format_model_name(crit['target'])} ", style=CYAN)
-            row_text.append("critiquing", style="dim italic")
-            elements.append(row_text)
+    # Display completed rounds persistently
+    completed_rounds = sorted([r for r in state.round_summaries.keys() if r < state.current_round or state.stage >= 3])
+    for round_num in completed_rounds:
+        round_critiques = state.round_summaries.get(round_num, [])
+        round_cons = state.round_consensus.get(round_num)
 
-    # Show completed critiques (with checkmarks and summaries)
-    if state.critique_summaries:
-        for crit in state.critique_summaries:
+        # Round header
+        round_header = Text()
+        round_header.append(f"  Round {round_num}", style=f"bold {GOLD}")
+        if round_cons is not None:
+            cons_pct = int(round_cons * 100)
+            round_header.append(f" • ", style="dim")
+            round_header.append(f"{cons_pct}% consensus", style="dim")
+        round_header.append(f" ✓", style=GREEN)
+        elements.append(round_header)
+
+        # Critiques for this round
+        for crit in round_critiques:
             severity_color = {'critical': 'red', 'moderate': GOLD, 'minor': GREEN}.get(crit.severity, GREEN)
             row_text = Text()
-            row_text.append(f"  ✓ ", style=GREEN)
+            row_text.append(f"    ✓ ", style=GREEN)
             row_text.append(f"{format_model_name(crit.critic)}", style=CYAN)
             row_text.append(" → ", style="dim")
             row_text.append(f"{format_model_name(crit.target)} ", style=CYAN)
             row_text.append(f"[{crit.severity.upper()}] ", style=f"bold {severity_color}")
-            row_text.append(crit.summary[:60], style="dim")
+            row_text.append(crit.summary[:50], style="dim")
             elements.append(row_text)
-
-    # Consensus reached?
-    if state.consensus_reached:
         elements.append(Text(""))
+
+    # Current round (if in progress)
+    if state.current_round > 0 and state.stage < 3 and not state.consensus_reached:
+        # Check if this round has any completed critiques yet
+        current_round_done = state.current_round in completed_rounds
+        if not current_round_done:
+            round_header = Text()
+            spinner = get_spinner()
+            round_header.append(f"  {spinner} Round {state.current_round}", style=f"bold {GOLD}")
+            round_header.append(f" of {state.max_rounds}", style="dim")
+            round_header.append(f" • ", style="dim")
+            round_header.append(f"{state.critique_pairs} pairs critiquing", style=GOLD)
+            elements.append(round_header)
+
+            # Show running critiques for current round
+            for crit in state.running_critiques:
+                spinner = get_spinner()
+                row_text = Text()
+                row_text.append(f"    {spinner} ", style=CYAN)
+                row_text.append(f"{format_model_name(crit['critic'])}", style=CYAN)
+                row_text.append(" → ", style="dim")
+                row_text.append(f"{format_model_name(crit['target'])} ", style=CYAN)
+                row_text.append("critiquing...", style="dim italic")
+                elements.append(row_text)
+
+            # Show completed critiques in current round (not yet moved to round_summaries)
+            current_round_critiques = state.round_summaries.get(state.current_round, [])
+            for crit in current_round_critiques:
+                severity_color = {'critical': 'red', 'moderate': GOLD, 'minor': GREEN}.get(crit.severity, GREEN)
+                row_text = Text()
+                row_text.append(f"    ✓ ", style=GREEN)
+                row_text.append(f"{format_model_name(crit.critic)}", style=CYAN)
+                row_text.append(" → ", style="dim")
+                row_text.append(f"{format_model_name(crit.target)} ", style=CYAN)
+                row_text.append(f"[{crit.severity.upper()}] ", style=f"bold {severity_color}")
+                row_text.append(crit.summary[:50], style="dim")
+                elements.append(row_text)
+
+    # Starting message if no rounds yet
+    if state.current_round == 0:
+        spinner = get_spinner()
+        elements.append(Text(f"  {spinner} Adversarial critique phase starting...", style=GOLD))
+
+    # Consensus reached message
+    if state.consensus_reached:
         score_pct = int(state.consensus_score * 100) if state.consensus_score else 0
         consensus_text = Text()
         consensus_text.append("✓ ", style=GREEN)
         consensus_text.append(f"Consensus reached!", style=f"bold {GREEN}")
-        consensus_text.append(f" ({score_pct}% agreement after round {state.consensus_reached_round})", style="dim")
+        consensus_text.append(f" ({score_pct}% after round {state.consensus_reached_round})", style="dim")
         elements.append(consensus_text)
         if state.consensus_reached_round < state.max_rounds:
-            elements.append(Text(f"   Remaining {state.max_rounds - state.consensus_reached_round} rounds skipped", style="dim italic"))
+            elements.append(Text(f"   Skipped {state.max_rounds - state.consensus_reached_round} remaining round(s)", style="dim italic"))
+
+    # Final summary when stage 2 complete
+    if state.stage >= 3 and not state.consensus_reached:
+        final_cons = int(state.consensus_score * 100) if state.consensus_score else 0
+        summary_text = Text()
+        summary_text.append(f"✓ ", style=GREEN)
+        summary_text.append(f"Debate complete", style=f"bold {GREEN}")
+        summary_text.append(f" • {state.current_round} round(s) • {final_cons}% final consensus", style="dim")
+        elements.append(summary_text)
 
     # Show completion status in title when stage 2 is done
     if state.stage >= 3:
