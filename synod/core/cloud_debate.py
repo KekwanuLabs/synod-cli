@@ -636,19 +636,21 @@ def build_proposals_panel(state: DebateState) -> Panel:
             label = "LOW"
         elements.append(Text(f"📊 Consensus: ", style="dim") + Text(f"{score_pct}% ({label})", style=f"bold {style}"))
 
-    # Pope assessment result
+    # Pope assessment result - shows consensus level (debate decision is based on complexity, not consensus)
     if state.pope_assessment_done:
         elements.append(Text(""))
         sim_pct = int(state.overall_similarity * 100)
-        if state.should_debate:
+        if sim_pct >= 80:
+            # High consensus - but debate still happens for non-trivial queries
             elements.append(Text(f"⚖️ Pope Assessment: ", style="dim") +
-                          Text(f"{sim_pct}% similarity - debate needed", style=GOLD))
+                          Text(f"{sim_pct}% consensus (high agreement)", style=GREEN))
+        else:
+            # Lower consensus
+            elements.append(Text(f"⚖️ Pope Assessment: ", style="dim") +
+                          Text(f"{sim_pct}% consensus", style=GOLD))
             if state.disagreement_pairs:
                 pairs_str = ", ".join([f"{p['bishop1']} vs {p['bishop2']}" for p in state.disagreement_pairs[:2]])
-                elements.append(Text(f"   Disagreements: {pairs_str}", style="dim"))
-        else:
-            elements.append(Text(f"⚖️ Pope Assessment: ", style="dim") +
-                          Text(f"{sim_pct}% similarity - skipping debate", style=GREEN))
+                elements.append(Text(f"   Areas of disagreement: {pairs_str}", style="dim"))
 
     # Build title with timing
     stage_time = get_stage_time(state, 1)
@@ -1133,32 +1135,67 @@ def build_status_bar(state: DebateState) -> Text:
 
 
 def build_display(state: DebateState) -> Group:
-    """Build full display from current state."""
+    """Build full display from current state.
+
+    Uses smart collapsing to keep content visible in small terminals.
+    Only the current/active stage is expanded; earlier stages are collapsed.
+    """
     panels = []
+
+    # Get terminal height for smart collapsing
+    try:
+        from rich.console import Console
+        term_height = Console().size.height
+    except Exception:
+        term_height = 40  # Fallback
 
     # Error takes precedence
     if state.error:
         panels.append(build_error_panel(state))
         return Group(*panels)
 
-    # Stage 0: Analysis
+    # Determine which stages to collapse (earlier stages when terminal is small)
+    # Collapse earlier stages when we're in later stages and terminal is small
+    collapse_threshold = 30  # If terminal < 30 lines, start collapsing
+    should_collapse = term_height < collapse_threshold
+
+    # Stage 0: Analysis (collapse if we're past stage 1 and space is tight)
     if state.stage >= 0:
-        panels.append(build_analysis_panel(state))
+        if should_collapse and state.stage >= 2:
+            # Show minimal summary for stage 0
+            elapsed = (time.time() - state.start_time)
+            summary = Text(f"✓ Analysis [{elapsed:.1f}s]", style="dim green")
+            panels.append(summary)
+        else:
+            panels.append(build_analysis_panel(state))
 
     # Tool execution (if any)
     tool_panel = build_tool_panel(state)
     if tool_panel:
         panels.append(tool_panel)
 
-    # Stage 1: Proposals
+    # Stage 1: Proposals (collapse if we're in stage 3 and space is tight)
     if state.stage >= 1:
-        panels.append(build_proposals_panel(state))
+        if should_collapse and state.stage >= 3:
+            # Show minimal summary for stage 1
+            bishop_count = len(state.bishop_proposals)
+            consensus = int(state.overall_similarity * 100)
+            summary = Text(f"✓ Proposals [{bishop_count} bishops, {consensus}% consensus]", style="dim green")
+            panels.append(summary)
+        else:
+            panels.append(build_proposals_panel(state))
 
-    # Stage 2: Critiques
+    # Stage 2: Critiques (collapse if we're in stage 3 and space is tight)
     if state.stage >= 2:
-        panels.append(build_critiques_panel(state))
+        if should_collapse and state.stage >= 3 and not state.debate_skipped:
+            # Show minimal summary for stage 2
+            critique_count = len(state.all_critiques)
+            summary = Text(f"✓ Debate [{critique_count} critiques, {state.rounds_completed} rounds]", style="dim green")
+            panels.append(summary)
+        else:
+            panels.append(build_critiques_panel(state))
 
-    # Stage 3: Synthesis
+    # Stage 3: Synthesis (always show full)
     if state.stage >= 3:
         panels.append(build_synthesis_panel(state))
 
