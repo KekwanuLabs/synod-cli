@@ -539,11 +539,15 @@ def build_proposals_panel(state: DebateState) -> Panel:
     """Build Stage 1 proposals panel with grid display."""
     elements = []
 
-    # Pope observer with calm watching animation
-    observer = get_pope_observe()
-    pulse = get_pulse()
-    elements.append(Text(f"👑 Pope {format_model_name(state.pope)} observing ", style="grey50") +
-                   Text(f"{observer} {pulse}", style=GOLD))
+    # Pope observer - only animate during Stage 1
+    if state.stage == 1:
+        observer = get_pope_observe()
+        pulse = get_pulse()
+        elements.append(Text(f"👑 Pope {format_model_name(state.pope)} observing ", style="grey50") +
+                       Text(f"{observer} {pulse}", style=GOLD))
+    else:
+        # Stage complete - static text
+        elements.append(Text(f"👑 Pope {format_model_name(state.pope)} observed", style="grey50"))
     elements.append(Text(""))
 
     # Build grid table for bishops
