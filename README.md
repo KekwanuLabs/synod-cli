@@ -166,18 +166,40 @@ Before convening the council, Synod analyzes your query. Trivial questions get f
 Multiple AI models independently propose solutions in parallel. Each brings different strengths: Claude for reasoning, GPT for breadth, DeepSeek for algorithms.
 
 **Stage 2: Adversarial Critiques**
-Here's where the magic happens. Each Bishop reviews the others' proposals like a hostile code reviewer. They hunt for:
-- Bugs and edge cases
-- Security vulnerabilities
-- Performance issues
-- Design flaws
+Here's where the magic happens. Each Bishop acts as a Staff Engineer conducting an *adversarial* code review:
+- **Security**: Injection, auth bypass, data exposure
+- **Correctness**: Bugs, edge cases, race conditions
+- **Performance**: O(n²) traps, memory leaks, unbounded growth
+- **Production-readiness**: Error handling, logging, observability
 
-If the Bishops agree (high consensus), we skip to synthesis. If they disagree, they debate until convergence.
+**Smart Dynamic Rounds**: Synod uses intelligent exit conditions:
+
+| Complexity | Max Rounds | Early Exit Conditions |
+|------------|-----------|----------------------|
+| trivial | 0 (skip) | — |
+| simple | 1 | — |
+| moderate | 2 | High consensus + no critical issues |
+| complex | 2 | Only minor issues found |
+| expert | 3 | Issues resolved/decreasing |
+
+The CLI shows exactly why debate concluded:
+```
+✓ Debate concluded early (round 1/2)
+   → High consensus (87%) with no critical issues.
+   Issues: 🔴 0 critical  🟡 2 moderate  🟢 3 minor
+```
 
 **Stage 3: Pope Synthesis**
-The Pope has been watching silently, observing proposals and critiques without bias. Now it synthesizes the final answer, combining the best ideas:
+The Pope is the supreme arbiter with a critical mission: synthesize the best answer AND catch when Bishops agreed on the wrong approach.
 
-> *"Algorithm from DeepSeek, error handling from Claude, but I'm adding input validation they all missed."*
+> ⚠️ **Consensus ≠ Correctness**: High consensus can mean Bishops ALL made the same mistake.
+
+Before accepting any proposal, the Pope verifies:
+1. Does it actually solve the stated problem?
+2. Are there security vulnerabilities?
+3. Are there correctness bugs?
+4. Are there performance traps?
+5. Will it work in production?
 
 The Pope can override consensus if it spots a flaw everyone missed.
 
@@ -220,7 +242,8 @@ With Synod:
 
 ### Smart & Fast
 - **Intelligent routing**: Trivial questions get fast answers, complex problems get full debates
-- **Consensus detection**: Early exit when models agree (saves tokens)
+- **Smart dynamic rounds**: Complexity-based round caps with intelligent early exit
+- **Issue-aware exit**: Critical issues force continued debate, minor issues allow early exit
 - **Parallel execution**: All bishops propose simultaneously
 - **Token efficiency**: Pay for intelligence, not repetition
 
