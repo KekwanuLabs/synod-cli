@@ -18,7 +18,7 @@ import webbrowser
 from pathlib import Path
 from typing import Optional
 
-from synod.core.cloud_debate import run_cloud_debate
+from synod.core.cloud_debate import run_cloud_debate, UpgradeRequiredError
 from synod.core.theme import PRIMARY, CYAN, GOLD, GREEN, ACCENT, SynodStyles
 from synod.core.display import (
     show_launch_screen,
@@ -337,6 +337,21 @@ async def _arun_query(
         if archives:
             console.print()
             archives.display_status(console)
+
+    except UpgradeRequiredError as e:
+        # CLI version is incompatible - prompt for upgrade
+        console.print()
+        upgraded = prompt_upgrade_interactive(
+            current_version=e.current_version,
+            required_version=e.min_version,
+            is_blocking=True,
+        )
+        if upgraded:
+            console.print(
+                f"[{GREEN}]✓ Upgrade complete! Please restart Synod.[/{GREEN}]\n"
+            )
+        # Session should exit after upgrade prompt
+        raise SystemExit(1)
 
     except Exception as e:
         console.print(
@@ -1543,6 +1558,10 @@ async def _interactive_session(auto_approve: bool = False):
                         )
                         console.print()
                     message_queue.clear()
+            except SystemExit:
+                # Raised by UpgradeRequiredError handler - exit the session
+                run_hooks(HookEvent.SESSION_END, working_directory=project_path)
+                break
             except Exception as e:
                 # Catch any error during query execution and continue the loop
                 console.print(f"\n[bold red]Error: {str(e)}[/bold red]")

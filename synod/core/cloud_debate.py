@@ -33,6 +33,23 @@ console = Console()
 
 
 # ============================================================
+# Exceptions
+# ============================================================
+
+
+class UpgradeRequiredError(Exception):
+    """Raised when CLI version is incompatible with the API (426 response)."""
+
+    def __init__(self, min_version: str, current_version: str):
+        self.min_version = min_version
+        self.current_version = current_version
+        super().__init__(
+            f"CLI version {current_version} is incompatible. "
+            f"Minimum required: {min_version}"
+        )
+
+
+# ============================================================
 # SSE Event Types (mirrors cloud types)
 # ============================================================
 
@@ -1630,6 +1647,16 @@ async def stream_sse(
             },
             json=payload,
         ) as response:
+            if response.status_code == 426:
+                # Upgrade Required - CLI version is incompatible
+                error_body = await response.aread()
+                try:
+                    error_json = json.loads(error_body)
+                    min_version = error_json.get("min_version", "unknown")
+                except Exception:
+                    min_version = "unknown"
+                raise UpgradeRequiredError(min_version, cli_version)
+
             if response.status_code != 200:
                 error_body = await response.aread()
                 try:
@@ -1750,11 +1777,23 @@ async def call_classify(
                 json=payload,
             )
 
+            if response.status_code == 426:
+                # Upgrade Required - CLI version is incompatible
+                try:
+                    error_json = response.json()
+                    min_version = error_json.get("min_version", "unknown")
+                except Exception:
+                    min_version = "unknown"
+                raise UpgradeRequiredError(min_version, cli_version)
+
             if response.status_code == 200:
                 return response.json()
             else:
                 # Classification failed, return None (will fall back to old behavior)
                 return None
+    except UpgradeRequiredError:
+        # Re-raise upgrade errors
+        raise
     except Exception:
         # Network error, return None
         return None
@@ -1941,6 +1980,8 @@ async def send_tool_results(
         ]
     }
 
+    cli_version = get_version()
+
     async with httpx.AsyncClient(timeout=300.0) as client:
         async with client.stream(
             "POST",
@@ -1948,10 +1989,20 @@ async def send_tool_results(
             headers={
                 "Authorization": api_key,
                 "Content-Type": "application/json",
-                "X-Synod-Version": get_version(),
+                "X-Synod-Version": cli_version,
             },
             json=payload,
         ) as response:
+            if response.status_code == 426:
+                # Upgrade Required - CLI version is incompatible
+                error_body = await response.aread()
+                try:
+                    error_json = json.loads(error_body)
+                    min_version = error_json.get("min_version", "unknown")
+                except Exception:
+                    min_version = "unknown"
+                raise UpgradeRequiredError(min_version, cli_version)
+
             if response.status_code != 200:
                 error_body = await response.aread()
                 try:
