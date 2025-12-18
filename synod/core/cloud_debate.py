@@ -2413,9 +2413,12 @@ async def run_cloud_debate(
     if live:
         live.stop()
 
-    # Only print final state if there was an error (Live display already shows success)
-    # The Live display is NOT transient, so content remains on screen after stop
-    if state.error:
+    # Print the final synthesis separately after Live display stops
+    # This ensures the full content is visible (Live's vertical_overflow="crop" truncates)
+    if state.complete and state.pope_content and not state.error:
+        console.print()
+        console.print(build_final_synthesis(state))
+    elif state.error:
         console.print()
         console.print(build_display(state))
 

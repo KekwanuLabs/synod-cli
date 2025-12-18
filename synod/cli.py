@@ -1240,8 +1240,7 @@ async def _interactive_session(auto_approve: bool = False):
         console.print("\n[red]Not authenticated. Run 'synod login' first.[/red]\n")
         return
 
-    # Check version compatibility with Synod Cloud
-    console.print(f"[dim]Checking compatibility with Synod Cloud...[/dim]")
+    # Check version compatibility with Synod Cloud (silent unless action needed)
     compat = check_cloud_compatibility(VERSION)
 
     if compat:
