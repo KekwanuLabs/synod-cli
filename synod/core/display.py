@@ -36,6 +36,177 @@ def get_version() -> str:
         return "0.2.0"  # Fallback
 
 
+def check_cloud_compatibility(cli_version: str) -> dict:
+    """Check CLI compatibility with Synod Cloud API.
+
+    Returns a dict with:
+    - compatible: bool - whether CLI can work with API
+    - update_available: bool - whether a newer CLI exists
+    - api_version: str - the cloud API version
+    - min_cli_version: str - minimum CLI version required
+    - latest_cli_version: str - latest available CLI version
+
+    Returns empty dict on error.
+    """
+    import urllib.request
+    import json
+
+    try:
+        url = "https://api.synod.run/version"
+        headers = {"X-Synod-CLI-Version": cli_version}
+        req = urllib.request.Request(url, headers=headers)
+
+        with urllib.request.urlopen(req, timeout=5) as response:
+            data = json.loads(response.read().decode())
+            return {
+                "compatible": data.get("compatible", True),
+                "update_available": data.get("update_available", False),
+                "api_version": data.get("api_version", "unknown"),
+                "min_cli_version": data.get("min_cli_version", "0.0.0"),
+                "latest_cli_version": data.get("latest_cli_version", cli_version),
+            }
+    except Exception:
+        return {}  # Fail silently
+
+
+def prompt_upgrade_interactive(
+    current_version: str,
+    required_version: str,
+    is_blocking: bool = False,
+) -> bool:
+    """Show an interactive upgrade prompt with arrow key selection.
+
+    Args:
+        current_version: Current CLI version
+        required_version: Version to upgrade to
+        is_blocking: If True, upgrade is required (incompatible). If False, optional.
+
+    Returns:
+        True if user chose to upgrade, False otherwise.
+    """
+    from prompt_toolkit import prompt
+    from prompt_toolkit.key_binding import KeyBindings
+    from prompt_toolkit.formatted_text import HTML
+    from rich.panel import Panel
+    import sys
+
+    console = Console()
+
+    # Determine message based on whether blocking or optional
+    if is_blocking:
+        title = "[bold red]Upgrade Required[/bold red]"
+        message = (
+            f"[yellow]Your CLI version ({current_version}) is incompatible with Synod Cloud.[/yellow]\n"
+            f"[dim]Minimum required version: {required_version}[/dim]\n\n"
+            f"[white]Upgrade now to continue using Synod.[/white]"
+        )
+    else:
+        title = "[yellow]Update Available[/yellow]"
+        message = (
+            f"[dim]Current version:[/dim] {current_version}\n"
+            f"[dim]Latest version:[/dim] [green]{required_version}[/green]\n\n"
+            f"[white]Would you like to upgrade?[/white]"
+        )
+
+    console.print()
+    console.print(
+        Panel(
+            message,
+            title=title,
+            border_style="yellow" if not is_blocking else "red",
+            width=60,
+        )
+    )
+    console.print()
+
+    # Selection state
+    selected = [0]  # 0 = Upgrade, 1 = Skip (if allowed)
+    options = ["Upgrade now", "Skip"] if not is_blocking else ["Upgrade now"]
+
+    def get_prompt_text():
+        lines = []
+        for i, opt in enumerate(options):
+            if i == selected[0]:
+                lines.append(f"  [bold cyan]› {opt}[/bold cyan]")
+            else:
+                lines.append(f"    [dim]{opt}[/dim]")
+        return "\n".join(lines)
+
+    # Key bindings for arrow selection
+    bindings = KeyBindings()
+
+    @bindings.add("up")
+    def move_up(event):
+        if selected[0] > 0:
+            selected[0] -= 1
+
+    @bindings.add("down")
+    def move_down(event):
+        if selected[0] < len(options) - 1:
+            selected[0] += 1
+
+    @bindings.add("enter")
+    def confirm(event):
+        event.app.exit(result=selected[0])
+
+    @bindings.add("c-c")
+    def cancel(event):
+        if is_blocking:
+            # Must upgrade if blocking
+            console.print("[red]Upgrade required to continue. Exiting.[/red]")
+            sys.exit(1)
+        event.app.exit(result=1)  # Skip
+
+    # Use Rich for display, prompt_toolkit for input
+    from prompt_toolkit.application import Application
+    from prompt_toolkit.layout import Layout
+    from prompt_toolkit.layout.containers import Window
+    from prompt_toolkit.layout.controls import FormattedTextControl
+
+    def get_formatted_text():
+        lines = []
+        for i, opt in enumerate(options):
+            if i == selected[0]:
+                lines.append(("class:selected", f"  › {opt}\n"))
+            else:
+                lines.append(("class:unselected", f"    {opt}\n"))
+        lines.append(("class:hint", "\n  ↑↓ to select, Enter to confirm"))
+        return lines
+
+    control = FormattedTextControl(get_formatted_text)
+    window = Window(content=control, height=len(options) + 2)
+    layout = Layout(window)
+
+    from prompt_toolkit.styles import Style
+
+    style = Style.from_dict(
+        {
+            "selected": "bold cyan",
+            "unselected": "gray",
+            "hint": "gray italic",
+        }
+    )
+
+    app = Application(
+        layout=layout, key_bindings=bindings, style=style, full_screen=False
+    )
+
+    try:
+        result = app.run()
+        console.print()  # Add spacing after selection
+
+        if result == 0:
+            # User chose to upgrade
+            return auto_upgrade()
+        else:
+            return False
+    except (KeyboardInterrupt, EOFError):
+        if is_blocking:
+            console.print("[red]Upgrade required to continue. Exiting.[/red]")
+            sys.exit(1)
+        return False
+
+
 def check_for_updates(current_version: str) -> Optional[str]:
     """Check PyPI for newer version. Returns new version string or None.
 

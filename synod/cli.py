@@ -26,6 +26,8 @@ from synod.core.display import (
     console,
     get_version,
     check_for_updates,
+    check_cloud_compatibility,
+    prompt_upgrade_interactive,
     show_update_notice,
     auto_upgrade,
     TAGLINE_FULL,
@@ -1223,6 +1225,43 @@ async def _interactive_session(auto_approve: bool = False):
         console.print("\n[red]Not authenticated. Run 'synod login' first.[/red]\n")
         return
 
+    # Check version compatibility with Synod Cloud
+    console.print(f"[dim]Checking compatibility with Synod Cloud...[/dim]")
+    compat = check_cloud_compatibility(VERSION)
+
+    if compat:
+        if not compat.get("compatible", True):
+            # CLI is incompatible - must upgrade
+            console.print()
+            upgraded = prompt_upgrade_interactive(
+                current_version=VERSION,
+                required_version=compat.get("min_cli_version", "unknown"),
+                is_blocking=True,
+            )
+            if upgraded:
+                console.print(
+                    f"[{GREEN}]✓ Upgrade complete! Please restart Synod.[/{GREEN}]\n"
+                )
+                return
+            else:
+                # User cancelled - exit (prompt_upgrade_interactive handles this)
+                return
+        elif compat.get("update_available", False):
+            # Update available but not required - offer optional upgrade
+            latest = compat.get("latest_cli_version", VERSION)
+            upgraded = prompt_upgrade_interactive(
+                current_version=VERSION,
+                required_version=latest,
+                is_blocking=False,
+            )
+            if upgraded:
+                console.print(
+                    f"[{GREEN}]✓ Upgrade complete! Please restart Synod to use {latest}.[/{GREEN}]\n"
+                )
+                return
+            # User skipped - continue with current version
+            console.print()
+
     # Reset/initialize session auto-approve state
     # If --yes flag was passed, enable auto-approve; otherwise reset to prompt mode
     from synod.tools import reset_session_auto_approve, set_session_auto_approve
@@ -1283,10 +1322,8 @@ async def _interactive_session(auto_approve: bool = False):
         animate=True,
     )
 
-    # Check for updates (non-blocking, 2s timeout)
-    new_version = check_for_updates(VERSION)
-    if new_version:
-        show_update_notice(new_version, VERSION)
+    # Note: Version/update check happens at startup (before launch screen)
+    # via check_cloud_compatibility() which uses the /version API endpoint
 
     # Show loaded context info
     display_context_on_startup(project_context)
