@@ -1,6 +1,6 @@
 [project]
 name = "synod-cli"
-version = "2.2.44"
+version = "2.2.45"
 description = "AI coding agent with adversarial debate. Multiple models critique each other, only battle-tested answers survive. Infinite memory that never forgets."
 readme = "README.md"
 requires-python = ">=3.8"
@@ -54,6 +54,55 @@ include = [
 
 [tool.hatch.build.targets.wheel.shared-data]
 ".synod.template.yaml" = "share/synod/.synod.template.yaml"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+    "respx>=0.21.0",  # Mock httpx requests
+    "coverage[toml]>=7.4.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+    "-ra",
+]
+markers = [
+    "unit: Unit tests (fast, no external dependencies)",
+    "integration: Integration tests (may use mocked external services)",
+    "slow: Slow tests",
+]
+
+[tool.coverage.run]
+source = ["synod"]
+branch = true
+omit = [
+    "synod/__pycache__/*",
+    "tests/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]
+fail_under = 50  # Starting point - increase as more tests are added
+show_missing = true
+
+[tool.coverage.html]
+directory = "htmlcov"
 
 [build-system]
 requires = ["hatchling"]
