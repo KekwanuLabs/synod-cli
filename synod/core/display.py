@@ -204,17 +204,21 @@ def animate_logo() -> None:
         sys.stdout = sys.__stdout__
         sys.stderr = sys.__stderr__
 
-        # ANSI color code for orange (bold)
+        # ANSI escape codes
         ORANGE_BOLD = '\033[1;38;5;208m'  # Bold orange
         RESET = '\033[0m'
 
-        # Get terminal width
+        # Get terminal dimensions
         terminal_width = shutil.get_terminal_size().columns
 
         # Use direct file descriptor writes to bypass ALL buffering
         def write_direct(text):
             """Write directly to raw stdout file descriptor 1."""
             os.write(1, text.encode('utf-8'))
+
+        # Simple approach: just add a newline for spacing and continue from current position
+        # Don't try to manipulate screen position - just start fresh from where we are
+        write_direct('\n')
 
         # Get full logo text and split into lines for better centering
         logo_lines = SYNOD_LOGO.strip().split('\n')
@@ -242,6 +246,19 @@ def animate_logo() -> None:
             # Newline after each line
             write_direct('\n')
             time.sleep(0.01)  # Quick pause between lines
+
+        # Add tagline and subtitle as part of the animation (no jump later)
+        write_direct('\n')
+
+        # Tagline - centered, cyan color
+        CYAN_COLOR = '\033[38;5;45m'
+        tagline_padding = (terminal_width - len(TAGLINE)) // 2
+        write_direct(' ' * tagline_padding + CYAN_COLOR + TAGLINE + RESET + '\n')
+
+        # Subtitle - centered, dim
+        DIM = '\033[2m'
+        subtitle_padding = (terminal_width - len(SUBTITLE)) // 2
+        write_direct(' ' * subtitle_padding + DIM + SUBTITLE + RESET + '\n')
 
         time.sleep(0.05)  # Brief pause at end
 
@@ -271,20 +288,7 @@ def show_launch_screen(
     """
     if animate:
         animate_logo()
-        # Show clean info below animated logo (no panel)
-        console.print()
-
-        # Tagline
-        console.print(
-            Text(TAGLINE, style=SynodStyles.SUBTITLE),
-            justify="center"
-        )
-
-        # Subtitle
-        console.print(
-            Text(SUBTITLE, style=SynodStyles.TAGLINE),
-            justify="center"
-        )
+        # Tagline and subtitle already shown by animate_logo()
 
         # Version (use dynamic version if not provided)
         display_version = version or get_version()

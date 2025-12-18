@@ -278,10 +278,16 @@ app = typer.Typer(
 
 
 
-async def _arun_query(prompt: str, file_context: str, archives: Optional[CouncilArchives] = None):
+async def _arun_query(prompt: str, file_context: str, archives: Optional[CouncilArchives] = None, auto_approve: bool = False):
     """Run a query via Synod Cloud with SSE streaming.
 
     This is the thin client version - all debate logic happens in the cloud.
+
+    Args:
+        prompt: The user's query
+        file_context: Optional file context to include
+        archives: Optional CouncilArchives for conversation context
+        auto_approve: If True, automatically approve all tool executions without prompting
     """
     api_key = get_api_key()
     if not api_key:
@@ -304,6 +310,7 @@ async def _arun_query(prompt: str, file_context: str, archives: Optional[Council
             api_key=api_key,
             query=prompt,
             context=full_context if full_context else None,
+            auto_approve=auto_approve,
         )
 
         # Record debate in session (with actual debate duration)
@@ -809,6 +816,7 @@ def upgrade():
 def default_command(
     ctx: typer.Context,
     version: bool = typer.Option(None, "--version", "-v", callback=version_callback, is_eager=True, help="Show version"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Auto-approve all tool executions without prompting"),
 ):
     """
     Synod - Interactive AI coding debates.
@@ -821,11 +829,11 @@ def default_command(
             # First time user - show welcome and auto-start login
             if show_first_run_welcome():
                 # Login successful - proceed to interactive session
-                asyncio.run(_interactive_session())
+                asyncio.run(_interactive_session(auto_approve=yes))
             # If login failed, show_first_run_welcome already printed error message
         else:
             # Already configured - launch interactive mode directly
-            asyncio.run(_interactive_session())
+            asyncio.run(_interactive_session(auto_approve=yes))
 
 
 async def _handle_slash_command(
@@ -1139,15 +1147,26 @@ Identify:
         return False
 
 
-async def _interactive_session():
-    """Interactive REPL-style session with message queuing."""
+async def _interactive_session(auto_approve: bool = False):
+    """Interactive REPL-style session with message queuing.
+
+    Args:
+        auto_approve: If True, automatically approve all tool executions without prompting.
+    """
     # Safety check - main flow should have already ensured API key exists
     if not is_onboarded():
         console.print(f"\n[red]Not authenticated. Run 'synod login' first.[/red]\n")
         return
 
-    # Clear screen for fresh start
-    console.clear()
+    # Reset/initialize session auto-approve state
+    # If --yes flag was passed, enable auto-approve; otherwise reset to prompt mode
+    from synod.tools import reset_session_auto_approve, set_session_auto_approve
+    if auto_approve:
+        set_session_auto_approve(True)
+    else:
+        reset_session_auto_approve()
+
+    # Note: Screen is cleared by animate_logo() in show_launch_screen()
 
     # Check workspace trust before indexing
     from synod.core.workspace import check_workspace_trust
@@ -1239,6 +1258,7 @@ async def _interactive_session():
             api_key=api_key,
             query=query,
             context=full_context if full_context else None,
+            auto_approve=auto_approve,
         )
 
         session = get_current_session()
@@ -1374,7 +1394,7 @@ async def _interactive_session():
 
             # Run query via cloud
             try:
-                await _arun_query(user_input, "", archives=archives)
+                await _arun_query(user_input, "", archives=archives, auto_approve=auto_approve)
                 console.print()
 
                 # Run post-debate hooks
@@ -1385,7 +1405,7 @@ async def _interactive_session():
                     console.print(f"[{GOLD}]📬 Processing {len(message_queue)} queued message(s)...[/{GOLD}]\n")
                     for queued_msg in message_queue:
                         console.print(f"[{PRIMARY}]synod>[/{PRIMARY}] {queued_msg}")
-                        await _arun_query(queued_msg, "", archives=archives)
+                        await _arun_query(queued_msg, "", archives=archives, auto_approve=auto_approve)
                         console.print()
                     message_queue.clear()
             except Exception as e:

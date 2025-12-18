@@ -14,7 +14,7 @@ import json
 import time
 import os
 from dataclasses import dataclass, field
-from typing import Optional, Dict, List, Any, AsyncIterator, Callable, Awaitable
+from typing import Optional, Dict, List, Any, AsyncIterator, Callable, Awaitable, Tuple
 
 import httpx
 from rich.console import Console, Group
@@ -29,7 +29,7 @@ from rich import box
 
 from .theme import PRIMARY, CYAN, ACCENT, SECONDARY, GOLD, GREEN, GRAY, format_model_name
 from .display import get_version
-from .auto_context import gather_auto_context, display_auto_context_summary
+from .auto_context import gather_auto_context
 
 console = Console()
 
@@ -113,6 +113,7 @@ class DebateState:
     memories_retrieved: int = 0
     memories_stored: int = 0
     memory_tokens: int = 0
+    memory_summaries: List[Dict[str, Any]] = field(default_factory=list)  # [{type, content, score, scope}, ...]
 
     # Stage 0 Progress Tracking
     analysis_started: bool = False
@@ -127,9 +128,16 @@ class DebateState:
     language_hints: List[str] = field(default_factory=list)
     memory_hints: List[str] = field(default_factory=list)
 
+    # Context plan from classifier (what files SHOULD be gathered)
+    context_plan_searches: List[Dict[str, Any]] = field(default_factory=list)
+
+    # Auto-context tracking (displayed within Live)
+    auto_context_files: List[str] = field(default_factory=list)  # File paths included
+
     # Tool execution
     tool_calls: List[ToolCall] = field(default_factory=list)
     current_tool: Optional[ToolCall] = None
+    pending_tool_batch: List[ToolCall] = field(default_factory=list)  # Batch of tools to execute
     tools_executed: int = 0
 
     # Final
@@ -144,6 +152,7 @@ class DebateState:
     start_time: float = field(default_factory=time.time)
     stage_start_times: Dict[int, float] = field(default_factory=dict)  # stage -> start time
     stage_end_times: Dict[int, float] = field(default_factory=dict)    # stage -> end time
+
 
 
 # ============================================================
@@ -174,6 +183,10 @@ def handle_event(state: DebateState, event: dict) -> None:
         state.reasoning = event.get('reasoning', '')
         state.bishop_status = {b: 'pending' for b in state.bishops}
         state.classification_done = True
+        # Store context plan for future reference (what files SHOULD be gathered)
+        context_plan = event.get('context_plan', {})
+        if context_plan.get('needs_codebase_search'):
+            state.context_plan_searches = context_plan.get('searches', [])
         # Mark stage 0 as complete
         if 0 not in state.stage_end_times:
             state.stage_end_times[0] = time.time()
@@ -199,6 +212,14 @@ def handle_event(state: DebateState, event: dict) -> None:
     elif event_type == 'bishop_complete':
         state.bishop_status[event['model']] = 'complete'
         state.bishop_tokens[event['model']] = event['tokens']
+
+    elif event_type == 'bishop_stream':
+        # Streaming chunk from a bishop - accumulate content
+        model = event['model']
+        chunk = event['chunk']
+        if model not in state.bishop_content:
+            state.bishop_content[model] = ''
+        state.bishop_content[model] += chunk
 
     elif event_type == 'bishop_content':
         state.bishop_content[event['model']] = event['content']
@@ -254,12 +275,13 @@ def handle_event(state: DebateState, event: dict) -> None:
             severity=event['severity'],
             summary=event['summary']
         )
+        # Always add to round_summaries for the current round (each round can have its own critiques)
+        if state.current_round in state.round_summaries:
+            state.round_summaries[state.current_round].append(new_summary)
+        # For global critique_summaries, dedupe by critic->target pair
         existing = [(c.critic, c.target) for c in state.critique_summaries]
         if (new_summary.critic, new_summary.target) not in existing:
             state.critique_summaries.append(new_summary)
-            # Also track by round for persistent display
-            if state.current_round in state.round_summaries:
-                state.round_summaries[state.current_round].append(new_summary)
 
     elif event_type == 'critique_complete':
         # Also handle critique_complete (backup for critique_summary)
@@ -289,6 +311,7 @@ def handle_event(state: DebateState, event: dict) -> None:
     elif event_type == 'memory_retrieved':
         state.memories_retrieved = event.get('user_memories', 0) + event.get('project_memories', 0)
         state.memory_tokens = event.get('tokens', 0)
+        state.memory_summaries = event.get('memories', [])
         state.memory_search_done = True
 
     elif event_type == 'memory_extracted':
@@ -465,11 +488,36 @@ def build_analysis_panel(state: DebateState) -> Panel:
         if state.domains:
             elements.append(Text(f"Domains: ", style="dim") + Text(", ".join(state.domains), style=CYAN))
 
-        # Memory retrieved
+        # Memory retrieved - show what was actually found
         if state.memories_retrieved > 0:
-            elements.append(Text(f"Memory: ", style="dim") + Text(f"{state.memories_retrieved} relevant learnings found ({state.memory_tokens} tokens)", style=CYAN))
+            elements.append(Text(f"🧠 Memory: ", style="dim") + Text(f"{state.memories_retrieved} relevant learnings ({state.memory_tokens} tokens)", style=CYAN))
+            # Show actual memories
+            for mem in state.memory_summaries[:5]:  # Show top 5
+                mem_type = mem.get('type', 'unknown')
+                mem_content = mem.get('content', '')
+                mem_score = mem.get('score', 0)
+                mem_scope = mem.get('scope', 'user')
+                score_pct = int(mem_score * 100)
+
+                # Color by type
+                type_colors = {
+                    'preference': CYAN,
+                    'pattern': GOLD,
+                    'skill': GREEN,
+                    'architecture': PRIMARY,
+                    'convention': 'magenta',
+                    'bug': 'red',
+                    'decision': 'blue',
+                }
+                type_color = type_colors.get(mem_type, 'white')
+                scope_icon = '👤' if mem_scope == 'user' else '📁'
+
+                elements.append(Text(f"   {scope_icon} ", style="dim") +
+                              Text(f"[{mem_type}] ", style=f"bold {type_color}") +
+                              Text(f"{score_pct}% ", style="dim") +
+                              Text(mem_content[:60] + ('...' if len(mem_content) > 60 else ''), style="dim italic"))
         elif state.memory_search_done:
-            elements.append(Text(f"Memory: ", style="dim") + Text("No prior learnings found (fresh query)", style="dim"))
+            elements.append(Text(f"🧠 Memory: ", style="dim") + Text("No prior learnings found (fresh query)", style="dim"))
 
         # Context hints (if received)
         if state.context_hints_received:
@@ -533,6 +581,15 @@ def build_analysis_panel(state: DebateState) -> Panel:
         else:
             elements.append(Text(f"  {spinner} Context analysis: ", style="dim") +
                           Text(f"Extracting search hints {bar}", style=CYAN))
+
+        # Auto-context files (if gathered)
+        if state.auto_context_files:
+            elements.append(Text(f"  ✓ Auto-context: ", style="dim") +
+                          Text(f"{len(state.auto_context_files)} file(s) included", style=GREEN))
+            for path in state.auto_context_files[:3]:
+                elements.append(Text(f"      + {path}", style="dim"))
+            if len(state.auto_context_files) > 3:
+                elements.append(Text(f"      ... and {len(state.auto_context_files) - 3} more", style="dim"))
 
     # Build title with timing
     stage_time = get_stage_time(state, 0)
@@ -636,21 +693,44 @@ def build_proposals_panel(state: DebateState) -> Panel:
             label = "LOW"
         elements.append(Text(f"📊 Consensus: ", style="dim") + Text(f"{score_pct}% ({label})", style=f"bold {style}"))
 
-    # Pope assessment result - shows consensus level (debate decision is based on complexity, not consensus)
+    # Pope assessment result - shows consensus level with detailed pairwise breakdown
     if state.pope_assessment_done:
         elements.append(Text(""))
         sim_pct = int(state.overall_similarity * 100)
+
+        # Overall consensus assessment
         if sim_pct >= 80:
-            # High consensus - but debate still happens for non-trivial queries
-            elements.append(Text(f"⚖️ Pope Assessment: ", style="dim") +
-                          Text(f"{sim_pct}% consensus (high agreement)", style=GREEN))
+            consensus_label = "HIGH AGREEMENT"
+            consensus_style = GREEN
+        elif sim_pct >= 50:
+            consensus_label = "MODERATE AGREEMENT"
+            consensus_style = GOLD
         else:
-            # Lower consensus
-            elements.append(Text(f"⚖️ Pope Assessment: ", style="dim") +
-                          Text(f"{sim_pct}% consensus", style=GOLD))
-            if state.disagreement_pairs:
-                pairs_str = ", ".join([f"{p['bishop1']} vs {p['bishop2']}" for p in state.disagreement_pairs[:2]])
-                elements.append(Text(f"   Areas of disagreement: {pairs_str}", style="dim"))
+            consensus_label = "LOW AGREEMENT"
+            consensus_style = "red"
+
+        elements.append(Text(f"⚖️ Pope Assessment: ", style="dim") +
+                       Text(f"{sim_pct}% consensus ", style=f"bold {consensus_style}") +
+                       Text(f"({consensus_label})", style=consensus_style))
+
+        # Show the reasoning from the server
+        if state.assessment_reasoning:
+            elements.append(Text(f"   → {state.assessment_reasoning}", style="dim italic"))
+
+        # Explain why debate happens even with high consensus
+        if sim_pct >= 80 and not state.debate_skipped:
+            elements.append(Text(f"   ⚠️ High consensus ≠ correct answer. Debate verifies no shared blind spots.", style=f"dim {GOLD}"))
+
+        # Show pairwise similarities if available
+        if state.disagreement_pairs:
+            elements.append(Text(f"   Pairwise scores:", style="dim"))
+            for pair in state.disagreement_pairs:
+                b1 = format_model_name(pair['bishop1'])
+                b2 = format_model_name(pair['bishop2'])
+                pair_sim = int(pair['similarity'] * 100)
+                pair_style = GREEN if pair_sim >= 80 else (GOLD if pair_sim >= 50 else "red")
+                elements.append(Text(f"     • {b1} ↔ {b2}: ", style="dim") +
+                              Text(f"{pair_sim}%", style=pair_style))
 
     # Build title with timing
     stage_time = get_stage_time(state, 1)
@@ -681,6 +761,11 @@ def build_critiques_panel(state: DebateState) -> Panel:
             border_style=GOLD,
             padding=(0, 2)
         )
+
+    # Show debate explanation header
+    if state.max_rounds > 0 and state.stage == 2:
+        elements.append(Text(f"📋 Debate plan: Up to {state.max_rounds} round(s), exit early at 80%+ consensus", style="dim"))
+        elements.append(Text(""))
 
     # Pope presiding - show animation only during active critiques, static when done
     if state.stage >= 3 or state.consensus_reached:
@@ -803,12 +888,14 @@ def build_synthesis_panel(state: DebateState) -> Panel:
 
     if state.pope_status == 'complete':
         # Complete - show full synthesis content with stats
-        elapsed = (time.time() - state.start_time)
+        total_elapsed = (time.time() - state.start_time)
+        # Use stage 3 time for synthesis duration, total time for the stats line
+        stage3_time = get_stage_time(state, 3)
         elements.append(Text(f"✓ {format_model_name(state.pope)} synthesis complete", style=f"bold {GREEN}"))
         elements.append(Text(""))
 
-        # Stats line
-        stats_parts = [f"⏱ {elapsed:.1f}s", f"📊 {state.total_tokens:,} tokens"]
+        # Stats line - show total debate time, tokens, and other stats
+        stats_parts = [f"⏱ {total_elapsed:.1f}s total", f"📊 {state.total_tokens:,} tokens"]
         if state.cost_usd:
             stats_parts.append(f"💰 ${state.cost_usd:.4f}")
         if state.memories_retrieved > 0:
@@ -820,12 +907,19 @@ def build_synthesis_panel(state: DebateState) -> Panel:
 
         # Show full synthesis content with markdown rendering
         if state.pope_content:
-            md = Markdown(state.pope_content, code_theme="monokai")
+            md = Markdown(
+                state.pope_content,
+                code_theme="monokai",
+                hyperlinks=False,  # Avoid terminal compatibility issues
+            )
             elements.append(md)
 
     elif state.pope_status == 'running':
-        # Pope is synthesizing - clean animation (thinking indicator only)
-        think = get_thinking_indicator()
+        # Pope is synthesizing - use SLOWER animation (divide by 8 instead of 4)
+        # This reduces flickering during the long synthesis phase
+        slow_idx = _frame_idx // 8  # Extra slow for synthesis
+        think_frames = ["🧠", "💭", "💡", "✨"]
+        think = think_frames[slow_idx % len(think_frames)]
         elements.append(Text(f"👑 {think} ", style=SECONDARY) +
                        Text(f"{format_model_name(state.pope)} synthesizing", style=f"bold {SECONDARY}"))
 
@@ -841,18 +935,19 @@ def build_synthesis_panel(state: DebateState) -> Panel:
             else:
                 visible_content = content
 
-            # Render as markdown for code highlighting
-            try:
-                md = Markdown(visible_content, code_theme="monokai")
-                elements.append(md)
-            except Exception:
-                # Fallback to plain text if markdown fails
-                elements.append(Text(visible_content, style="white"))
+            # During streaming: plain text (fast, no flicker)
+            # Markdown syntax will be visible but that's fine while watching it stream
+            # Full Markdown rendering happens when synthesis is complete
+            elements.append(Text(visible_content, style="white"))
 
-            # Animated cursor
-            cursor_frames = ["█", "▓", "▒", "░"]
-            cursor = cursor_frames[_slow_frame_idx() % len(cursor_frames)]
+            # Simple blinking cursor - less flashy (changes every ~1 second at 12fps)
+            cursor = "█" if (slow_idx % 2) == 0 else " "
             elements.append(Text(cursor, style=GOLD))
+        else:
+            # No content yet - show simple waiting animation
+            spinner = get_spinner()
+            elements.append(Text(""))
+            elements.append(Text(f"{spinner} Waiting for response...", style="dim"))
     else:
         # Waiting state with animation
         spinner = get_spinner()
@@ -936,7 +1031,11 @@ def build_final_synthesis(state: DebateState) -> Group:
     # Render the synthesis content with proper markdown
     # Use Markdown renderer for proper code highlighting
     if state.pope_content:
-        md = Markdown(state.pope_content, code_theme="monokai")
+        md = Markdown(
+            state.pope_content,
+            code_theme="monokai",
+            hyperlinks=False,
+        )
         elements.append(md)
 
     return Group(*elements)
@@ -959,19 +1058,44 @@ def build_tool_panel(state: DebateState) -> Optional[Panel]:
         tc = state.current_tool
         elements.append(Text(f"{get_spinner()} Executing: ", style=CYAN) + Text(tc.tool, style=f"bold {PRIMARY}"))
 
-        # Show parameters summary
-        params_str = ", ".join(f"{k}={repr(v)[:30]}" for k, v in list(tc.parameters.items())[:3])
-        if params_str:
-            elements.append(Text(f"   {params_str}", style="dim"))
+        # Show parameters - smart display based on tool type
+        if tc.tool == "bash" and "command" in tc.parameters:
+            # For bash, show the full command with wrapping
+            cmd = tc.parameters["command"]
+            # Create a Text object that will wrap naturally
+            cmd_text = Text(overflow="fold")
+            cmd_text.append("   $ ", style="dim")
+            cmd_text.append(cmd, style="white")
+            elements.append(cmd_text)
+        elif tc.tool == "file_editor":
+            # For file editor, show the operation and file path
+            op = tc.parameters.get("operation", "unknown")
+            path = tc.parameters.get("path", "")
+            elements.append(Text(f"   {op}: ", style="dim") + Text(path, style="white"))
+        elif tc.tool == "search":
+            # For search, show query and path
+            query = tc.parameters.get("query", "")
+            path = tc.parameters.get("path", ".")
+            elements.append(Text(f"   query: ", style="dim") + Text(query, style="white"))
+            elements.append(Text(f"   path: ", style="dim") + Text(path, style="white"))
+        else:
+            # Generic: show all parameters with reasonable truncation
+            for k, v in list(tc.parameters.items())[:5]:
+                v_str = str(v)
+                if len(v_str) > 100:
+                    v_str = v_str[:100] + "..."
+                param_text = Text(overflow="fold")
+                param_text.append(f"   {k}: ", style="dim")
+                param_text.append(v_str, style="white")
+                elements.append(param_text)
 
     # Show recent completed tools
     completed = [tc for tc in state.tool_calls if tc.status == 'complete']
     if completed:
         elements.append(Text(""))
         for tc in completed[-5:]:  # Show last 5
-            result_preview = (tc.result or "")[:50] + "..." if tc.result and len(tc.result) > 50 else (tc.result or "")
             if tc.error:
-                elements.append(Text(f"  ✗ {tc.tool}: ", style="red") + Text(tc.error[:50], style="dim"))
+                elements.append(Text(f"  ✗ {tc.tool}: ", style="red") + Text(tc.error[:80], style="dim"))
             else:
                 elements.append(Text(f"  ✓ {tc.tool}", style=GREEN))
 
@@ -1137,7 +1261,8 @@ def build_status_bar(state: DebateState) -> Text:
 def build_display(state: DebateState) -> Group:
     """Build full display from current state.
 
-    Shows all stages - terminal will scroll naturally if content exceeds height.
+    Shows all stages. With vertical_overflow="crop" on Live display,
+    content is replaced in-place without accumulating.
     """
     panels = []
 
@@ -1173,6 +1298,8 @@ def build_display(state: DebateState) -> Group:
         panels.append(build_status_bar(state))
 
     return Group(*panels)
+
+
 
 
 # ============================================================
@@ -1250,8 +1377,15 @@ async def stream_sse(
 async def execute_tool_call(
     tool_call: ToolCall,
     working_directory: str,
+    auto_approve: bool = False,
 ) -> Dict[str, Any]:
-    """Execute a tool call locally and return the result."""
+    """Execute a tool call locally and return the result.
+
+    Args:
+        tool_call: The tool call to execute
+        working_directory: Working directory for tool execution
+        auto_approve: If True, skip confirmation prompts for all tools
+    """
     from synod.tools import ToolExecutor
 
     executor = ToolExecutor(working_directory)
@@ -1262,7 +1396,7 @@ async def execute_tool_call(
         result = await executor.execute(
             tool_call.tool,
             tool_call.parameters,
-            skip_confirmation=False,  # Prompt for confirmation
+            skip_confirmation=auto_approve,  # Prompt for confirmation unless auto_approve
         )
 
         tool_call.result = result.output
@@ -1287,6 +1421,186 @@ async def execute_tool_call(
             "error": str(e),
             "metadata": {},
         }
+
+
+async def call_classify(
+    api_url: str,
+    api_key: str,
+    query: str,
+    bishops: Optional[List[str]] = None,
+    pope: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """Call the pre-flight /classify endpoint to get context_plan.
+
+    Args:
+        api_url: Base API URL (e.g., https://api.synod.run/debate)
+        api_key: Synod API key
+        query: The user's query
+        bishops: Optional list of bishops
+        pope: Optional pope model
+
+    Returns:
+        Classification result with context_plan, or None if failed
+    """
+    base_url = api_url.rstrip('/').replace('/debate', '')
+    url = f"{base_url}/debate/classify"
+
+    payload: Dict[str, Any] = {"query": query}
+    if bishops:
+        payload["bishops"] = bishops
+    if pope:
+        payload["pope"] = pope
+
+    cli_version = get_version()
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                url,
+                headers={
+                    "Authorization": api_key,
+                    "Content-Type": "application/json",
+                    "X-Synod-Version": cli_version,
+                },
+                json=payload,
+            )
+
+            if response.status_code == 200:
+                return response.json()
+            else:
+                # Classification failed, return None (will fall back to old behavior)
+                return None
+    except Exception as e:
+        # Network error, return None
+        return None
+
+
+async def gather_context_from_plan(
+    context_plan: Dict[str, Any],
+    root_path: str,
+    max_tokens: int = 8000,
+) -> Tuple[Dict[str, str], List[str]]:
+    """Gather files based on context_plan from classifier.
+
+    Args:
+        context_plan: The context_plan from /classify response
+        root_path: Root directory to search in
+        max_tokens: Maximum tokens of file content to gather
+
+    Returns:
+        Tuple of (files dict, file_paths list)
+    """
+    if not context_plan.get('needs_codebase_search'):
+        return {}, []
+
+    searches = context_plan.get('searches', [])
+    max_files = context_plan.get('max_files', 5)
+
+    files: Dict[str, str] = {}
+    file_paths: List[str] = []
+    total_chars = 0
+    max_chars = max_tokens * 4  # Rough estimate: 4 chars per token
+
+    for search in searches:
+        if len(file_paths) >= max_files:
+            break
+
+        patterns = search.get('patterns', [])
+        file_types = search.get('file_types', [])
+        limit = search.get('limit', 3)
+
+        for pattern in patterns:
+            if len(file_paths) >= max_files:
+                break
+
+            # Try to find files matching the pattern
+            found_files = await _search_files(root_path, pattern, file_types, limit)
+
+            for file_path in found_files:
+                if len(file_paths) >= max_files:
+                    break
+                if file_path in file_paths:
+                    continue
+
+                # Read file content
+                try:
+                    full_path = os.path.join(root_path, file_path) if not os.path.isabs(file_path) else file_path
+                    if os.path.exists(full_path) and os.path.isfile(full_path):
+                        with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
+                            content = f.read()
+
+                        # Check token budget
+                        if total_chars + len(content) > max_chars:
+                            # Truncate or skip
+                            remaining = max_chars - total_chars
+                            if remaining > 1000:  # Only include if we can get meaningful content
+                                content = content[:remaining] + "\n\n[... truncated ...]"
+                            else:
+                                continue
+
+                        files[file_path] = content
+                        file_paths.append(file_path)
+                        total_chars += len(content)
+                except Exception:
+                    pass
+
+    return files, file_paths
+
+
+async def _search_files(
+    root_path: str,
+    pattern: str,
+    file_types: List[str],
+    limit: int,
+) -> List[str]:
+    """Search for files matching a pattern.
+
+    Args:
+        root_path: Root directory to search in
+        pattern: Search pattern (filename or keyword)
+        file_types: File extensions to filter (e.g., ['py', 'ts'])
+        limit: Maximum number of files to return
+
+    Returns:
+        List of relative file paths
+    """
+    import glob as glob_module
+
+    results: List[str] = []
+
+    # Build glob patterns
+    if '.' in pattern and not '*' in pattern:
+        # Looks like a filename - search for exact match
+        glob_patterns = [f"**/{pattern}"]
+    else:
+        # Keyword search - try various patterns
+        if file_types:
+            glob_patterns = [f"**/*{pattern}*.{ext}" for ext in file_types]
+            glob_patterns += [f"**/{pattern}*.{ext}" for ext in file_types]
+        else:
+            glob_patterns = [f"**/*{pattern}*"]
+
+    for glob_pattern in glob_patterns:
+        if len(results) >= limit:
+            break
+
+        try:
+            full_pattern = os.path.join(root_path, glob_pattern)
+            for match in glob_module.glob(full_pattern, recursive=True):
+                if len(results) >= limit:
+                    break
+                if os.path.isfile(match):
+                    # Get relative path
+                    rel_path = os.path.relpath(match, root_path)
+                    # Skip common non-code directories
+                    if any(skip in rel_path for skip in ['node_modules', '.git', '__pycache__', '.venv', 'venv', 'dist', 'build']):
+                        continue
+                    if rel_path not in results:
+                        results.append(rel_path)
+        except Exception:
+            pass
+
+    return results
 
 
 async def send_tool_results(
@@ -1375,35 +1689,35 @@ async def process_events(
         # Handle tool calls specially
         if event_type == 'tool_call':
             handle_event(state, event)
-            live.update(build_display(state))
+            live.update(build_display(state), refresh=True)
 
             # Execute the tool locally
             if state.current_tool:
                 # Execute tool outside of live context for interactive prompts
                 live.stop()
 
-                result = await execute_tool_call(state.current_tool, work_dir)
+                result = await execute_tool_call(state.current_tool, work_dir, auto_approve)
 
                 live.start()
-                live.update(build_display(state))
+                live.update(build_display(state), refresh=True)
 
                 # Store result for batch sending
                 pending_tool_results.append(result)
 
         elif event_type == 'complete':
             handle_event(state, event)
-            live.update(build_display(state))
+            live.update(build_display(state), refresh=True)
             # Debate is complete, no more tool calls
             return False
 
         elif event_type == 'error':
             handle_event(state, event)
-            live.update(build_display(state))
+            live.update(build_display(state), refresh=True)
             return False
 
         else:
             handle_event(state, event)
-            live.update(build_display(state))
+            live.update(build_display(state), refresh=True)
 
         # Small delay for smoother animation
         await asyncio.sleep(0.05)
@@ -1416,29 +1730,29 @@ async def process_events(
 
             if event_type == 'tool_call':
                 handle_event(state, event)
-                live.update(build_display(state))
+                live.update(build_display(state), refresh=True)
 
                 # Execute the new tool
                 if state.current_tool:
                     live.stop()
-                    result = await execute_tool_call(state.current_tool, work_dir)
+                    result = await execute_tool_call(state.current_tool, work_dir, auto_approve)
                     live.start()
-                    live.update(build_display(state))
+                    live.update(build_display(state), refresh=True)
                     pending_tool_results.append(result)
 
             elif event_type == 'complete':
                 handle_event(state, event)
-                live.update(build_display(state))
+                live.update(build_display(state), refresh=True)
                 return False
 
             elif event_type == 'error':
                 handle_event(state, event)
-                live.update(build_display(state))
+                live.update(build_display(state), refresh=True)
                 return False
 
             else:
                 handle_event(state, event)
-                live.update(build_display(state))
+                live.update(build_display(state), refresh=True)
 
             await asyncio.sleep(0.05)
 
@@ -1458,6 +1772,7 @@ async def run_cloud_debate(
     api_url: str = "https://api.synod.run/debate",
     working_directory: Optional[str] = None,
     project_path: Optional[str] = None,
+    auto_approve: bool = False,
 ) -> DebateState:
     """Run a debate via Synod Cloud with live display.
 
@@ -1470,6 +1785,7 @@ async def run_cloud_debate(
         api_url: Cloud API URL
         working_directory: Directory for tool execution (default: cwd)
         project_path: Project path for memory scoping (default: working_directory)
+        auto_approve: If True, automatically approve all tool executions without prompting
 
     Returns:
         Final DebateState with results
@@ -1479,220 +1795,243 @@ async def run_cloud_debate(
     work_dir = working_directory or os.getcwd()
     proj_path = project_path or work_dir
 
-    # Start Live display IMMEDIATELY so user sees Stage 0 animation right away
-    # vertical_overflow="visible" allows content to scroll naturally when it exceeds terminal height
-    with Live(console=console, refresh_per_second=12, transient=False, vertical_overflow="visible") as live:
-        # Show initial Stage 0 display immediately (timer starts counting)
-        live.update(build_display(state))
+    pending_tool_results: List[Dict[str, Any]] = []
+    live: Optional[Live] = None
 
-        # Gather auto-context while showing Stage 0 animation
-        # Use a task so we can update display during context gathering
-        auto_context_task = asyncio.create_task(gather_auto_context(
-            query=query,
-            root_path=proj_path,
-        ))
+    async def process_stream(event_stream, collect_tools: bool = True):
+        """Process an SSE stream with Live display.
 
-        # Update display while waiting for auto-context
-        while not auto_context_task.done():
-            try:
-                await asyncio.wait_for(asyncio.shield(auto_context_task), timeout=0.1)
-            except asyncio.TimeoutError:
-                advance_animation()
-                live.update(build_display(state))
+        Returns True if stream completed normally, False if interrupted for tools.
+        When tools are requested, we wait for stream to end to collect ALL tool calls.
+        """
+        nonlocal live, pending_tool_results
 
-        auto_files, auto_file_paths = auto_context_task.result()
-
-        # Show auto-context summary (briefly pause live to print)
-        if auto_file_paths:
-            live.stop()
-            display_auto_context_summary(auto_files, auto_file_paths)
-            live.start()
-            live.update(build_display(state))
-
-        # Process initial debate stream with auto-context
-        event_stream = stream_sse(
-            url=api_url,
-            api_key=api_key,
-            query=query,
-            context=context,
-            bishops=bishops,
-            pope=pope,
-            project_path=proj_path,
-            files=auto_files if auto_files else None,
-        )
-
-        pending_tool_results: List[Dict[str, Any]] = []
-
-        # Process events with animated waiting using asyncio.shield
-        # shield() prevents cancellation on timeout while allowing animations
         event_iter = event_stream.__aiter__()
         pending_task: Optional[asyncio.Task] = None
         stream_done = False
+        need_tool_execution = False
+        collected_tools: List[ToolCall] = []  # Collect all tool calls from this batch
 
         try:
             while not stream_done:
                 try:
-                    # Create task if we don't have one pending
                     if pending_task is None:
                         pending_task = asyncio.create_task(event_iter.__anext__())
 
-                    # Wait with timeout, but shield the task from cancellation
-                    event = await asyncio.wait_for(asyncio.shield(pending_task), timeout=0.1)
-                    pending_task = None  # Task completed, clear it
+                    done, _ = await asyncio.wait({pending_task}, timeout=0.1)
 
-                    event_type = event.get('type')
+                    if done:
+                        try:
+                            event = pending_task.result()
+                            pending_task = None
+                        except StopAsyncIteration:
+                            stream_done = True
+                            continue
 
-                    # Handle tool calls
-                    if event_type == 'tool_call':
-                        handle_event(state, event)
-                        live.update(build_display(state))
+                        event_type = event.get('type')
 
-                        if state.current_tool:
-                            # Execute tool (stop live for prompts)
-                            live.stop()
-                            result = await execute_tool_call(state.current_tool, work_dir)
-                            live.start()
-                            live.update(build_display(state))
-                            pending_tool_results.append(result)
+                        if event_type == 'tool_call':
+                            handle_event(state, event)
+                            if live:
+                                live.update(build_display(state), refresh=True)
+                            # Collect tool for later execution - don't break yet
+                            if state.current_tool and collect_tools:
+                                collected_tools.append(state.current_tool)
+                                need_tool_execution = True
+                                # DON'T break - wait for all tool_call events
 
-                    elif event_type == 'complete':
-                        handle_event(state, event)
-                        live.update(build_display(state))
-                        stream_done = True
+                        elif event_type == 'complete':
+                            handle_event(state, event)
+                            if live:
+                                live.update(build_display(state), refresh=True)
+                            stream_done = True
 
-                    elif event_type == 'error':
-                        handle_event(state, event)
-                        live.update(build_display(state))
-                        stream_done = True
+                        elif event_type == 'error':
+                            handle_event(state, event)
+                            if live:
+                                live.update(build_display(state), refresh=True)
+                            stream_done = True
 
+                        else:
+                            handle_event(state, event)
+                            if live:
+                                live.update(build_display(state), refresh=True)
                     else:
-                        handle_event(state, event)
-                        live.update(build_display(state))
-
-                except asyncio.TimeoutError:
-                    # No event yet - advance animation and continue waiting
-                    advance_animation()
-                    live.update(build_display(state))
+                        advance_animation()
+                        # During synthesis, only refresh every 5th frame to reduce flicker
+                        if live:
+                            if state.stage == 3 and state.pope_status == 'running':
+                                if _frame_idx % 5 == 0:
+                                    live.update(build_display(state), refresh=True)
+                            else:
+                                live.update(build_display(state), refresh=True)
 
                 except StopAsyncIteration:
-                    # Stream ended
                     stream_done = True
 
         except httpx.ReadError as e:
             state.error = f"Network error: {str(e)}"
-            live.update(build_display(state))
+            if live:
+                live.update(build_display(state), refresh=True)
 
         except GeneratorExit:
-            # Generator closed early (e.g., error response) - this is normal
             pass
 
         except Exception as e:
             if not state.error:
                 state.error = f"Unexpected error: {str(e)}"
-                live.update(build_display(state))
+                if live:
+                    live.update(build_display(state), refresh=True)
 
         finally:
-            # Clean up any pending task
             if pending_task is not None and not pending_task.done():
                 pending_task.cancel()
                 try:
                     await pending_task
                 except (asyncio.CancelledError, StopAsyncIteration, GeneratorExit):
                     pass
-            # Close the async generator properly - suppress all errors
             try:
                 await event_stream.aclose()
-            except (GeneratorExit, StopAsyncIteration, asyncio.CancelledError, RuntimeError):
-                pass
-            except Exception:
+            except:
                 pass
 
-        # Check for unexpected stream end
-        if not state.complete and not state.error:
-            state.error = "Connection to server closed unexpectedly. Please try again."
-            live.update(build_display(state))
+        # Store collected tools for execution
+        if collected_tools:
+            state.pending_tool_batch = collected_tools
 
-        # Handle tool result loop if we have pending tools
-        MAX_TOOL_ROUNDS = 10
-        round_count = 0
+        return not need_tool_execution
 
-        while pending_tool_results and state.debate_id and round_count < MAX_TOOL_ROUNDS:
-            round_count += 1
+    # Phase 1: Pre-flight classification + smart context gathering
+    live = Live(console=console, auto_refresh=False, vertical_overflow="crop")
+    live.start()
+    live.update(build_display(state), refresh=True)
+
+    # Step 1: Call /classify to get context_plan
+    classify_task = asyncio.create_task(call_classify(
+        api_url=api_url,
+        api_key=api_key,
+        query=query,
+        bishops=bishops,
+        pope=pope,
+    ))
+
+    while not classify_task.done():
+        try:
+            await asyncio.wait_for(asyncio.shield(classify_task), timeout=0.1)
+        except asyncio.TimeoutError:
+            advance_animation()
+            live.update(build_display(state), refresh=True)
+
+    classification = classify_task.result()
+
+    # Step 2: Gather context based on context_plan (or fall back to old method)
+    auto_files: Dict[str, str] = {}
+    auto_file_paths: List[str] = []
+
+    if classification and classification.get('context_plan'):
+        # Use smart AI-driven context gathering
+        context_plan = classification['context_plan']
+        max_tokens = context_plan.get('max_tokens', 8000)
+
+        gather_task = asyncio.create_task(gather_context_from_plan(
+            context_plan=context_plan,
+            root_path=proj_path,
+            max_tokens=max_tokens,
+        ))
+
+        while not gather_task.done():
+            try:
+                await asyncio.wait_for(asyncio.shield(gather_task), timeout=0.1)
+            except asyncio.TimeoutError:
+                advance_animation()
+                live.update(build_display(state), refresh=True)
+
+        auto_files, auto_file_paths = gather_task.result()
+
+        # Store context plan in state for display
+        if context_plan.get('searches'):
+            state.context_plan_searches = [s.get('intent', '') for s in context_plan['searches']]
+    else:
+        # Fall back to old keyword-based context gathering
+        fallback_task = asyncio.create_task(gather_auto_context(
+            query=query,
+            root_path=proj_path,
+        ))
+
+        while not fallback_task.done():
+            try:
+                await asyncio.wait_for(asyncio.shield(fallback_task), timeout=0.1)
+            except asyncio.TimeoutError:
+                advance_animation()
+                live.update(build_display(state), refresh=True)
+
+        auto_files, auto_file_paths = fallback_task.result()
+
+    if auto_file_paths:
+        state.auto_context_files = auto_file_paths
+        live.update(build_display(state), refresh=True)
+
+    # Phase 2: Process initial debate stream
+    event_stream = stream_sse(
+        url=api_url,
+        api_key=api_key,
+        query=query,
+        context=context,
+        bishops=bishops,
+        pope=pope,
+        project_path=proj_path,
+        files=auto_files if auto_files else None,
+    )
+
+    stream_complete = await process_stream(event_stream)
+
+    # Phase 3: Tool execution loop (if needed)
+    # Execute ALL tools in the batch, then send ALL results together
+    MAX_TOOL_ROUNDS = 10
+    round_count = 0
+
+    while state.pending_tool_batch and round_count < MAX_TOOL_ROUNDS:
+        round_count += 1
+
+        # Stop Live display for tool execution (allows user prompts)
+        if live:
+            live.stop()
+            live = None
+
+        # Execute ALL tools in the batch
+        tools_to_execute = state.pending_tool_batch[:]
+        state.pending_tool_batch.clear()
+
+        for tool in tools_to_execute:
+            state.current_tool = tool
+            result = await execute_tool_call(tool, work_dir, auto_approve)
+            pending_tool_results.append(result)
+            state.current_tool = None
+
+        # Send ALL tool results together and continue
+        if pending_tool_results and state.debate_id:
             results_to_send = pending_tool_results[:]
             pending_tool_results.clear()
 
-            # Send results and process response with animations
+            # Start new Live display for continued streaming
+            live = Live(console=console, auto_refresh=False, vertical_overflow="crop")
+            live.start()
+            live.update(build_display(state), refresh=True)
+
             tool_stream = send_tool_results(api_url, api_key, state.debate_id, results_to_send)
-            tool_iter = tool_stream.__aiter__()
-            tool_task: Optional[asyncio.Task] = None
-            tool_done = False
+            stream_complete = await process_stream(tool_stream)
 
-            try:
-                while not tool_done:
-                    try:
-                        if tool_task is None:
-                            tool_task = asyncio.create_task(tool_iter.__anext__())
-
-                        event = await asyncio.wait_for(asyncio.shield(tool_task), timeout=0.1)
-                        tool_task = None
-
-                        event_type = event.get('type')
-
-                        if event_type == 'tool_call':
-                            handle_event(state, event)
-                            live.update(build_display(state))
-
-                            if state.current_tool:
-                                live.stop()
-                                result = await execute_tool_call(state.current_tool, work_dir)
-                                live.start()
-                                live.update(build_display(state))
-                                pending_tool_results.append(result)
-
-                        elif event_type == 'complete':
-                            handle_event(state, event)
-                            live.update(build_display(state))
-                            pending_tool_results.clear()  # Done
-                            tool_done = True
-
-                        elif event_type == 'error':
-                            handle_event(state, event)
-                            live.update(build_display(state))
-                            pending_tool_results.clear()  # Stop on error
-                            tool_done = True
-
-                        else:
-                            handle_event(state, event)
-                            live.update(build_display(state))
-
-                    except asyncio.TimeoutError:
-                        advance_animation()
-                        live.update(build_display(state))
-
-                    except StopAsyncIteration:
-                        tool_done = True
-
-            except httpx.ReadError as e:
-                state.error = f"Network error during tool processing: {str(e)}"
-                live.update(build_display(state))
+            if stream_complete:
                 break
 
-            except Exception as e:
-                if not state.error:
-                    state.error = f"Unexpected error during tool processing: {str(e)}"
-                    live.update(build_display(state))
-                break
+    # Cleanup
+    if not state.complete and not state.error:
+        state.error = "Connection to server closed unexpectedly. Please try again."
 
-            finally:
-                if tool_task is not None and not tool_task.done():
-                    tool_task.cancel()
-                    try:
-                        await tool_task
-                    except (asyncio.CancelledError, StopAsyncIteration):
-                        pass
-
-    # Final output is now shown in the combined Stage 3/Final Synthesis panel
-    # No need for a separate print - it's all in build_synthesis_panel() when complete
+    if live:
+        live.stop()
+    elif state.error:
+        console.print(build_display(state))
 
     return state
 
@@ -1708,6 +2047,13 @@ def run_debate_sync(
     bishops: Optional[List[str]] = None,
     pope: Optional[str] = None,
     api_url: str = "https://api.synod.run/debate",
+    auto_approve: bool = False,
 ) -> DebateState:
-    """Synchronous wrapper for run_cloud_debate."""
-    return asyncio.run(run_cloud_debate(api_key, query, context, bishops, pope, api_url))
+    """Synchronous wrapper for run_cloud_debate.
+
+    Args:
+        auto_approve: If True, automatically approve all tool executions without prompting
+    """
+    return asyncio.run(run_cloud_debate(
+        api_key, query, context, bishops, pope, api_url, auto_approve=auto_approve
+    ))

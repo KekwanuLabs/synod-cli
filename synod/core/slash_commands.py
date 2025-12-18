@@ -289,7 +289,7 @@ class SlashCommandSelector:
             key_bindings=kb,
             style=style,
             full_screen=False,
-            mouse_support=True,
+            mouse_support=False,
         )
 
         # Run the application

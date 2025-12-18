@@ -1,12 +1,13 @@
 """Tool executor - dispatches and manages tool execution."""
 
 import asyncio
+from enum import Enum
 from typing import Any, Dict, List, Optional, Callable, Awaitable
 from rich.console import Console
 from rich.panel import Panel
 from rich.syntax import Syntax
 from rich.text import Text
-from rich.prompt import Confirm
+import questionary
 
 from .base import Tool, ToolResult, ToolStatus, ConfirmationRequired, SessionFlags
 from .bash import BashTool
@@ -15,6 +16,38 @@ from .search import SearchTool
 
 
 console = Console()
+
+# Colors for questionary (matching Synod theme)
+CYAN = "#06B6D4"
+GREEN = "#10B981"
+GOLD = "#FBBF24"
+
+# Session-level auto-approve flag (persists across tool calls in same session)
+_session_auto_approve: bool = False
+
+
+class ConfirmationChoice(Enum):
+    """User's choice when prompted for tool confirmation."""
+    YES = "yes"           # Approve this one
+    YES_TO_ALL = "all"    # Approve this and all future
+    NO = "no"             # Decline
+
+
+def reset_session_auto_approve():
+    """Reset the session auto-approve flag. Call at session start."""
+    global _session_auto_approve
+    _session_auto_approve = False
+
+
+def is_session_auto_approve() -> bool:
+    """Check if session auto-approve is enabled."""
+    return _session_auto_approve
+
+
+def set_session_auto_approve(value: bool = True):
+    """Set the session auto-approve flag."""
+    global _session_auto_approve
+    _session_auto_approve = value
 
 
 class ToolExecutor:
@@ -84,7 +117,10 @@ class ToolExecutor:
             )
 
         # Check if confirmation is needed
-        if tool.requires_confirmation and not skip_confirmation:
+        # Skip if: explicit skip_confirmation OR session auto-approve is enabled
+        should_skip = skip_confirmation or is_session_auto_approve()
+
+        if tool.requires_confirmation and not should_skip:
             confirmation_info = tool.get_confirmation_info(**parameters)
             if confirmation_info:
                 approved = await self.on_confirmation(confirmation_info)
@@ -106,7 +142,16 @@ class ToolExecutor:
             )
 
     async def _default_confirmation(self, info: ConfirmationRequired) -> bool:
-        """Default confirmation handler using Rich prompts."""
+        """Default confirmation handler using arrow-key selection.
+
+        Shows 3 options with arrow-key navigation:
+        - Yes: Approve this operation only
+        - Yes to all: Approve this and all future operations in this session
+        - No: Decline this operation
+
+        Returns:
+            True if approved, False if declined
+        """
         console.print()
 
         # Build confirmation panel
@@ -139,13 +184,36 @@ class ToolExecutor:
 
         console.print()
 
-        # Prompt for confirmation
+        # Use questionary for arrow-key selection
         try:
-            return Confirm.ask(
-                "[yellow]Proceed with this operation?[/yellow]",
-                default=True,
-            )
+            choice = await questionary.select(
+                "Proceed with this operation?",
+                choices=[
+                    questionary.Choice("Yes", value="yes"),
+                    questionary.Choice("Yes to all (don't ask again)", value="all"),
+                    questionary.Choice("No", value="no"),
+                ],
+                style=questionary.Style([
+                    ('selected', f'fg:{GREEN} bold'),
+                    ('pointer', f'fg:{GREEN} bold'),
+                    ('question', f'fg:{GOLD}'),
+                    ('highlighted', f'fg:{CYAN}'),
+                ])
+            ).ask_async()
+
+            if choice == "all":
+                # User chose to approve all - set session flag
+                set_session_auto_approve(True)
+                console.print(f"[{CYAN}]✓ Auto-approving all operations for this session[/{CYAN}]\n")
+                return True
+            elif choice == "yes":
+                return True
+            else:  # "no" or None (cancelled)
+                console.print("[dim]Operation declined[/dim]\n")
+                return False
+
         except (KeyboardInterrupt, EOFError):
+            console.print("\n[dim]Operation cancelled[/dim]\n")
             return False
 
     def set_auto_approve(self, tool_type: str, value: bool = True):

@@ -641,8 +641,7 @@ async def handle_memory_viz_command(args: str, api_key: str, project_path: Optio
                 f"[{CYAN}]/memory stats[/{CYAN}]       Show detailed statistics\n"
                 f"[{CYAN}]/memory graph[/{CYAN}]       Visualize memory connections (Pro)\n"
                 f"[{CYAN}]/memory timeline[/{CYAN}]    Show memory activity timeline\n"
-                f"[{CYAN}]/memory show[/{CYAN}]        Display all loaded context\n"
-                f"[{CYAN}]/memory clear[/{CYAN}]       Clear project memories"
+                f"[{CYAN}]/memory show[/{CYAN}]        Display local context files"
             ),
             title="[cyan]Memory Commands[/cyan]",
             border_style="cyan",

@@ -80,18 +80,31 @@ Synod memories are **verified by multiple AI models before storage**. Every insi
 - Cross-project learning from your coding patterns
 
 **What Synod remembers:**
-- Your coding preferences and patterns
-- Project architecture and conventions
-- Known bugs and gotchas
-- Why certain decisions were made
-- Successful approaches (skills) to reuse
+
+| Memory Type | Scope | Examples |
+|-------------|-------|----------|
+| `preference` | User | "Prefers TypeScript over JavaScript" |
+| `pattern` | User | "Often uses async/await over .then()" |
+| `fact` | User | "Familiar with React and Next.js" |
+| `correction` | User | "Corrected: use useState not useRef" |
+| `skill` | User (Pro+) | Reusable patterns from successful debates |
+| `architecture` | Project | "Uses microservices with API gateway" |
+| `convention` | Project | "Uses snake_case for database fields" |
+| `bug` | Project | "Auth middleware has race condition" |
+| `decision` | Project | "Chose PostgreSQL for ACID compliance" |
+
+**Skills (Pro+ only):**
+Skills are reusable patterns extracted from high-quality debates:
+- Only extracted when consensus ≥ 70% AND no critical issues
+- Stored with higher deduplication threshold (0.90)
+- Automatically suggested for similar future problems
 
 **Memory Commands:**
 ```bash
-synod> /memory           # View memory stats
-synod> /memory show      # Display all memories
-synod> /memory graph     # Visualize memory relationships
-synod> /memory clear     # Clear project memories
+synod> /memory           # View memory dashboard
+synod> /memory show      # Display local context files
+synod> /memory graph     # Visualize memory connections (Pro)
+synod> /memory timeline  # Show memory activity over time
 ```
 
 ## Quick Start
@@ -254,21 +267,40 @@ Supports `$ARGUMENTS`, `$1`, `$2` for argument interpolation.
 AI-powered git workflow:
 
 ```bash
-synod> /diff          # Show current changes
-synod> /commit        # AI-generated commit message
-synod> /pr            # Create PR with AI description
+synod> /diff          # Show git status and diff preview
+synod> /commit        # Stage files, debate-generated commit message, push option
+synod> /pr            # Create PR with debate-synthesized description (requires gh)
 ```
+
+**How `/commit` works:**
+1. Shows staged/unstaged files
+2. Offers to stage all if nothing staged
+3. Runs a debate to generate a conventional commit message
+4. Shows message for confirmation
+5. Creates commit and offers to push
+
+**How `/pr` works:**
+1. Gets commits and diff vs main/master
+2. Runs a debate to generate PR title and description
+3. Pushes branch and creates PR via GitHub CLI
 
 ### Adversarial Code Review
-Run adversarial review on PRs or diffs:
+Run adversarial review on PRs, diffs, or files:
 
 ```bash
-synod review --pr 123   # Review PR #123
+# CLI commands
+synod review --pr 123   # Review PR #123 (requires gh)
 synod review --diff     # Review uncommitted changes
 
-synod> /review 123      # Review PR in interactive mode
-synod> /critique file.py  # Critique specific files
+# Interactive mode commands
+synod> /review 123        # Review PR #123 (requires gh)
+synod> /review file.py    # Review a specific file
+synod> /critique a.py b.py  # Critique multiple files
 ```
+
+**Requirements:**
+- `/diff`, `/commit` - Just needs `git`
+- `/pr`, `/review <pr-number>`, `synod review --pr` - Requires [GitHub CLI (gh)](https://cli.github.com)
 
 ### Hooks System
 Automate workflows with hooks (like git hooks, but for AI):
@@ -286,7 +318,7 @@ Automate workflows with hooks (like git hooks, but for AI):
 }
 ```
 
-Available events: `session_start`, `session_end`, `pre_debate`, `post_debate`
+Available events: `session_start`, `session_end`, `pre_debate`, `post_debate`, `pre_tool_use`, `post_tool_use`, `file_modified`
 
 ```bash
 synod> /hooks                  # List configured hooks
@@ -346,24 +378,28 @@ synod> /exit       # Quit
 | `/history` | View recent sessions |
 | `/stats` | Detailed session statistics |
 | `/compact` | Compact conversation history |
-| `/rewind` | Undo changes from checkpoints |
+| `/rewind [id]` | Show checkpoints or restore one |
 | **Git** | |
-| `/commit` | AI-generated commit message |
-| `/pr` | Create PR with AI description |
-| `/diff` | Show current changes |
+| `/diff` | Show git status and diff preview |
+| `/commit [msg]` | Debate-generated commit message (or use provided) |
+| `/pr [title]` | Create PR with debate description (requires `gh`) |
 | **Review** | |
-| `/review <file\|pr>` | Run code review |
-| `/critique <files>` | Adversarial critique |
+| `/review <file\|pr#>` | Review a file or PR number |
+| `/critique <files...>` | Adversarial critique of files |
+| **Memory** | |
+| `/memory` | View memory dashboard |
+| `/memory show` | Display local context files |
+| `/memory graph` | Visualize memory connections (Pro) |
+| `/memory timeline [days]` | Show memory activity timeline |
 | **Configuration** | |
-| `/config` | Open dashboard |
-| `/bishops`, `/pope` | Configure models (via web) |
-| `/memory` | View project context |
-| `/hooks` | Manage automation hooks |
+| `/config` | Open dashboard in browser |
+| `/bishops`, `/pope` | Configure models (via web dashboard) |
+| `/hooks` | List, add, or remove hooks |
 | **Workspace** | |
-| `/context` | Show context usage |
-| `/index` | Re-index workspace |
+| `/context` | Show context/token usage |
+| `/index` | Re-index workspace files |
 | `/files` | List indexed files |
-| `/add <file>` | Add file to context |
+| `/add <file>` | Add file to conversation context |
 | `/search <query>` | Search codebase |
 | `/init` | Create .synod/SYNOD.md |
 | **General** | |

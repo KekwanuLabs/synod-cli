@@ -160,6 +160,8 @@ async def gather_auto_context(
 
     # 1. First, try explicit file mentions (highest priority)
     for file_mention in analysis['file_mentions'][:cfg.max_files]:
+        found = False
+
         # Try different path resolutions
         candidates = [
             root / file_mention,
@@ -177,7 +179,29 @@ async def gather_auto_context(
                         relevance=1.0,  # Explicit mentions are highest relevance
                         match_reason=f"Mentioned in query: {file_mention}",
                     ))
+                    found = True
                 break
+
+        # If not found at exact path, search recursively for the filename
+        if not found:
+            filename = Path(file_mention).name  # Get just the filename
+            for match in root.glob(f'**/{filename}'):
+                # Skip common non-source directories
+                path_str = str(match)
+                if any(skip in path_str for skip in ['node_modules', '.git', '__pycache__', 'venv', '.venv', '.env', 'dist', 'build']):
+                    continue
+
+                content = await read_file_async(match, cfg.max_file_size)
+                if content:
+                    rel_path = str(match.relative_to(root))
+                    gathered.append(ContextFile(
+                        path=rel_path,
+                        content=content,
+                        relevance=0.95,  # Slightly lower than exact match
+                        match_reason=f"Found file matching: {file_mention}",
+                    ))
+                    found = True
+                    break  # Take first match
 
     # 2. Search for symbol definitions (medium priority)
     if len(gathered) < cfg.max_files and analysis['symbol_mentions']:

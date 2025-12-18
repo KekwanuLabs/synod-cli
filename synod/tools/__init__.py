@@ -7,7 +7,7 @@ from .base import Tool, ToolResult, ConfirmationRequired
 from .bash import BashTool
 from .file_editor import FileEditorTool
 from .search import SearchTool
-from .executor import ToolExecutor
+from .executor import ToolExecutor, reset_session_auto_approve, set_session_auto_approve
 
 __all__ = [
     'Tool',
@@ -17,4 +17,6 @@ __all__ = [
     'FileEditorTool',
     'SearchTool',
     'ToolExecutor',
+    'reset_session_auto_approve',
+    'set_session_auto_approve',
 ]

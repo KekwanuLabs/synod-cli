@@ -196,7 +196,7 @@ class SynodChatInterface:
             complete_style=CompleteStyle.MULTI_COLUMN,  # Multi-column menu handles screen edge better
             reserve_space_for_menu=15,  # Reserve more space for menu
             vi_mode=False,
-            mouse_support=True,
+            mouse_support=False,
             enable_history_search=True,
             wrap_lines=True,
         )
