@@ -2028,9 +2028,18 @@ async def run_cloud_debate(
     if not state.complete and not state.error:
         state.error = "Connection to server closed unexpectedly. Please try again."
 
+    # Always stop live display if it exists
     if live:
         live.stop()
-    elif state.error:
+
+    # Always print final state if there was an error or if we completed
+    # This ensures the user sees the result even if Live display had issues
+    if state.error:
+        console.print()
+        console.print(build_display(state))
+    elif state.complete and state.pope_content:
+        # If we have content but Live might not have shown it properly, show it now
+        console.print()
         console.print(build_display(state))
 
     return state
