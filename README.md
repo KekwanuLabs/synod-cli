@@ -326,7 +326,8 @@ synod> /critique a.py b.py  # Critique multiple files
 - `/pr`, `/review <pr-number>`, `synod review --pr` - Requires [GitHub CLI (gh)](https://cli.github.com)
 
 ### Hooks System
-Automate workflows with hooks (like git hooks, but for AI):
+
+Automate workflows with hooks (like git hooks, but for AI). Hooks are shell commands that run at specific events.
 
 ```json
 // .synod/hooks.json
@@ -336,12 +337,57 @@ Automate workflows with hooks (like git hooks, but for AI):
       "name": "run-tests-after-debate",
       "event": "post_debate",
       "command": "npm test 2>/dev/null || echo 'Tests skipped'"
+    },
+    {
+      "name": "format-on-edit",
+      "event": "file_modified",
+      "command": "npx prettier --write \"$SYNOD_FILE\" 2>/dev/null"
+    },
+    {
+      "name": "block-env-edits",
+      "event": "pre_tool_use",
+      "command": "if [[ \"$SYNOD_FILE\" =~ \\.env ]]; then echo '{\"allow\": false, \"message\": \"Cannot edit .env files\"}'; fi"
     }
   ]
 }
 ```
 
-Available events: `session_start`, `session_end`, `pre_debate`, `post_debate`, `pre_tool_use`, `post_tool_use`, `file_modified`
+#### Hook Events
+
+| Event | When it fires | Can block? | Use case |
+|-------|--------------|------------|----------|
+| `session_start` | Session begins | No | Setup, notifications |
+| `session_end` | Session ends | No | Cleanup, reports |
+| `pre_debate` | Before AI debate starts | Yes | Validation, preprocessing |
+| `post_debate` | After AI debate completes | No | Tests, notifications |
+| `pre_tool_use` | Before any tool executes | Yes | Block dangerous operations |
+| `post_tool_use` | After any tool executes | No | Logging, side effects |
+| `file_modified` | After a file is created/edited | No | Formatting, linting |
+
+#### Environment Variables
+
+Hooks receive context via environment variables:
+
+| Variable | Description | Available in |
+|----------|-------------|--------------|
+| `SYNOD_EVENT` | The event type | All hooks |
+| `SYNOD_WORKING_DIR` | Current working directory | All hooks |
+| `SYNOD_QUERY` | User's query | `pre_debate`, `post_debate` |
+| `SYNOD_TOOL` | Tool being executed | `*_tool_use` hooks |
+| `SYNOD_TOOL_PARAMS` | JSON params for tool | `pre_tool_use` |
+| `SYNOD_TOOL_RESULT` | Tool output (truncated) | `post_tool_use` |
+| `SYNOD_FILE` | File being modified | `file_modified`, `*_tool_use` |
+
+#### Blocking Hooks
+
+`pre_tool_use` and `pre_debate` hooks can block execution by returning JSON:
+
+```bash
+# Block .env file edits
+echo '{"allow": false, "message": "Cannot edit .env files"}'
+```
+
+#### Hook Commands
 
 ```bash
 synod> /hooks                  # List configured hooks
@@ -349,13 +395,18 @@ synod> /hooks add <name> <event> <command>
 synod> /hooks remove <name>
 ```
 
+Hooks are loaded from both `~/.synod/hooks.json` (user-level) and `.synod/hooks.json` (project-level).
+
 ### Checkpoint/Undo System
-Automatic checkpoints before file changes:
+
+Automatic checkpoints are created before every file modification, enabling undo:
 
 ```bash
-synod> /rewind            # Show available checkpoints
+synod> /rewind            # Show available checkpoints (last 10)
 synod> /rewind <id>       # Restore specific checkpoint
 ```
+
+Checkpoints are stored in `.synod/checkpoints/` (auto-gitignored) and retain the last 20 states.
 
 ## Pricing
 

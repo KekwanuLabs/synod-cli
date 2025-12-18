@@ -1,4 +1,9 @@
-"""Tool executor - dispatches and manages tool execution."""
+"""Tool executor - dispatches and manages tool execution.
+
+Integrates with:
+- Hooks system (pre_tool_use, post_tool_use, file_modified)
+- Checkpoint system (auto-checkpoint before file modifications)
+"""
 
 import asyncio
 from enum import Enum
@@ -16,6 +21,17 @@ from .search import SearchTool
 
 
 console = Console()
+
+# Lazy imports to avoid circular dependencies
+def _get_hook_helpers():
+    """Lazily import hook system to avoid circular imports."""
+    from synod.core.hooks import run_hooks, HookEvent
+    return run_hooks, HookEvent
+
+def _get_checkpoint_helpers():
+    """Lazily import checkpoint system to avoid circular imports."""
+    from synod.core.checkpoints import create_checkpoint
+    return create_checkpoint
 
 # Colors for questionary (matching Synod theme)
 CYAN = "#06B6D4"
@@ -100,6 +116,13 @@ class ToolExecutor:
     ) -> ToolResult:
         """Execute a tool with the given parameters.
 
+        Integrates with hooks system:
+        - pre_tool_use: Called before execution (can block)
+        - post_tool_use: Called after execution
+        - file_modified: Called after file changes
+
+        Also creates checkpoints before file modifications for /rewind.
+
         Args:
             tool_name: Name of the tool to execute
             parameters: Parameters to pass to the tool
@@ -116,6 +139,27 @@ class ToolExecutor:
                 error=f"Unknown tool: {tool_name}. Available tools: {', '.join(self.tools.keys())}",
             )
 
+        # Run pre_tool_use hooks (can block execution)
+        try:
+            run_hooks, HookEvent = _get_hook_helpers()
+            hook_result = run_hooks(
+                HookEvent.PRE_TOOL_USE,
+                tool_name=tool_name,
+                tool_params=parameters,
+                working_directory=self.working_directory,
+            )
+            if not hook_result.allow:
+                return ToolResult(
+                    status=ToolStatus.CANCELLED,
+                    output="",
+                    error=f"Blocked by hook: {hook_result.message or 'pre_tool_use hook returned allow=False'}",
+                )
+            # Apply any modified parameters from hooks
+            if hook_result.modified_params:
+                parameters = hook_result.modified_params
+        except Exception:
+            pass  # Hooks are optional, don't fail if they error
+
         # Check if confirmation is needed
         # Skip if: explicit skip_confirmation OR session auto-approve is enabled
         should_skip = skip_confirmation or is_session_auto_approve()
@@ -131,15 +175,80 @@ class ToolExecutor:
                         error="Operation cancelled by user",
                     )
 
+        # Create checkpoint before file modifications
+        file_path = self._get_file_path_from_params(tool_name, parameters)
+        if file_path and self._is_modifying_operation(tool_name, parameters):
+            try:
+                create_checkpoint = _get_checkpoint_helpers()
+                action = self._describe_action(tool_name, parameters)
+                create_checkpoint(action, [file_path])
+            except Exception:
+                pass  # Checkpoints are optional, don't fail if they error
+
         # Execute the tool
         try:
-            return await tool.execute(**parameters)
+            result = await tool.execute(**parameters)
+
+            # Run post_tool_use hooks
+            try:
+                run_hooks, HookEvent = _get_hook_helpers()
+                run_hooks(
+                    HookEvent.POST_TOOL_USE,
+                    tool_name=tool_name,
+                    tool_params=parameters,
+                    tool_result=result.output,
+                    working_directory=self.working_directory,
+                )
+
+                # Run file_modified hook if a file was changed
+                if file_path and result.status == ToolStatus.SUCCESS and self._is_modifying_operation(tool_name, parameters):
+                    run_hooks(
+                        HookEvent.FILE_MODIFIED,
+                        tool_name=tool_name,
+                        file_path=file_path,
+                        working_directory=self.working_directory,
+                    )
+            except Exception:
+                pass  # Hooks are optional
+
+            return result
+
         except Exception as e:
             return ToolResult(
                 status=ToolStatus.ERROR,
                 output="",
                 error=f"Tool execution failed: {str(e)}",
             )
+
+    def _get_file_path_from_params(self, tool_name: str, params: Dict[str, Any]) -> Optional[str]:
+        """Extract file path from tool parameters."""
+        if tool_name == "file_editor":
+            return params.get("file_path")
+        elif tool_name == "bash":
+            # Could parse command for file redirections, but not reliable
+            return None
+        return None
+
+    def _is_modifying_operation(self, tool_name: str, params: Dict[str, Any]) -> bool:
+        """Check if this operation modifies files."""
+        if tool_name == "file_editor":
+            operation = params.get("operation", "")
+            return operation in ("create", "str_replace")
+        elif tool_name == "bash":
+            # Bash commands might modify files, but we can't reliably detect
+            return False
+        return False
+
+    def _describe_action(self, tool_name: str, params: Dict[str, Any]) -> str:
+        """Generate a human-readable description of the action."""
+        if tool_name == "file_editor":
+            operation = params.get("operation", "edit")
+            file_path = params.get("file_path", "file")
+            return f"{operation} {file_path}"
+        elif tool_name == "bash":
+            command = params.get("command", "")[:50]
+            return f"bash: {command}"
+        return f"{tool_name} operation"
 
     async def _default_confirmation(self, info: ConfirmationRequired) -> bool:
         """Default confirmation handler using arrow-key selection.
