@@ -2362,13 +2362,9 @@ async def run_cloud_debate(
     if live:
         live.stop()
 
-    # Always print final state if there was an error or if we completed
-    # This ensures the user sees the result even if Live display had issues
+    # Only print final state if there was an error (Live display already shows success)
+    # The Live display is NOT transient, so content remains on screen after stop
     if state.error:
-        console.print()
-        console.print(build_display(state))
-    elif state.complete and state.pope_content:
-        # If we have content but Live might not have shown it properly, show it now
         console.print()
         console.print(build_display(state))
 

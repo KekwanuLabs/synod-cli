@@ -132,18 +132,15 @@ def show_welcome_story() -> None:
     """Show the animated welcome story (logo + narrative)."""
     import time
 
-    # Clear screen for fresh start
-    console.clear()
-
-    # Show animated logo
-    animate_logo()
+    # Add some spacing from the current prompt position (don't clear screen)
+    # This ensures the animation starts just below the current line
+    console.print()
     console.print()
 
-    # Show tagline and subtitle
-    console.print(Text(TAGLINE, style=SynodStyles.SUBTITLE), justify="center")
-    console.print(Text(SUBTITLE, style=SynodStyles.TAGLINE), justify="center")
+    # Show animated logo (includes tagline and subtitle)
+    animate_logo()
 
-    # Version
+    # Version (tagline/subtitle already shown by animate_logo)
     console.print()
     console.print(Text(f"v{VERSION}", style="dim"), justify="center")
 
