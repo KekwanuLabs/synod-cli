@@ -236,6 +236,7 @@ def show_first_run_welcome() -> bool:
 
     console.print()
     console.print(f"[{GREEN}]✓ Successfully authenticated![/{GREEN}]")
+    console.print(f"[dim]You can manage or revoke this session at synod.run/dashboard/settings[/dim]")
     console.print()
 
     return True
