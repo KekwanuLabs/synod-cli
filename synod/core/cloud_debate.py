@@ -103,6 +103,14 @@ class DebateState:
     # Round-specific tracking for persistent display
     round_summaries: Dict[int, List[CritiqueSummary]] = field(default_factory=dict)  # round -> completed critiques
     round_consensus: Dict[int, float] = field(default_factory=dict)  # round -> consensus after round
+    # Issue counts from critiques
+    critical_issues: int = 0
+    moderate_issues: int = 0
+    minor_issues: int = 0
+    # Early exit tracking
+    debate_early_exit: bool = False
+    debate_exit_reason: str = ""  # 'consensus_high', 'no_critical_issues', 'issues_resolved', 'no_new_issues'
+    debate_exit_explanation: str = ""  # Human-readable explanation
 
     # Pope synthesis
     pope_status: str = "pending"
@@ -301,11 +309,21 @@ def handle_event(state: DebateState, event: dict) -> None:
         state.consensus_score = event['consensusScore']
         # Store consensus for this round (for persistent display)
         state.round_consensus[state.current_round] = event['consensusScore']
+        # Capture issue counts
+        state.critical_issues += event.get('criticalIssues', 0)
+        state.moderate_issues += event.get('moderateIssues', 0)
+        state.minor_issues += event.get('minorIssues', 0)
 
     elif event_type == 'consensus_reached':
         state.consensus_reached = True
         state.consensus_reached_round = event['round']
         state.consensus_score = event['score']
+
+    elif event_type == 'debate_early_exit':
+        state.debate_early_exit = True
+        state.debate_exit_reason = event.get('reason', '')
+        state.debate_exit_explanation = event.get('explanation', '')
+        state.consensus_score = event.get('finalConsensus', state.consensus_score)
 
     # Memory events
     elif event_type == 'memory_retrieved':
@@ -768,7 +786,7 @@ def build_critiques_panel(state: DebateState) -> Panel:
         elements.append(Text(""))
 
     # Pope presiding - show animation only during active critiques, static when done
-    if state.stage >= 3 or state.consensus_reached:
+    if state.stage >= 3 or state.consensus_reached or state.debate_early_exit:
         elements.append(Text(f"👑 Pope {format_model_name(state.pope)} presided over debate", style="grey50"))
     else:
         preside = get_pope_preside()
@@ -807,7 +825,7 @@ def build_critiques_panel(state: DebateState) -> Panel:
         elements.append(Text(""))
 
     # Current round (if in progress)
-    if state.current_round > 0 and state.stage < 3 and not state.consensus_reached:
+    if state.current_round > 0 and state.stage < 3 and not state.consensus_reached and not state.debate_early_exit:
         # Check if this round has any completed critiques yet
         current_round_done = state.current_round in completed_rounds
         if not current_round_done:
@@ -848,8 +866,30 @@ def build_critiques_panel(state: DebateState) -> Panel:
         spinner = get_spinner()
         elements.append(Text(f"  {spinner} Adversarial critique phase starting...", style=GOLD))
 
-    # Consensus reached message
-    if state.consensus_reached:
+    # Early exit message (smart dynamic exit)
+    if state.debate_early_exit:
+        score_pct = int(state.consensus_score * 100) if state.consensus_score else 0
+        exit_text = Text()
+        exit_text.append("✓ ", style=GREEN)
+        exit_text.append(f"Debate concluded early", style=f"bold {GREEN}")
+        exit_text.append(f" (round {state.current_round}/{state.max_rounds})", style="dim")
+        elements.append(exit_text)
+        # Show the explanation
+        if state.debate_exit_explanation:
+            elements.append(Text(f"   → {state.debate_exit_explanation}", style="dim italic"))
+        # Show issue counts
+        if state.critical_issues or state.moderate_issues or state.minor_issues:
+            issue_text = Text("   Issues: ", style="dim")
+            if state.critical_issues:
+                issue_text.append(f"🔴 {state.critical_issues} critical  ", style="red")
+            if state.moderate_issues:
+                issue_text.append(f"🟡 {state.moderate_issues} moderate  ", style="yellow")
+            if state.minor_issues:
+                issue_text.append(f"🟢 {state.minor_issues} minor", style="green")
+            elements.append(issue_text)
+
+    # Consensus reached message (legacy - kept for compatibility)
+    elif state.consensus_reached:
         score_pct = int(state.consensus_score * 100) if state.consensus_score else 0
         consensus_text = Text()
         consensus_text.append("✓ ", style=GREEN)
@@ -859,14 +899,24 @@ def build_critiques_panel(state: DebateState) -> Panel:
         if state.consensus_reached_round < state.max_rounds:
             elements.append(Text(f"   Skipped {state.max_rounds - state.consensus_reached_round} remaining round(s)", style="dim italic"))
 
-    # Final summary when stage 2 complete
-    if state.stage >= 3 and not state.consensus_reached:
+    # Final summary when stage 2 complete (no early exit, no consensus reached)
+    elif state.stage >= 3:
         final_cons = int(state.consensus_score * 100) if state.consensus_score else 0
         summary_text = Text()
         summary_text.append(f"✓ ", style=GREEN)
         summary_text.append(f"Debate complete", style=f"bold {GREEN}")
-        summary_text.append(f" • {state.current_round} round(s) • {final_cons}% final consensus", style="dim")
+        summary_text.append(f" • {state.current_round} round(s) • {final_cons}% consensus", style="dim")
         elements.append(summary_text)
+        # Show issue counts
+        if state.critical_issues or state.moderate_issues or state.minor_issues:
+            issue_text = Text("   Issues: ", style="dim")
+            if state.critical_issues:
+                issue_text.append(f"🔴 {state.critical_issues} critical  ", style="red")
+            if state.moderate_issues:
+                issue_text.append(f"🟡 {state.moderate_issues} moderate  ", style="yellow")
+            if state.minor_issues:
+                issue_text.append(f"🟢 {state.minor_issues} minor", style="green")
+            elements.append(issue_text)
 
     # Show completion status in title when stage 2 is done
     if state.stage >= 3:
@@ -1155,6 +1205,8 @@ def get_current_action(state: DebateState) -> str:
             return f"{len(running_critics)} critiques in parallel"
         if state.consensus_reached:
             return "Consensus reached"
+        if state.debate_early_exit:
+            return "Debate concluded"
         return f"Round {state.current_round} critiques"
 
     # Stage 3: Synthesis
