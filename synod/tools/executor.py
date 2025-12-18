@@ -5,7 +5,6 @@ Integrates with:
 - Checkpoint system (auto-checkpoint before file modifications)
 """
 
-import asyncio
 from enum import Enum
 from typing import Any, Dict, List, Optional, Callable, Awaitable
 from rich.console import Console
@@ -22,16 +21,21 @@ from .search import SearchTool
 
 console = Console()
 
+
 # Lazy imports to avoid circular dependencies
 def _get_hook_helpers():
     """Lazily import hook system to avoid circular imports."""
     from synod.core.hooks import run_hooks, HookEvent
+
     return run_hooks, HookEvent
+
 
 def _get_checkpoint_helpers():
     """Lazily import checkpoint system to avoid circular imports."""
     from synod.core.checkpoints import create_checkpoint
+
     return create_checkpoint
+
 
 # Colors for questionary (matching Synod theme)
 CYAN = "#06B6D4"
@@ -44,9 +48,10 @@ _session_auto_approve: bool = False
 
 class ConfirmationChoice(Enum):
     """User's choice when prompted for tool confirmation."""
-    YES = "yes"           # Approve this one
-    YES_TO_ALL = "all"    # Approve this and all future
-    NO = "no"             # Decline
+
+    YES = "yes"  # Approve this one
+    YES_TO_ALL = "all"  # Approve this and all future
+    NO = "no"  # Decline
 
 
 def reset_session_auto_approve():
@@ -73,7 +78,9 @@ class ToolExecutor:
         self,
         working_directory: str,
         session_flags: Optional[SessionFlags] = None,
-        on_confirmation: Optional[Callable[[ConfirmationRequired], Awaitable[bool]]] = None,
+        on_confirmation: Optional[
+            Callable[[ConfirmationRequired], Awaitable[bool]]
+        ] = None,
     ):
         """Initialize the tool executor.
 
@@ -201,7 +208,11 @@ class ToolExecutor:
                 )
 
                 # Run file_modified hook if a file was changed
-                if file_path and result.status == ToolStatus.SUCCESS and self._is_modifying_operation(tool_name, parameters):
+                if (
+                    file_path
+                    and result.status == ToolStatus.SUCCESS
+                    and self._is_modifying_operation(tool_name, parameters)
+                ):
                     run_hooks(
                         HookEvent.FILE_MODIFIED,
                         tool_name=tool_name,
@@ -220,7 +231,9 @@ class ToolExecutor:
                 error=f"Tool execution failed: {str(e)}",
             )
 
-    def _get_file_path_from_params(self, tool_name: str, params: Dict[str, Any]) -> Optional[str]:
+    def _get_file_path_from_params(
+        self, tool_name: str, params: Dict[str, Any]
+    ) -> Optional[str]:
         """Extract file path from tool parameters."""
         if tool_name == "file_editor":
             return params.get("file_path")
@@ -265,7 +278,7 @@ class ToolExecutor:
 
         # Build confirmation panel
         content = Text()
-        content.append(f"Operation: ", style="bold")
+        content.append("Operation: ", style="bold")
         content.append(f"{info.operation}\n", style="cyan")
         content.append(f"\n{info.description}\n", style="white")
 
@@ -273,23 +286,29 @@ class ToolExecutor:
             content.append(f"\n{info.details}\n", style="dim")
 
         if info.diff:
-            console.print(Panel(
-                content,
-                title=f"[yellow]Confirmation Required[/yellow]",
-                border_style="yellow",
-            ))
+            console.print(
+                Panel(
+                    content,
+                    title="[yellow]Confirmation Required[/yellow]",
+                    border_style="yellow",
+                )
+            )
             console.print()
-            console.print(Panel(
-                Syntax(info.diff, "diff", theme="monokai", line_numbers=False),
-                title="[cyan]Changes[/cyan]",
-                border_style="cyan",
-            ))
+            console.print(
+                Panel(
+                    Syntax(info.diff, "diff", theme="monokai", line_numbers=False),
+                    title="[cyan]Changes[/cyan]",
+                    border_style="cyan",
+                )
+            )
         else:
-            console.print(Panel(
-                content,
-                title=f"[yellow]Confirmation Required[/yellow]",
-                border_style="yellow",
-            ))
+            console.print(
+                Panel(
+                    content,
+                    title="[yellow]Confirmation Required[/yellow]",
+                    border_style="yellow",
+                )
+            )
 
         console.print()
 
@@ -302,18 +321,22 @@ class ToolExecutor:
                     questionary.Choice("Yes to all (don't ask again)", value="all"),
                     questionary.Choice("No", value="no"),
                 ],
-                style=questionary.Style([
-                    ('selected', f'fg:{GREEN} bold'),
-                    ('pointer', f'fg:{GREEN} bold'),
-                    ('question', f'fg:{GOLD}'),
-                    ('highlighted', f'fg:{CYAN}'),
-                ])
+                style=questionary.Style(
+                    [
+                        ("selected", f"fg:{GREEN} bold"),
+                        ("pointer", f"fg:{GREEN} bold"),
+                        ("question", f"fg:{GOLD}"),
+                        ("highlighted", f"fg:{CYAN}"),
+                    ]
+                ),
             ).ask_async()
 
             if choice == "all":
                 # User chose to approve all - set session flag
                 set_session_auto_approve(True)
-                console.print(f"[{CYAN}]✓ Auto-approving all operations for this session[/{CYAN}]\n")
+                console.print(
+                    f"[{CYAN}]✓ Auto-approving all operations for this session[/{CYAN}]\n"
+                )
                 return True
             elif choice == "yes":
                 return True
@@ -338,7 +361,7 @@ class ToolExecutor:
         """Get the current working directory."""
         # Check if bash tool has changed directory
         bash_tool = self.tools.get("bash")
-        if bash_tool and hasattr(bash_tool, 'current_directory'):
+        if bash_tool and hasattr(bash_tool, "current_directory"):
             return bash_tool.current_directory
         return self.working_directory
 

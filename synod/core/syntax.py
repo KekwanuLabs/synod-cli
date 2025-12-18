@@ -4,36 +4,35 @@ Parses markdown-style code blocks and applies Rich syntax highlighting.
 """
 
 import re
-from typing import List, Tuple, Union
+from typing import List, Tuple
 from rich.console import Console, Group
 from rich.syntax import Syntax
 from rich.text import Text
 from rich.markdown import Markdown
-from rich.panel import Panel
 
 
 # Language aliases for syntax highlighting
 LANGUAGE_ALIASES = {
-    'js': 'javascript',
-    'ts': 'typescript',
-    'py': 'python',
-    'rb': 'ruby',
-    'sh': 'bash',
-    'shell': 'bash',
-    'zsh': 'bash',
-    'yml': 'yaml',
-    'md': 'markdown',
-    'dockerfile': 'docker',
-    'rs': 'rust',
-    'kt': 'kotlin',
-    'cs': 'csharp',
-    'c++': 'cpp',
-    'h': 'c',
-    'hpp': 'cpp',
-    'jsx': 'javascript',
-    'tsx': 'typescript',
-    'vue': 'html',
-    'svelte': 'html',
+    "js": "javascript",
+    "ts": "typescript",
+    "py": "python",
+    "rb": "ruby",
+    "sh": "bash",
+    "shell": "bash",
+    "zsh": "bash",
+    "yml": "yaml",
+    "md": "markdown",
+    "dockerfile": "docker",
+    "rs": "rust",
+    "kt": "kotlin",
+    "cs": "csharp",
+    "c++": "cpp",
+    "h": "c",
+    "hpp": "cpp",
+    "jsx": "javascript",
+    "tsx": "typescript",
+    "vue": "html",
+    "svelte": "html",
 }
 
 
@@ -56,7 +55,7 @@ def parse_code_blocks(text: str) -> List[Tuple[str, str, str]]:
         - language is the code language (empty for text)
     """
     # Pattern to match ```language\ncode\n``` blocks
-    pattern = r'```(\w*)\n(.*?)```'
+    pattern = r"```(\w*)\n(.*?)```"
 
     parts = []
     last_end = 0
@@ -64,14 +63,14 @@ def parse_code_blocks(text: str) -> List[Tuple[str, str, str]]:
     for match in re.finditer(pattern, text, re.DOTALL):
         # Add text before this code block
         if match.start() > last_end:
-            before_text = text[last_end:match.start()]
+            before_text = text[last_end : match.start()]
             if before_text.strip():
-                parts.append(('text', before_text, ''))
+                parts.append(("text", before_text, ""))
 
         # Add the code block
-        language = match.group(1) or 'text'
+        language = match.group(1) or "text"
         code = match.group(2)
-        parts.append(('code', code, normalize_language(language)))
+        parts.append(("code", code, normalize_language(language)))
 
         last_end = match.end()
 
@@ -79,11 +78,11 @@ def parse_code_blocks(text: str) -> List[Tuple[str, str, str]]:
     if last_end < len(text):
         remaining = text[last_end:]
         if remaining.strip():
-            parts.append(('text', remaining, ''))
+            parts.append(("text", remaining, ""))
 
     # If no code blocks found, return the whole text as text
     if not parts:
-        parts.append(('text', text, ''))
+        parts.append(("text", text, ""))
 
     return parts
 
@@ -102,7 +101,7 @@ def render_with_syntax(text: str, console: Console = None) -> Group:
     renderables = []
 
     for part_type, content, language in parts:
-        if part_type == 'code':
+        if part_type == "code":
             # Create syntax-highlighted code block
             syntax = Syntax(
                 content.rstrip(),
@@ -151,7 +150,7 @@ def print_with_syntax(text: str, console: Console = None):
     parts = parse_code_blocks(text)
 
     for part_type, content, language in parts:
-        if part_type == 'code':
+        if part_type == "code":
             # Create syntax-highlighted code block
             syntax = Syntax(
                 content.rstrip(),
@@ -172,5 +171,5 @@ class SyntaxMarkdown(Markdown):
 
     def __init__(self, markup: str, **kwargs):
         # Set code theme
-        kwargs.setdefault('code_theme', 'monokai')
+        kwargs.setdefault("code_theme", "monokai")
         super().__init__(markup, **kwargs)

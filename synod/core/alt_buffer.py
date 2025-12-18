@@ -10,8 +10,6 @@ import signal
 import shutil
 from typing import Optional, Callable
 from rich.console import Console, RenderableType
-from rich.panel import Panel
-from rich.text import Text
 
 
 class AltBufferRenderer:
@@ -37,9 +35,9 @@ class AltBufferRenderer:
             return
 
         # Save cursor and enter alternate buffer
-        sys.stdout.write('\033[?1049h')  # Enter alternate screen
-        sys.stdout.write('\033[2J')       # Clear screen
-        sys.stdout.write('\033[H')        # Move cursor to top-left
+        sys.stdout.write("\033[?1049h")  # Enter alternate screen
+        sys.stdout.write("\033[2J")  # Clear screen
+        sys.stdout.write("\033[H")  # Move cursor to top-left
         sys.stdout.flush()
 
         self._in_alt_buffer = True
@@ -57,7 +55,7 @@ class AltBufferRenderer:
         self._restore_resize_handler()
 
         # Exit alternate buffer (restores normal screen)
-        sys.stdout.write('\033[?1049l')
+        sys.stdout.write("\033[?1049l")
         sys.stdout.flush()
 
         self._in_alt_buffer = False
@@ -66,8 +64,8 @@ class AltBufferRenderer:
         """Clear the screen and move cursor to top."""
         if not self._in_alt_buffer:
             return
-        sys.stdout.write('\033[2J')  # Clear screen
-        sys.stdout.write('\033[H')   # Cursor to top-left
+        sys.stdout.write("\033[2J")  # Clear screen
+        sys.stdout.write("\033[H")  # Cursor to top-left
         sys.stdout.flush()
 
     def render(self, content: RenderableType) -> None:
@@ -83,21 +81,21 @@ class AltBufferRenderer:
                 self._on_resize()
 
         # Move cursor to top and render
-        sys.stdout.write('\033[H')  # Cursor to top-left
+        sys.stdout.write("\033[H")  # Cursor to top-left
         sys.stdout.flush()
 
         # Use Rich to render the content
         # We capture to string first, then write directly
         # This gives atomic updates
         with self.console.capture() as capture:
-            self.console.print(content, end='')
+            self.console.print(content, end="")
 
         output = capture.get()
 
         # Clear from cursor to end of screen after content
         # This handles cases where new content is shorter
         sys.stdout.write(output)
-        sys.stdout.write('\033[J')  # Clear from cursor to end of screen
+        sys.stdout.write("\033[J")  # Clear from cursor to end of screen
         sys.stdout.flush()
 
     def set_resize_handler(self, handler: Callable[[], None]) -> None:

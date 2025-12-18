@@ -15,17 +15,16 @@ import os
 import json
 import subprocess
 from pathlib import Path
-from typing import Optional, List, Dict, Any, Callable, Awaitable
-from dataclasses import dataclass, field
+from typing import Optional, List, Dict, Any
+from dataclasses import dataclass
 from enum import Enum
 
 from rich.console import Console
 from rich.panel import Panel
-from rich.text import Text
 from rich.table import Table
 from rich import box
 
-from .theme import PRIMARY, CYAN, GREEN, GOLD, GRAY
+from .theme import CYAN, GOLD
 
 console = Console()
 
@@ -34,8 +33,10 @@ console = Console()
 # HOOK TYPES
 # ============================================================================
 
+
 class HookEvent(Enum):
     """Types of hook events."""
+
     PRE_TOOL_USE = "pre_tool_use"
     POST_TOOL_USE = "post_tool_use"
     SESSION_START = "session_start"
@@ -48,6 +49,7 @@ class HookEvent(Enum):
 @dataclass
 class HookContext:
     """Context passed to hooks."""
+
     event: HookEvent
     tool_name: Optional[str] = None
     tool_params: Optional[Dict[str, Any]] = None
@@ -60,6 +62,7 @@ class HookContext:
 @dataclass
 class HookResult:
     """Result from a hook execution."""
+
     allow: bool = True  # Whether to continue (for pre-hooks)
     message: Optional[str] = None
     modified_params: Optional[Dict[str, Any]] = None
@@ -68,6 +71,7 @@ class HookResult:
 @dataclass
 class Hook:
     """Definition of a hook."""
+
     name: str
     event: HookEvent
     command: str  # Shell command to run
@@ -149,6 +153,7 @@ def save_hooks(hooks: List[Hook], project_path: str = ".") -> None:
 # HOOK EXECUTION
 # ============================================================================
 
+
 class HookManager:
     """Manages hook registration and execution."""
 
@@ -201,7 +206,8 @@ class HookManager:
             if result.returncode != 0:
                 return HookResult(
                     allow=False,
-                    message=result.stderr or f"Hook '{hook.name}' failed with code {result.returncode}",
+                    message=result.stderr
+                    or f"Hook '{hook.name}' failed with code {result.returncode}",
                 )
 
             # Parse output for any special commands
@@ -295,6 +301,7 @@ def run_hooks(event: HookEvent, **kwargs) -> HookResult:
 # COMMAND HANDLERS
 # ============================================================================
 
+
 async def handle_hooks_command(args: str = "") -> None:
     """Handle /hooks command - view and configure hooks."""
     manager = get_hook_manager()
@@ -324,7 +331,9 @@ async def handle_hooks_command(args: str = "") -> None:
                 "✓" if hook.enabled else "✗",
             )
 
-        console.print(Panel(table, title="[cyan]Configured Hooks[/cyan]", border_style="cyan"))
+        console.print(
+            Panel(table, title="[cyan]Configured Hooks[/cyan]", border_style="cyan")
+        )
         return
 
     parts = args.strip().split(maxsplit=1)
@@ -338,7 +347,9 @@ async def handle_hooks_command(args: str = "") -> None:
             try:
                 event = HookEvent(hook_parts[1])
             except ValueError:
-                console.print(f"[red]Invalid event. Use one of: {', '.join(e.value for e in HookEvent)}[/red]")
+                console.print(
+                    f"[red]Invalid event. Use one of: {', '.join(e.value for e in HookEvent)}[/red]"
+                )
                 return
             command = hook_parts[2]
 

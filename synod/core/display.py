@@ -12,7 +12,6 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 from rich.table import Table
-from rich.layout import Layout
 from rich.box import ROUNDED, DOUBLE
 from rich.align import Align
 from typing import Dict, Any, Optional, List
@@ -23,11 +22,6 @@ from .theme import (
     SynodStyles,
     PRIMARY,
     SECONDARY,
-    CYAN,
-    GOLD,
-    GREEN,
-    gradient_text,
-    LOGO_COLORS,
     emoji,
 )
 
@@ -36,6 +30,7 @@ def get_version() -> str:
     """Get the current version of Synod from package metadata."""
     try:
         from importlib.metadata import version
+
         return version("synod-cli")
     except Exception:
         return "0.2.0"  # Fallback
@@ -63,7 +58,7 @@ def check_for_updates(current_version: str) -> Optional[str]:
                 if latest != current_version:
                     # Parse versions to compare properly
                     def parse_version(v):
-                        return tuple(int(x) for x in v.split('.'))
+                        return tuple(int(x) for x in v.split("."))
 
                     if parse_version(latest) > parse_version(current_version):
                         result["new_version"] = latest
@@ -82,14 +77,16 @@ def show_update_notice(new_version: str, current_version: str) -> None:
     """Display update notification to user."""
     console = Console()
     console.print()
-    console.print(Panel(
-        f"[bold yellow]Update available![/bold yellow] [dim]{current_version}[/dim] → [bold green]{new_version}[/bold green]\n\n"
-        f"[white]Run:[/white] [cyan]synod upgrade[/cyan]\n"
-        f"[dim]or:[/dim]  [dim]pipx upgrade synod-cli[/dim]",
-        border_style="yellow",
-        title="[yellow]New Version[/yellow]",
-        width=50,
-    ))
+    console.print(
+        Panel(
+            f"[bold yellow]Update available![/bold yellow] [dim]{current_version}[/dim] → [bold green]{new_version}[/bold green]\n\n"
+            f"[white]Run:[/white] [cyan]synod upgrade[/cyan]\n"
+            f"[dim]or:[/dim]  [dim]pipx upgrade synod-cli[/dim]",
+            border_style="yellow",
+            title="[yellow]New Version[/yellow]",
+            width=50,
+        )
+    )
 
 
 def auto_upgrade() -> bool:
@@ -158,6 +155,7 @@ def get_tagline_full() -> str:
     """Get the full tagline with subtitle."""
     return TAGLINE_FULL
 
+
 # Initialize console with theme and force color support
 console = Console(theme=SYNOD_THEME, force_terminal=True, color_system="truecolor")
 
@@ -188,6 +186,7 @@ SYNOD_LOGO_SIMPLE = r"""
 # LAUNCH SCREEN
 # ============================================================================
 
+
 def animate_logo() -> None:
     """Display animated Synod logo with typewriter effect using raw output."""
     import time
@@ -205,8 +204,8 @@ def animate_logo() -> None:
         sys.stderr = sys.__stderr__
 
         # ANSI escape codes
-        ORANGE_BOLD = '\033[1;38;5;208m'  # Bold orange
-        RESET = '\033[0m'
+        ORANGE_BOLD = "\033[1;38;5;208m"  # Bold orange
+        RESET = "\033[0m"
 
         # Get terminal dimensions
         terminal_width = shutil.get_terminal_size().columns
@@ -214,14 +213,14 @@ def animate_logo() -> None:
         # Use direct file descriptor writes to bypass ALL buffering
         def write_direct(text):
             """Write directly to raw stdout file descriptor 1."""
-            os.write(1, text.encode('utf-8'))
+            os.write(1, text.encode("utf-8"))
 
         # Simple approach: just add a newline for spacing and continue from current position
         # Don't try to manipulate screen position - just start fresh from where we are
-        write_direct('\n')
+        write_direct("\n")
 
         # Get full logo text and split into lines for better centering
-        logo_lines = SYNOD_LOGO.strip().split('\n')
+        logo_lines = SYNOD_LOGO.strip().split("\n")
 
         # Print each line with typewriter effect
         for line in logo_lines:
@@ -237,28 +236,28 @@ def animate_logo() -> None:
             for char in line:
                 write_direct(char)
                 # Fast timing
-                if char == ' ':
+                if char == " ":
                     time.sleep(0.001)
                 else:
                     time.sleep(0.003)  # Fast but visible
 
             write_direct(RESET)
             # Newline after each line
-            write_direct('\n')
+            write_direct("\n")
             time.sleep(0.01)  # Quick pause between lines
 
         # Add tagline and subtitle as part of the animation (no jump later)
-        write_direct('\n')
+        write_direct("\n")
 
         # Tagline - centered, cyan color
-        CYAN_COLOR = '\033[38;5;45m'
+        CYAN_COLOR = "\033[38;5;45m"
         tagline_padding = (terminal_width - len(TAGLINE)) // 2
-        write_direct(' ' * tagline_padding + CYAN_COLOR + TAGLINE + RESET + '\n')
+        write_direct(" " * tagline_padding + CYAN_COLOR + TAGLINE + RESET + "\n")
 
         # Subtitle - centered, dim
-        DIM = '\033[2m'
+        DIM = "\033[2m"
         subtitle_padding = (terminal_width - len(SUBTITLE)) // 2
-        write_direct(' ' * subtitle_padding + DIM + SUBTITLE + RESET + '\n')
+        write_direct(" " * subtitle_padding + DIM + SUBTITLE + RESET + "\n")
 
         time.sleep(0.05)  # Brief pause at end
 
@@ -293,15 +292,13 @@ def show_launch_screen(
         # Version (use dynamic version if not provided)
         display_version = version or get_version()
         console.print()
-        console.print(
-            Text(f"v{display_version}", style="dim"),
-            justify="center"
-        )
+        console.print(Text(f"v{display_version}", style="dim"), justify="center")
 
         # Project info (if available)
         if project_path or file_count > 0 or (bishops and pope):
             console.print()
             from rich.table import Table
+
             info_table = Table(
                 show_header=False,
                 box=None,
@@ -313,14 +310,14 @@ def show_launch_screen(
             info_table.add_column("value", style="info")
 
             if project_path:
-                info_table.add_row(emoji('project'), "Project:", project_path)
+                info_table.add_row(emoji("project"), "Project:", project_path)
             if file_count > 0:
-                info_table.add_row(emoji('files'), "Files:", f"{file_count:,} indexed")
+                info_table.add_row(emoji("files"), "Files:", f"{file_count:,} indexed")
             if bishops and pope:
                 bishop_names = [_format_model_name(b) for b in bishops]
                 bishop_text = ", ".join(bishop_names)
-                info_table.add_row(emoji('bishop'), "Bishops:", bishop_text)
-                info_table.add_row(emoji('pope'), "Pope:", _format_model_name(pope))
+                info_table.add_row(emoji("bishop"), "Bishops:", bishop_text)
+                info_table.add_row(emoji("pope"), "Pope:", _format_model_name(pope))
 
             console.print(Align.center(info_table))
 
@@ -358,6 +355,7 @@ def show_launch_screen(
         project_text = None
         if project_path or file_count > 0 or (bishops and pope):
             from rich.table import Table
+
             info_table = Table(
                 show_header=False,
                 box=None,
@@ -369,14 +367,14 @@ def show_launch_screen(
             info_table.add_column("value", style="info")
 
             if project_path:
-                info_table.add_row(emoji('project'), "Project:", project_path)
+                info_table.add_row(emoji("project"), "Project:", project_path)
             if file_count > 0:
-                info_table.add_row(emoji('files'), "Files:", f"{file_count:,} indexed")
+                info_table.add_row(emoji("files"), "Files:", f"{file_count:,} indexed")
             if bishops and pope:
                 bishop_names = [_format_model_name(b) for b in bishops]
                 bishop_text = ", ".join(bishop_names)
-                info_table.add_row(emoji('bishop'), "Bishops:", bishop_text)
-                info_table.add_row(emoji('pope'), "Pope:", _format_model_name(pope))
+                info_table.add_row(emoji("bishop"), "Bishops:", bishop_text)
+                info_table.add_row(emoji("pope"), "Pope:", _format_model_name(pope))
 
             project_text = info_table
 
@@ -415,6 +413,7 @@ def show_launch_screen(
         console.print(panel)
         console.print()  # Extra spacing
 
+
 def _format_model_name(model_id: str) -> str:
     """Format model ID into a readable name.
 
@@ -445,9 +444,11 @@ def _format_model_name(model_id: str) -> str:
     # Fallback: capitalize and clean
     return model_id.replace("-", " ").title()
 
+
 # ============================================================================
 # EXIT SUMMARY
 # ============================================================================
+
 
 def show_exit_summary(session_data: Dict[str, Any]) -> None:
     """Display beautiful exit summary with session statistics.
@@ -519,9 +520,7 @@ def show_exit_summary(session_data: Dict[str, Any]) -> None:
     if bishop_usage:
         table.add_section()
         # Find most active bishop
-        most_active = max(
-            bishop_usage.items(), key=lambda x: x[1].get("tokens", 0)
-        )
+        most_active = max(bishop_usage.items(), key=lambda x: x[1].get("tokens", 0))
         most_active_name = _format_model_name(most_active[0])
         most_active_pct = most_active[1].get("percentage", 0)
 
@@ -555,6 +554,7 @@ def show_exit_summary(session_data: Dict[str, Any]) -> None:
     console.print(farewell)
     console.print()
 
+
 def _format_duration(seconds: float) -> str:
     """Format duration in seconds to human-readable string.
 
@@ -575,9 +575,11 @@ def _format_duration(seconds: float) -> str:
         minutes = int((seconds % 3600) // 60)
         return f"{hours}h {minutes}m"
 
+
 # ============================================================================
 # SESSION INFO PANEL
 # ============================================================================
+
 
 def show_session_panel(session_data: Dict[str, Any]) -> None:
     """Display real-time session information panel.
@@ -603,9 +605,11 @@ def show_session_panel(session_data: Dict[str, Any]) -> None:
 
     console.print(info_text)
 
+
 # ============================================================================
 # PERMISSION PROMPT
 # ============================================================================
+
 
 def show_permission_prompt(project_path: str, file_count: int) -> bool:
     """Display file access permission prompt.
@@ -621,9 +625,7 @@ def show_permission_prompt(project_path: str, file_count: int) -> bool:
     message.append(f"\n{emoji('project')} Detected project: ", style="info")
     message.append(project_path, style="primary")
     message.append(f"\n\n{emoji('warning')}  ", style="warning")
-    message.append(
-        "Synod needs permission to index this folder.\n", style="warning"
-    )
+    message.append("Synod needs permission to index this folder.\n", style="warning")
     message.append(
         "   This allows bishops to understand your codebase.\n\n", style="dim"
     )

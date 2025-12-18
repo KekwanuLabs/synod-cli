@@ -14,19 +14,25 @@ from typing import List, Dict, Optional, Set
 from dataclasses import dataclass, field
 import json
 
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn, TimeElapsedColumn
-from rich.console import Console
+from rich.progress import (
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    BarColumn,
+    TaskProgressColumn,
+    TimeElapsedColumn,
+)
 from rich.panel import Panel
 from rich.text import Text
 from rich.table import Table
-from rich.tree import Tree
 
-from .theme import PRIMARY, CYAN, GREEN, GOLD, emoji, SynodStyles
+from .theme import CYAN, GOLD, emoji
 from .display import console
 
 # ============================================================================
 # DATA STRUCTURES
 # ============================================================================
+
 
 @dataclass
 class ProjectStats:
@@ -55,25 +61,25 @@ class ProjectStats:
     def _ext_to_language(self, ext: str) -> Optional[str]:
         """Map file extension to language name."""
         lang_map = {
-            '.py': 'Python',
-            '.js': 'JavaScript',
-            '.ts': 'TypeScript',
-            '.tsx': 'TypeScript',
-            '.jsx': 'JavaScript',
-            '.java': 'Java',
-            '.cpp': 'C++',
-            '.c': 'C',
-            '.go': 'Go',
-            '.rs': 'Rust',
-            '.rb': 'Ruby',
-            '.php': 'PHP',
-            '.swift': 'Swift',
-            '.kt': 'Kotlin',
-            '.cs': 'C#',
-            '.scala': 'Scala',
-            '.sh': 'Shell',
-            '.bash': 'Shell',
-            '.zsh': 'Shell',
+            ".py": "Python",
+            ".js": "JavaScript",
+            ".ts": "TypeScript",
+            ".tsx": "TypeScript",
+            ".jsx": "JavaScript",
+            ".java": "Java",
+            ".cpp": "C++",
+            ".c": "C",
+            ".go": "Go",
+            ".rs": "Rust",
+            ".rb": "Ruby",
+            ".php": "PHP",
+            ".swift": "Swift",
+            ".kt": "Kotlin",
+            ".cs": "C#",
+            ".scala": "Scala",
+            ".sh": "Shell",
+            ".bash": "Shell",
+            ".zsh": "Shell",
         }
         return lang_map.get(ext)
 
@@ -87,6 +93,7 @@ class ProjectStats:
 
         return sorted(lang_counts.items(), key=lambda x: x[1], reverse=True)[:n]
 
+
 @dataclass
 class FileMetadata:
     """Metadata for a single file."""
@@ -96,6 +103,7 @@ class FileMetadata:
     language: Optional[str]
     extension: str
     last_modified: float
+
 
 @dataclass
 class IndexedProject:
@@ -119,7 +127,7 @@ class IndexedProject:
         """
         try:
             full_path = Path(self.path) / file_path
-            with open(full_path, 'r', encoding='utf-8') as f:
+            with open(full_path, "r", encoding="utf-8") as f:
                 return f.read()
         except Exception:
             return None
@@ -145,7 +153,8 @@ class IndexedProject:
             List of matching file paths
         """
         return [
-            path for path, metadata in self.file_metadata.items()
+            path
+            for path, metadata in self.file_metadata.items()
             if metadata.language == language
         ]
 
@@ -161,9 +170,11 @@ class IndexedProject:
         pattern_lower = pattern.lower()
         return [f for f in self.files if pattern_lower in f.lower()]
 
+
 # ============================================================================
 # FILE INDEXER
 # ============================================================================
+
 
 class FileIndexer:
     """Fast file indexer using ripgrep."""
@@ -180,9 +191,9 @@ class FileIndexer:
         self.file_metadata: Dict[str, FileMetadata] = {}
 
         # Permission and index file locations
-        self.synod_dir = self.project_path / '.synod'
-        self.permission_file = self.synod_dir / 'permission.json'
-        self.index_file = self.synod_dir / 'index.json'
+        self.synod_dir = self.project_path / ".synod"
+        self.permission_file = self.synod_dir / "permission.json"
+        self.index_file = self.synod_dir / "index.json"
 
     def has_permission(self) -> bool:
         """Check if we have permission to index this directory."""
@@ -190,9 +201,9 @@ class FileIndexer:
             return False
 
         try:
-            with open(self.permission_file, 'r') as f:
+            with open(self.permission_file, "r") as f:
                 data = json.load(f)
-                return data.get('permission_granted', False)
+                return data.get("permission_granted", False)
         except Exception:
             return False
 
@@ -200,16 +211,20 @@ class FileIndexer:
         """Grant permission to index this directory."""
         self.permission_file.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(self.permission_file, 'w') as f:
-            json.dump({
-                'permission_granted': True,
-                'project_path': str(self.project_path),
-            }, f, indent=2)
+        with open(self.permission_file, "w") as f:
+            json.dump(
+                {
+                    "permission_granted": True,
+                    "project_path": str(self.project_path),
+                },
+                f,
+                indent=2,
+            )
 
     def check_ripgrep_available(self) -> bool:
         """Check if ripgrep is available."""
         try:
-            subprocess.run(['rg', '--version'], capture_output=True, check=True)
+            subprocess.run(["rg", "--version"], capture_output=True, check=True)
             return True
         except (subprocess.CalledProcessError, FileNotFoundError):
             return False
@@ -224,7 +239,9 @@ class FileIndexer:
             List of file paths
         """
         if not self.check_ripgrep_available():
-            console.print("[warning]ripgrep not found, falling back to slower method[/warning]")
+            console.print(
+                "[warning]ripgrep not found, falling back to slower method[/warning]"
+            )
             return self.index_with_pathlib(show_progress)
 
         # Use ripgrep to list all files
@@ -232,31 +249,36 @@ class FileIndexer:
         # --hidden: include hidden files
         # --no-ignore-vcs: don't ignore VCS files (we'll filter manually)
         cmd = [
-            'rg',
-            '--files',
-            '--hidden',
-            '--glob', '!.git/',
-            '--glob', '!.synod/',
-            '--glob', '!node_modules/',
-            '--glob', '!__pycache__/',
-            '--glob', '!.venv/',
-            '--glob', '!venv/',
-            '--glob', '!dist/',
-            '--glob', '!build/',
-            '--glob', '!*.pyc',
-            str(self.project_path)
+            "rg",
+            "--files",
+            "--hidden",
+            "--glob",
+            "!.git/",
+            "--glob",
+            "!.synod/",
+            "--glob",
+            "!node_modules/",
+            "--glob",
+            "!__pycache__/",
+            "--glob",
+            "!.venv/",
+            "--glob",
+            "!venv/",
+            "--glob",
+            "!dist/",
+            "--glob",
+            "!build/",
+            "--glob",
+            "!*.pyc",
+            str(self.project_path),
         ]
 
         try:
             result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                check=True,
-                cwd=self.project_path
+                cmd, capture_output=True, text=True, check=True, cwd=self.project_path
             )
 
-            files = result.stdout.strip().split('\n')
+            files = result.stdout.strip().split("\n")
             files = [f for f in files if f]  # Remove empty lines
 
             # Update stats with progress
@@ -271,8 +293,7 @@ class FileIndexer:
                     transient=True,
                 ) as progress:
                     task = progress.add_task(
-                        f"[{CYAN}]Analyzing files...[/{CYAN}]",
-                        total=len(files)
+                        f"[{CYAN}]Analyzing files...[/{CYAN}]", total=len(files)
                     )
 
                     for file_path in files:
@@ -336,7 +357,16 @@ class FileIndexer:
             console.print(f"[{CYAN}]Scanning directory...[/{CYAN}]")
 
         # Directories to skip
-        skip_dirs = {'.git', '.synod', 'node_modules', '__pycache__', '.venv', 'venv', 'dist', 'build'}
+        skip_dirs = {
+            ".git",
+            ".synod",
+            "node_modules",
+            "__pycache__",
+            ".venv",
+            "venv",
+            "dist",
+            "build",
+        }
 
         for root, dirs, files in os.walk(self.project_path):
             # Remove skip_dirs from dirs to prevent walking into them
@@ -344,7 +374,7 @@ class FileIndexer:
 
             for file in files:
                 # Skip certain files
-                if file.endswith('.pyc') or file.startswith('.'):
+                if file.endswith(".pyc") or file.startswith("."):
                     continue
 
                 file_path = Path(root) / file
@@ -373,30 +403,31 @@ class FileIndexer:
     def save_index(self) -> None:
         """Save the file index to disk for fast loading."""
         import time
+
         self.synod_dir.mkdir(parents=True, exist_ok=True)
 
         # Convert metadata to serializable format
         metadata_dict = {
             path: {
-                'path': meta.path,
-                'size': meta.size,
-                'language': meta.language,
-                'extension': meta.extension,
-                'last_modified': meta.last_modified,
+                "path": meta.path,
+                "size": meta.size,
+                "language": meta.language,
+                "extension": meta.extension,
+                "last_modified": meta.last_modified,
             }
             for path, meta in self.file_metadata.items()
         }
 
         index_data = {
-            'project_path': str(self.project_path),
-            'files': self.files,
-            'file_metadata': metadata_dict,
-            'total_files': self.stats.total_files,
-            'total_size': self.stats.total_size,
-            'indexed_at': time.time(),
+            "project_path": str(self.project_path),
+            "files": self.files,
+            "file_metadata": metadata_dict,
+            "total_files": self.stats.total_files,
+            "total_size": self.stats.total_size,
+            "indexed_at": time.time(),
         }
 
-        with open(self.index_file, 'w') as f:
+        with open(self.index_file, "w") as f:
             json.dump(index_data, f, indent=2)
 
     def load_index(self) -> bool:
@@ -409,20 +440,19 @@ class FileIndexer:
             return False
 
         try:
-            with open(self.index_file, 'r') as f:
+            with open(self.index_file, "r") as f:
                 index_data = json.load(f)
 
-            self.files = index_data.get('files', [])
+            self.files = index_data.get("files", [])
 
             # Reconstruct metadata objects
-            metadata_dict = index_data.get('file_metadata', {})
+            metadata_dict = index_data.get("file_metadata", {})
             self.file_metadata = {
-                path: FileMetadata(**meta)
-                for path, meta in metadata_dict.items()
+                path: FileMetadata(**meta) for path, meta in metadata_dict.items()
             }
 
-            self.stats.total_files = index_data.get('total_files', 0)
-            self.stats.total_size = index_data.get('total_size', 0)
+            self.stats.total_files = index_data.get("total_files", 0)
+            self.stats.total_size = index_data.get("total_size", 0)
 
             return True
         except Exception:
@@ -458,9 +488,11 @@ class FileIndexer:
 
         return table
 
+
 # ============================================================================
 # PERMISSION PROMPT
 # ============================================================================
+
 
 def show_permission_prompt(indexer: FileIndexer) -> bool:
     """Show permission prompt and get user consent.
@@ -491,7 +523,7 @@ def show_permission_prompt(indexer: FileIndexer) -> bool:
         message.append(f"   ├─ {lang} files: ", style="dim")
         message.append(f"{count} found\n", style="info")
 
-    message.append(f"   └─ Total: ", style="dim")
+    message.append("   └─ Total: ", style="dim")
     message.append(f"{indexer.stats.total_files} files\n\n", style="info")
 
     # Panel
@@ -509,11 +541,13 @@ def show_permission_prompt(indexer: FileIndexer) -> bool:
     console.print()
 
     # Accept Y, y, yes, Yes, or just Enter as yes
-    return response.strip().lower() in ['', 'y', 'yes']
+    return response.strip().lower() in ["", "y", "yes"]
+
 
 # ============================================================================
 # QUICK INDEX FUNCTION
 # ============================================================================
+
 
 def is_workspace_indexed(project_path: str) -> bool:
     """
@@ -543,6 +577,7 @@ def quick_index(project_path: str, force: bool = False) -> Optional[IndexedProje
         IndexedProject or None if permission denied
     """
     import time
+
     indexer = FileIndexer(project_path)
 
     # Check permission
@@ -559,7 +594,9 @@ def quick_index(project_path: str, force: bool = False) -> Optional[IndexedProje
     else:
         # Need permission
         if not show_permission_prompt(indexer):
-            console.print("\n[warning]Permission denied. Synod will operate without file context.[/warning]\n")
+            console.print(
+                "\n[warning]Permission denied. Synod will operate without file context.[/warning]\n"
+            )
             return None
 
         # Grant permission
@@ -572,7 +609,9 @@ def quick_index(project_path: str, force: bool = False) -> Optional[IndexedProje
 
         # Save index for future use
         indexer.save_index()
-        console.print(f"[success]✓ Index saved to {indexer.index_file.relative_to(indexer.project_path)}[/success]\n")
+        console.print(
+            f"[success]✓ Index saved to {indexer.index_file.relative_to(indexer.project_path)}[/success]\n"
+        )
 
     # Create indexed project with full metadata
     return IndexedProject(

@@ -7,9 +7,7 @@ Provides AI-powered git operations:
 """
 
 import subprocess
-import os
-from typing import Optional, Tuple, List, Dict, Any
-from pathlib import Path
+from typing import Optional, Tuple, List, Dict
 
 from rich.console import Console
 from rich.panel import Panel
@@ -17,7 +15,7 @@ from rich.text import Text
 from rich.syntax import Syntax
 from rich.prompt import Confirm
 
-from .theme import PRIMARY, CYAN, GREEN, GOLD, GRAY
+from .theme import CYAN, GREEN, GOLD
 
 console = Console()
 
@@ -25,6 +23,7 @@ console = Console()
 # ============================================================================
 # GIT UTILITIES
 # ============================================================================
+
 
 def is_git_repo(path: str = ".") -> bool:
     """Check if the current directory is a git repository."""
@@ -151,11 +150,13 @@ def get_recent_commits(count: int = 5) -> List[Dict[str, str]]:
             for entry in result.stdout.split("|||END"):
                 parts = entry.strip().split("|||")
                 if len(parts) >= 2:
-                    commits.append({
-                        "hash": parts[0][:8],
-                        "subject": parts[1],
-                        "body": parts[2] if len(parts) > 2 else "",
-                    })
+                    commits.append(
+                        {
+                            "hash": parts[0][:8],
+                            "subject": parts[1],
+                            "body": parts[2] if len(parts) > 2 else "",
+                        }
+                    )
     except FileNotFoundError:
         pass
     return commits
@@ -193,7 +194,9 @@ def create_commit(message: str) -> Tuple[bool, str]:
         return False, "Git not found"
 
 
-def push_branch(branch: Optional[str] = None, set_upstream: bool = False) -> Tuple[bool, str]:
+def push_branch(
+    branch: Optional[str] = None, set_upstream: bool = False
+) -> Tuple[bool, str]:
     """Push to remote.
 
     Returns:
@@ -252,6 +255,7 @@ def parse_github_url(url: str) -> Optional[Tuple[str, str]]:
 # COMMAND HANDLERS
 # ============================================================================
 
+
 async def handle_diff_command(args: str = "") -> None:
     """Handle /diff command - show and analyze current changes."""
     if not is_git_repo():
@@ -264,11 +268,13 @@ async def handle_diff_command(args: str = "") -> None:
     status_text = Text()
 
     if not staged and not unstaged and not untracked:
-        console.print(Panel(
-            "[green]Working directory clean - no changes to show[/green]",
-            title="[cyan]Git Status[/cyan]",
-            border_style="cyan"
-        ))
+        console.print(
+            Panel(
+                "[green]Working directory clean - no changes to show[/green]",
+                title="[cyan]Git Status[/cyan]",
+                border_style="cyan",
+            )
+        )
         return
 
     if staged:
@@ -294,7 +300,9 @@ async def handle_diff_command(args: str = "") -> None:
         if len(untracked) > 5:
             status_text.append(f"  ... and {len(untracked) - 5} more\n", style="dim")
 
-    console.print(Panel(status_text, title="[cyan]Git Status[/cyan]", border_style="cyan"))
+    console.print(
+        Panel(status_text, title="[cyan]Git Status[/cyan]", border_style="cyan")
+    )
 
     # Show diff preview
     if staged or unstaged:
@@ -303,13 +311,17 @@ async def handle_diff_command(args: str = "") -> None:
             # Truncate for display
             lines = diff_output.split("\n")
             if len(lines) > 50:
-                diff_output = "\n".join(lines[:50]) + f"\n... ({len(lines) - 50} more lines)"
+                diff_output = (
+                    "\n".join(lines[:50]) + f"\n... ({len(lines) - 50} more lines)"
+                )
 
-            console.print(Panel(
-                Syntax(diff_output, "diff", theme="monokai", line_numbers=False),
-                title="[cyan]Changes Preview[/cyan]",
-                border_style="cyan"
-            ))
+            console.print(
+                Panel(
+                    Syntax(diff_output, "diff", theme="monokai", line_numbers=False),
+                    title="[cyan]Changes Preview[/cyan]",
+                    border_style="cyan",
+                )
+            )
 
 
 async def handle_commit_command(
@@ -338,7 +350,9 @@ async def handle_commit_command(
     # If nothing staged, offer to stage all
     if not staged:
         if unstaged or untracked:
-            console.print("[yellow]No files staged. Would you like to stage all changes?[/yellow]")
+            console.print(
+                "[yellow]No files staged. Would you like to stage all changes?[/yellow]"
+            )
             if Confirm.ask("Stage all changes?", default=True):
                 files_to_stage = unstaged + untracked
                 if stage_files(files_to_stage):
@@ -348,7 +362,9 @@ async def handle_commit_command(
                     console.print("[red]Failed to stage files[/red]")
                     return None
             else:
-                console.print("[dim]Use 'git add <files>' to stage specific files[/dim]")
+                console.print(
+                    "[dim]Use 'git add <files>' to stage specific files[/dim]"
+                )
                 return None
 
     # Get the diff for context
@@ -359,14 +375,20 @@ async def handle_commit_command(
 
     # Get recent commits for style reference
     recent = get_recent_commits(5)
-    style_reference = "\n".join([f"- {c['subject']}" for c in recent]) if recent else "No previous commits"
+    style_reference = (
+        "\n".join([f"- {c['subject']}" for c in recent])
+        if recent
+        else "No previous commits"
+    )
 
     # If custom message provided, use it
     if args.strip():
         commit_message = args.strip()
     elif run_debate_fn:
         # Run a debate to generate commit message
-        console.print(f"\n[{CYAN}]🎓 Generating commit message via debate...[/{CYAN}]\n")
+        console.print(
+            f"\n[{CYAN}]🎓 Generating commit message via debate...[/{CYAN}]\n"
+        )
 
         query = f"""Generate a concise, conventional commit message for these changes.
 
@@ -393,18 +415,24 @@ Requirements:
             # Clean up any markdown or extra formatting
             commit_message = commit_message.strip("`").strip('"').strip("'")
         else:
-            console.print("[yellow]Debate failed, please provide a commit message manually[/yellow]")
+            console.print(
+                "[yellow]Debate failed, please provide a commit message manually[/yellow]"
+            )
             return None
     else:
-        console.print("[yellow]No debate function available, please provide a commit message[/yellow]")
+        console.print(
+            "[yellow]No debate function available, please provide a commit message[/yellow]"
+        )
         return None
 
     # Show the commit message and confirm
-    console.print(Panel(
-        Text(commit_message, style="bold white"),
-        title="[green]Commit Message[/green]",
-        border_style="green"
-    ))
+    console.print(
+        Panel(
+            Text(commit_message, style="bold white"),
+            title="[green]Commit Message[/green]",
+            border_style="green",
+        )
+    )
 
     if not Confirm.ask("Create commit with this message?", default=True):
         console.print("[dim]Commit cancelled[/dim]")
@@ -414,7 +442,7 @@ Requirements:
     success, output = create_commit(commit_message)
 
     if success:
-        console.print(f"[green]✓ Commit created successfully[/green]")
+        console.print("[green]✓ Commit created successfully[/green]")
         console.print(f"[dim]{output}[/dim]")
 
         # Ask about pushing
@@ -453,7 +481,9 @@ async def handle_pr_command(
     try:
         subprocess.run(["gh", "--version"], capture_output=True, check=True)
     except (FileNotFoundError, subprocess.CalledProcessError):
-        console.print("[red]GitHub CLI (gh) not found. Install it from https://cli.github.com[/red]")
+        console.print(
+            "[red]GitHub CLI (gh) not found. Install it from https://cli.github.com[/red]"
+        )
         return None
 
     branch = get_current_branch()
@@ -506,7 +536,9 @@ async def handle_pr_command(
 
     # Generate PR description via debate
     if run_debate_fn:
-        console.print(f"\n[{CYAN}]🎓 Generating PR description via debate...[/{CYAN}]\n")
+        console.print(
+            f"\n[{CYAN}]🎓 Generating PR description via debate...[/{CYAN}]\n"
+        )
 
         query = f"""Generate a pull request description for these changes.
 
@@ -538,14 +570,20 @@ Keep it concise and actionable. Return ONLY the PR description in markdown."""
         pr_body = f"## Changes\n\n{commits}"
 
     # Generate title from branch name or first commit
-    pr_title = args.strip() if args.strip() else branch.replace("-", " ").replace("_", " ").title()
+    pr_title = (
+        args.strip()
+        if args.strip()
+        else branch.replace("-", " ").replace("_", " ").title()
+    )
 
     # Show preview
-    console.print(Panel(
-        f"**Title:** {pr_title}\n\n{pr_body}",
-        title="[green]PR Preview[/green]",
-        border_style="green"
-    ))
+    console.print(
+        Panel(
+            f"**Title:** {pr_title}\n\n{pr_body}",
+            title="[green]PR Preview[/green]",
+            border_style="green",
+        )
+    )
 
     if not Confirm.ask("Create this PR?", default=True):
         console.print("[dim]PR cancelled[/dim]")
@@ -579,6 +617,7 @@ Keep it concise and actionable. Return ONLY the PR description in markdown."""
 # PR REVIEW MODE
 # ============================================================================
 
+
 async def review_pr(
     pr_number: Optional[int] = None,
     run_debate_fn=None,
@@ -602,7 +641,14 @@ async def review_pr(
 
     # Get PR info
     if pr_number:
-        pr_cmd = ["gh", "pr", "view", str(pr_number), "--json", "title,body,additions,deletions,files"]
+        pr_cmd = [
+            "gh",
+            "pr",
+            "view",
+            str(pr_number),
+            "--json",
+            "title,body,additions,deletions,files",
+        ]
     else:
         pr_cmd = ["gh", "pr", "view", "--json", "title,body,additions,deletions,files"]
 
@@ -613,6 +659,7 @@ async def review_pr(
             return
 
         import json
+
         pr_info = json.loads(result.stdout)
     except Exception as e:
         console.print(f"[red]Error getting PR: {e}[/red]")
@@ -627,21 +674,23 @@ async def review_pr(
     result = subprocess.run(diff_cmd, capture_output=True, text=True)
     diff = result.stdout if result.returncode == 0 else ""
 
-    console.print(Panel(
-        f"**{pr_info.get('title', 'PR')}**\n\n"
-        f"+{pr_info.get('additions', 0)} -{pr_info.get('deletions', 0)} lines\n"
-        f"{len(pr_info.get('files', []))} files changed",
-        title=f"[cyan]Reviewing PR #{pr_number or 'current'}[/cyan]",
-        border_style="cyan"
-    ))
+    console.print(
+        Panel(
+            f"**{pr_info.get('title', 'PR')}**\n\n"
+            f"+{pr_info.get('additions', 0)} -{pr_info.get('deletions', 0)} lines\n"
+            f"{len(pr_info.get('files', []))} files changed",
+            title=f"[cyan]Reviewing PR #{pr_number or 'current'}[/cyan]",
+            border_style="cyan",
+        )
+    )
 
     if run_debate_fn:
         query = f"""You are reviewing a pull request. Perform an adversarial code review.
 
-## PR Title: {pr_info.get('title', 'Unknown')}
+## PR Title: {pr_info.get("title", "Unknown")}
 
 ## PR Description:
-{pr_info.get('body', 'No description')}
+{pr_info.get("body", "No description")}
 
 ## Changes:
 ```diff

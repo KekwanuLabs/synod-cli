@@ -2,12 +2,13 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, Optional
 from enum import Enum
 
 
 class ToolStatus(Enum):
     """Status of tool execution."""
+
     SUCCESS = "success"
     ERROR = "error"
     CONFIRMATION_REQUIRED = "confirmation_required"
@@ -17,6 +18,7 @@ class ToolStatus(Enum):
 @dataclass
 class ToolResult:
     """Result of a tool execution."""
+
     status: ToolStatus
     output: str
     error: Optional[str] = None
@@ -35,6 +37,7 @@ class ToolResult:
 @dataclass
 class ConfirmationRequired:
     """Raised when user confirmation is needed before tool execution."""
+
     tool_name: str
     operation: str
     description: str
@@ -68,7 +71,9 @@ class Tool(ABC):
     description: str = "Base tool"
     requires_confirmation: bool = False
 
-    def __init__(self, working_directory: str, session_flags: Optional[SessionFlags] = None):
+    def __init__(
+        self, working_directory: str, session_flags: Optional[SessionFlags] = None
+    ):
         self.working_directory = working_directory
         self.session_flags = session_flags or SessionFlags()
 

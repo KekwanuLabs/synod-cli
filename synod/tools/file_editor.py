@@ -2,8 +2,7 @@
 
 import os
 import difflib
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from .base import Tool, ToolResult, ToolStatus, ConfirmationRequired
 
@@ -25,12 +24,49 @@ For editing, use str_replace with old_str and new_str. The old_str must match ex
 
     # File extensions that are safe to edit (text-based)
     TEXT_EXTENSIONS = {
-        ".py", ".js", ".ts", ".tsx", ".jsx", ".json", ".yaml", ".yml",
-        ".md", ".txt", ".html", ".css", ".scss", ".less", ".sql",
-        ".sh", ".bash", ".zsh", ".fish", ".rs", ".go", ".java", ".kt",
-        ".c", ".cpp", ".h", ".hpp", ".rb", ".php", ".swift", ".m",
-        ".toml", ".ini", ".cfg", ".conf", ".env", ".gitignore",
-        ".dockerfile", ".xml", ".svg", ".vue", ".svelte", ".astro",
+        ".py",
+        ".js",
+        ".ts",
+        ".tsx",
+        ".jsx",
+        ".json",
+        ".yaml",
+        ".yml",
+        ".md",
+        ".txt",
+        ".html",
+        ".css",
+        ".scss",
+        ".less",
+        ".sql",
+        ".sh",
+        ".bash",
+        ".zsh",
+        ".fish",
+        ".rs",
+        ".go",
+        ".java",
+        ".kt",
+        ".c",
+        ".cpp",
+        ".h",
+        ".hpp",
+        ".rb",
+        ".php",
+        ".swift",
+        ".m",
+        ".toml",
+        ".ini",
+        ".cfg",
+        ".conf",
+        ".env",
+        ".gitignore",
+        ".dockerfile",
+        ".xml",
+        ".svg",
+        ".vue",
+        ".svelte",
+        ".astro",
     }
 
     def __init__(self, working_directory: str, session_flags=None):
@@ -50,7 +86,13 @@ For editing, use str_replace with old_str and new_str. The old_str must match ex
             return True
         # Also check files without extensions (like Makefile, Dockerfile)
         basename = os.path.basename(file_path).lower()
-        return basename in {"makefile", "dockerfile", "vagrantfile", "gemfile", "rakefile"}
+        return basename in {
+            "makefile",
+            "dockerfile",
+            "vagrantfile",
+            "gemfile",
+            "rakefile",
+        }
 
     def _generate_diff(self, old_content: str, new_content: str, file_path: str) -> str:
         """Generate a unified diff between old and new content."""
@@ -62,7 +104,7 @@ For editing, use str_replace with old_str and new_str. The old_str must match ex
             new_lines,
             fromfile=f"a/{file_path}",
             tofile=f"b/{file_path}",
-            lineterm=""
+            lineterm="",
         )
         return "".join(diff)
 
@@ -73,7 +115,7 @@ For editing, use str_replace with old_str and new_str. The old_str must match ex
         content: Optional[str] = None,
         old_str: Optional[str] = None,
         new_str: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ) -> Optional[ConfirmationRequired]:
         """Get confirmation info for file operations."""
         # View operations don't need confirmation
@@ -87,7 +129,9 @@ For editing, use str_replace with old_str and new_str. The old_str must match ex
         resolved_path = self._resolve_path(file_path)
 
         if operation == "create":
-            preview = content[:500] + "..." if content and len(content) > 500 else content
+            preview = (
+                content[:500] + "..." if content and len(content) > 500 else content
+            )
             return ConfirmationRequired(
                 tool_name="file_editor",
                 operation="Create file",
@@ -126,7 +170,7 @@ For editing, use str_replace with old_str and new_str. The old_str must match ex
         new_str: Optional[str] = None,
         start_line: Optional[int] = None,
         end_line: Optional[int] = None,
-        **kwargs
+        **kwargs,
     ) -> ToolResult:
         """Execute a file operation.
 
@@ -161,7 +205,7 @@ For editing, use str_replace with old_str and new_str. The old_str must match ex
         self,
         file_path: str,
         start_line: Optional[int] = None,
-        end_line: Optional[int] = None
+        end_line: Optional[int] = None,
     ) -> ToolResult:
         """View file contents or list directory."""
         try:
@@ -180,7 +224,11 @@ For editing, use str_replace with old_str and new_str. The old_str must match ex
                 return ToolResult(
                     status=ToolStatus.SUCCESS,
                     output=output,
-                    metadata={"type": "directory", "path": file_path, "count": len(entries)},
+                    metadata={
+                        "type": "directory",
+                        "path": file_path,
+                        "count": len(entries),
+                    },
                 )
 
             if not os.path.exists(file_path):
@@ -261,17 +309,23 @@ For editing, use str_replace with old_str and new_str. The old_str must match ex
                 f.write(content)
 
             # Record in history
-            self.edit_history.append({
-                "operation": "create",
-                "path": file_path,
-                "content": content,
-            })
+            self.edit_history.append(
+                {
+                    "operation": "create",
+                    "path": file_path,
+                    "content": content,
+                }
+            )
 
             line_count = content.count("\n") + 1 if content else 0
             return ToolResult(
                 status=ToolStatus.SUCCESS,
                 output=f"Created {file_path} ({line_count} lines, {len(content)} bytes)",
-                metadata={"path": file_path, "lines": line_count, "bytes": len(content)},
+                metadata={
+                    "path": file_path,
+                    "lines": line_count,
+                    "bytes": len(content),
+                },
             )
 
         except Exception as e:
@@ -281,7 +335,9 @@ For editing, use str_replace with old_str and new_str. The old_str must match ex
                 error=str(e),
             )
 
-    async def _str_replace(self, file_path: str, old_str: str, new_str: str) -> ToolResult:
+    async def _str_replace(
+        self, file_path: str, old_str: str, new_str: str
+    ) -> ToolResult:
         """Replace a string in an existing file."""
         try:
             if not os.path.exists(file_path):
@@ -325,19 +381,23 @@ For editing, use str_replace with old_str and new_str. The old_str must match ex
             new_content = old_content.replace(old_str, new_str, 1)
 
             # Save old content for undo
-            self.edit_history.append({
-                "operation": "str_replace",
-                "path": file_path,
-                "old_content": old_content,
-                "new_content": new_content,
-            })
+            self.edit_history.append(
+                {
+                    "operation": "str_replace",
+                    "path": file_path,
+                    "old_content": old_content,
+                    "new_content": new_content,
+                }
+            )
 
             # Write new content
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(new_content)
 
             # Generate diff for output
-            diff = self._generate_diff(old_content, new_content, os.path.basename(file_path))
+            diff = self._generate_diff(
+                old_content, new_content, os.path.basename(file_path)
+            )
 
             return ToolResult(
                 status=ToolStatus.SUCCESS,
@@ -352,7 +412,9 @@ For editing, use str_replace with old_str and new_str. The old_str must match ex
                 error=str(e),
             )
 
-    def _fuzzy_find(self, content: str, search: str, context: int = 50) -> Optional[str]:
+    def _fuzzy_find(
+        self, content: str, search: str, context: int = 50
+    ) -> Optional[str]:
         """Try to find a fuzzy match for the search string."""
         lines = content.split("\n")
         search_lines = search.split("\n")

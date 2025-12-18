@@ -4,7 +4,7 @@ This module manages conversation history across interactive sessions,
 automatically summarizing old exchanges when approaching token limits.
 """
 
-from typing import List, Dict, Optional
+from typing import List, Dict
 from rich.console import Console
 
 
@@ -38,12 +38,14 @@ class CouncilArchives:
         """
         tokens = self._estimate_tokens(query + synthesis)
 
-        self.exchanges.append({
-            'query': query,
-            'synthesis': synthesis,
-            'tokens': tokens,
-            'is_summary': False
-        })
+        self.exchanges.append(
+            {
+                "query": query,
+                "synthesis": synthesis,
+                "tokens": tokens,
+                "is_summary": False,
+            }
+        )
         self.current_tokens += tokens
 
         # Auto-compact at 80% usage
@@ -68,15 +70,19 @@ class CouncilArchives:
         context_parts = ["📜 **Synod Archives** (Previous Session Context):\n"]
 
         for i, ex in enumerate(self.exchanges):
-            if ex.get('is_summary'):
+            if ex.get("is_summary"):
                 # Summarized old exchanges
-                context_parts.append(ex['synthesis'])
+                context_parts.append(ex["synthesis"])
             else:
                 # Full recent exchange
-                context_parts.append(f"\n**Exchange {i+1}:**")
+                context_parts.append(f"\n**Exchange {i + 1}:**")
                 context_parts.append(f"User Query: {ex['query']}")
                 # Truncate synthesis to 500 chars for context
-                synthesis_preview = ex['synthesis'][:500] + "..." if len(ex['synthesis']) > 500 else ex['synthesis']
+                synthesis_preview = (
+                    ex["synthesis"][:500] + "..."
+                    if len(ex["synthesis"]) > 500
+                    else ex["synthesis"]
+                )
                 context_parts.append(f"Synod Decision: {synthesis_preview}\n")
 
         context_parts.append("\n---\n**Current Query:**\n")
@@ -99,8 +105,14 @@ class CouncilArchives:
         summary_lines = ["📚 **Earlier Synod Sessions** (Summarized):\n"]
         for i, ex in enumerate(old_exchanges, 1):
             # Truncate for summary
-            query_preview = ex['query'][:80] + "..." if len(ex['query']) > 80 else ex['query']
-            synthesis_preview = ex['synthesis'][:150] + "..." if len(ex['synthesis']) > 150 else ex['synthesis']
+            query_preview = (
+                ex["query"][:80] + "..." if len(ex["query"]) > 80 else ex["query"]
+            )
+            synthesis_preview = (
+                ex["synthesis"][:150] + "..."
+                if len(ex["synthesis"]) > 150
+                else ex["synthesis"]
+            )
 
             summary_lines.append(f"  {i}. Q: {query_preview}")
             summary_lines.append(f"     A: {synthesis_preview}\n")
@@ -109,15 +121,17 @@ class CouncilArchives:
         summary_tokens = self._estimate_tokens(summary_text)
 
         # Replace old exchanges with single summary entry
-        self.exchanges = [{
-            'query': 'ARCHIVE_SUMMARY',
-            'synthesis': summary_text,
-            'tokens': summary_tokens,
-            'is_summary': True
-        }] + recent_exchanges
+        self.exchanges = [
+            {
+                "query": "ARCHIVE_SUMMARY",
+                "synthesis": summary_text,
+                "tokens": summary_tokens,
+                "is_summary": True,
+            }
+        ] + recent_exchanges
 
         # Recalculate total tokens
-        self.current_tokens = sum(ex['tokens'] for ex in self.exchanges)
+        self.current_tokens = sum(ex["tokens"] for ex in self.exchanges)
 
     def _estimate_tokens(self, text: str) -> int:
         """
@@ -164,4 +178,4 @@ class CouncilArchives:
 
     def get_exchange_count(self) -> int:
         """Get number of exchanges in archives."""
-        return len([ex for ex in self.exchanges if not ex.get('is_summary')])
+        return len([ex for ex in self.exchanges if not ex.get("is_summary")])

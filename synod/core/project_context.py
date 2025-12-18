@@ -8,17 +8,16 @@ Loads project-specific and user-level instructions from:
 Similar to Claude Code's CLAUDE.md system.
 """
 
-import os
 from pathlib import Path
-from typing import Optional, List, Dict, Any
-from dataclasses import dataclass, field
+from typing import Optional, Dict, Any
+from dataclasses import dataclass
 
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 from rich.markdown import Markdown
 
-from .theme import PRIMARY, CYAN, GREEN, GOLD, GRAY
+from .theme import CYAN, GREEN
 
 console = Console()
 
@@ -39,9 +38,11 @@ PROJECT_LOCAL_MEMORY_FILE = "SYNOD.local.md"
 # DATA CLASSES
 # ============================================================================
 
+
 @dataclass
 class ProjectContext:
     """Loaded project context from memory files."""
+
     user_instructions: str = ""
     project_instructions: str = ""
     local_instructions: str = ""
@@ -55,7 +56,11 @@ class ProjectContext:
     @property
     def has_context(self) -> bool:
         """Check if any context was loaded."""
-        return bool(self.user_instructions or self.project_instructions or self.local_instructions)
+        return bool(
+            self.user_instructions
+            or self.project_instructions
+            or self.local_instructions
+        )
 
     def get_combined_context(self) -> str:
         """Get all context combined for the AI prompt."""
@@ -96,6 +101,7 @@ class ProjectContext:
 # ============================================================================
 # LOADING FUNCTIONS
 # ============================================================================
+
 
 def load_file_if_exists(path: Path) -> Optional[str]:
     """Load a file's contents if it exists."""
@@ -180,7 +186,7 @@ def find_context_in_hierarchy(start_path: str = ".") -> ProjectContext:
 # INITIALIZATION
 # ============================================================================
 
-DEFAULT_PROJECT_TEMPLATE = '''# Synod Project Instructions
+DEFAULT_PROJECT_TEMPLATE = """# Synod Project Instructions
 
 This file configures how Synod's AI Council works on your project.
 It's read automatically when you start a session in this directory.
@@ -202,9 +208,9 @@ It's read automatically when you start a session in this directory.
 
 ## Avoid
 <!-- Things the AI should NOT do in this project -->
-'''
+"""
 
-DEFAULT_USER_TEMPLATE = '''# Synod User Preferences
+DEFAULT_USER_TEMPLATE = """# Synod User Preferences
 
 These preferences apply to ALL your Synod sessions.
 
@@ -216,7 +222,7 @@ These preferences apply to ALL your Synod sessions.
 
 ## Editor
 <!-- Your preferred editor for file opening -->
-'''
+"""
 
 
 def init_project_context(project_path: str = ".", force: bool = False) -> Optional[str]:
@@ -248,7 +254,9 @@ def init_project_context(project_path: str = ".", force: bool = False) -> Option
         gitignore_file.write_text("SYNOD.local.md\ncheckpoints/\n", encoding="utf-8")
 
     console.print(f"[green]✓ Created {memory_file}[/green]")
-    console.print(f"[dim]Edit this file to customize how Synod works on your project[/dim]")
+    console.print(
+        "[dim]Edit this file to customize how Synod works on your project[/dim]"
+    )
 
     return str(memory_file)
 
@@ -274,6 +282,7 @@ def init_user_context(force: bool = False) -> Optional[str]:
 # COMMAND HANDLERS
 # ============================================================================
 
+
 async def handle_init_command(args: str = "") -> None:
     """Handle /init command - initialize project context file."""
     force = "--force" in args or "-f" in args
@@ -281,19 +290,23 @@ async def handle_init_command(args: str = "") -> None:
     filepath = init_project_context(force=force)
 
     if filepath:
-        console.print(Panel(
-            "[cyan]Tips for your SYNOD.md:[/cyan]\n\n"
-            "• Describe your project's purpose\n"
-            "• Specify coding standards (formatting, naming)\n"
-            "• List key files and their purposes\n"
-            "• Note what the AI should avoid\n"
-            "• Include testing instructions",
-            title="[green]Project Initialized[/green]",
-            border_style="green"
-        ))
+        console.print(
+            Panel(
+                "[cyan]Tips for your SYNOD.md:[/cyan]\n\n"
+                "• Describe your project's purpose\n"
+                "• Specify coding standards (formatting, naming)\n"
+                "• List key files and their purposes\n"
+                "• Note what the AI should avoid\n"
+                "• Include testing instructions",
+                title="[green]Project Initialized[/green]",
+                border_style="green",
+            )
+        )
 
 
-async def handle_memory_command(args: str = "", api_key: str = None, project_path: str = None) -> None:
+async def handle_memory_command(
+    args: str = "", api_key: str = None, project_path: str = None
+) -> None:
     """Handle /memory command - view memory files or cloud adversarial memory.
 
     Subcommands:
@@ -307,9 +320,10 @@ async def handle_memory_command(args: str = "", api_key: str = None, project_pat
     subcommand = args.strip().split()[0] if args.strip() else ""
 
     # If we have an API key, use cloud memory visualization
-    if api_key and subcommand not in ['show', 'local']:
+    if api_key and subcommand not in ["show", "local"]:
         try:
             from .memory_viz import handle_memory_viz_command
+
             await handle_memory_viz_command(args, api_key, project_path)
             return
         except ImportError:
@@ -324,11 +338,13 @@ async def handle_memory_command(args: str = "", api_key: str = None, project_pat
     if subcommand == "show" or subcommand == "local":
         # Show current memory
         if ctx.has_context:
-            console.print(Panel(
-                Markdown(ctx.get_combined_context()),
-                title="[cyan]Loaded Context[/cyan]",
-                border_style="cyan"
-            ))
+            console.print(
+                Panel(
+                    Markdown(ctx.get_combined_context()),
+                    title="[cyan]Loaded Context[/cyan]",
+                    border_style="cyan",
+                )
+            )
         else:
             console.print("[yellow]No context files found[/yellow]")
             console.print("[dim]Run /init to create .synod/SYNOD.md[/dim]")
@@ -353,7 +369,9 @@ async def handle_memory_command(args: str = "", api_key: str = None, project_pat
     # Show cloud memory hint
     if api_key:
         console.print()
-        console.print("[dim]Cloud Adversarial Memory: /memory stats | /memory graph | /memory timeline[/dim]")
+        console.print(
+            "[dim]Cloud Adversarial Memory: /memory stats | /memory graph | /memory timeline[/dim]"
+        )
 
     # Hint about editing
     if ctx.project_file_path:

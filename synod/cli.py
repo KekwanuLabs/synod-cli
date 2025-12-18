@@ -6,8 +6,8 @@ All debate orchestration happens in the cloud. This CLI:
 2. Sends queries to Synod Cloud via SSE
 3. Renders beautiful real-time output
 """
+
 import typer
-from typer import Context
 from rich.panel import Panel
 from rich.text import Text
 from rich.box import HEAVY
@@ -46,7 +46,6 @@ from synod.core.project_context import (
 from synod.core.checkpoints import (
     get_checkpoint_manager,
     handle_rewind_command,
-    create_checkpoint,
 )
 from synod.core.hooks import (
     get_hook_manager,
@@ -65,7 +64,6 @@ from synod.core.custom_commands import (
     initialize_custom_commands,
     get_custom_command,
     is_custom_command,
-    display_custom_commands,
 )
 
 # ============================================================================
@@ -121,10 +119,10 @@ def _typewriter_centered(text: str, color: str = "", delay: float = 0.02) -> Non
         for char in text:
             sys.stdout.write(char)
             sys.stdout.flush()
-            time.sleep(delay if char != ' ' else delay / 2)
+            time.sleep(delay if char != " " else delay / 2)
         if color:
             sys.stdout.write("\033[0m")
-        sys.stdout.write('\n')
+        sys.stdout.write("\n")
         sys.stdout.flush()
     finally:
         pass
@@ -142,21 +140,12 @@ def show_welcome_story() -> None:
     console.print()
 
     # Show tagline and subtitle
-    console.print(
-        Text(TAGLINE, style=SynodStyles.SUBTITLE),
-        justify="center"
-    )
-    console.print(
-        Text(SUBTITLE, style=SynodStyles.TAGLINE),
-        justify="center"
-    )
+    console.print(Text(TAGLINE, style=SynodStyles.SUBTITLE), justify="center")
+    console.print(Text(SUBTITLE, style=SynodStyles.TAGLINE), justify="center")
 
     # Version
     console.print()
-    console.print(
-        Text(f"v{VERSION}", style="dim"),
-        justify="center"
-    )
+    console.print(Text(f"v{VERSION}", style="dim"), justify="center")
 
     # Storytelling with typewriter effect
     console.print()
@@ -171,13 +160,13 @@ def show_welcome_story() -> None:
     _typewriter_centered(
         "In ancient councils, bishops gathered to debate truth through rigorous discourse.",
         "38;5;245",  # Dim gray
-        0.025
+        0.025,
     )
     time.sleep(0.3)
     _typewriter_centered(
         "Now, AI models convene to do the same for your code.",
         "38;5;245",  # Dim gray
-        0.025
+        0.025,
     )
 
     time.sleep(0.6)
@@ -195,12 +184,14 @@ def start_login_flow() -> Optional[str]:
     try:
         webbrowser.open(auth_url)
     except Exception:
-        console.print(f"[yellow]Could not open browser automatically.[/yellow]")
+        console.print("[yellow]Could not open browser automatically.[/yellow]")
         console.print(f"Please visit: {auth_url}")
         console.print()
 
     console.print(f"[{GOLD}]Waiting for authentication...[/{GOLD}]")
-    console.print(f"[dim]Complete sign-in in your browser. This will timeout in 2 minutes.[/dim]")
+    console.print(
+        "[dim]Complete sign-in in your browser. This will timeout in 2 minutes.[/dim]"
+    )
     console.print()
 
     # Wait for callback
@@ -217,7 +208,9 @@ def show_first_run_welcome() -> bool:
     show_welcome_story()
 
     # Prompt to start login
-    console.print(f"[{CYAN}]Press Enter to sign in and get started, or Ctrl+C to exit...[/{CYAN}]")
+    console.print(
+        f"[{CYAN}]Press Enter to sign in and get started, or Ctrl+C to exit...[/{CYAN}]"
+    )
     console.print()
 
     try:
@@ -229,14 +222,14 @@ def show_first_run_welcome() -> bool:
     api_key = start_login_flow()
 
     if not api_key:
-        console.print(f"\n[red]Authentication timed out or was cancelled.[/red]")
-        console.print(f"[dim]Run 'synod login' to try again.[/dim]\n")
+        console.print("\n[red]Authentication timed out or was cancelled.[/red]")
+        console.print("[dim]Run 'synod login' to try again.[/dim]\n")
         return False
 
     # Validate and save
     if not api_key.startswith("sk_"):
-        console.print(f"\n[red]Invalid API key received.[/red]")
-        console.print(f"[dim]Run 'synod login' to try again.[/dim]\n")
+        console.print("\n[red]Invalid API key received.[/red]")
+        console.print("[dim]Run 'synod login' to try again.[/dim]\n")
         return False
 
     # Save the key
@@ -256,8 +249,11 @@ def show_onboarding_required() -> None:
     console.print()
     console.print(f"[{GOLD}]Authentication required[/{GOLD}]")
     console.print()
-    console.print(f"[dim]Run [/dim][{GREEN}]synod login[/{GREEN}][dim] to authenticate, or just run [/dim][{GREEN}]synod[/{GREEN}][dim] to get started.[/dim]")
+    console.print(
+        f"[dim]Run [/dim][{GREEN}]synod login[/{GREEN}][dim] to authenticate, or just run [/dim][{GREEN}]synod[/{GREEN}][dim] to get started.[/dim]"
+    )
     console.print()
+
 
 # Version (dynamic from package metadata)
 VERSION = get_version()
@@ -277,8 +273,12 @@ app = typer.Typer(
 )
 
 
-
-async def _arun_query(prompt: str, file_context: str, archives: Optional[CouncilArchives] = None, auto_approve: bool = False):
+async def _arun_query(
+    prompt: str,
+    file_context: str,
+    archives: Optional[CouncilArchives] = None,
+    auto_approve: bool = False,
+):
     """Run a query via Synod Cloud with SSE streaming.
 
     This is the thin client version - all debate logic happens in the cloud.
@@ -301,7 +301,9 @@ async def _arun_query(prompt: str, file_context: str, archives: Optional[Council
     if archives:
         context_str = archives.get_context_for_debate()
         if context_str:
-            full_context = f"{context_str}\n\n{file_context}" if file_context else context_str
+            full_context = (
+                f"{context_str}\n\n{file_context}" if file_context else context_str
+            )
 
     try:
         # Run debate via cloud with beautiful live display
@@ -325,10 +327,7 @@ async def _arun_query(prompt: str, file_context: str, archives: Optional[Council
 
         # Add exchange to archives if provided (for conversation context)
         if archives and state.pope_content:
-            archives.add_exchange(
-                query=prompt,
-                synthesis=state.pope_content
-            )
+            archives.add_exchange(query=prompt, synthesis=state.pope_content)
 
         # Handle errors from cloud (already displayed by cloud_debate.py)
         if state.error:
@@ -348,12 +347,17 @@ async def _arun_query(prompt: str, file_context: str, archives: Optional[Council
             )
         )
 
+
 # Single-query mode disabled - Synod is designed to be interactive only
 # Use 'synod' or 'synod interactive' to start a session
 
 
 @app.command()
-def config(api_key: Optional[str] = typer.Argument(None, help="Your Synod API key (sk_live_...)")):
+def config(
+    api_key: Optional[str] = typer.Argument(
+        None, help="Your Synod API key (sk_live_...)"
+    ),
+):
     """
     Configure your Synod API key.
 
@@ -363,8 +367,12 @@ def config(api_key: Optional[str] = typer.Argument(None, help="Your Synod API ke
     if api_key:
         # Direct API key provided as argument
         if not api_key.startswith("sk_"):
-            console.print(f"\n[red]Invalid API key format. Should start with 'sk_'[/red]")
-            console.print(f"[dim]Get your API key at https://synod.run/dashboard/keys[/dim]\n")
+            console.print(
+                "\n[red]Invalid API key format. Should start with 'sk_'[/red]"
+            )
+            console.print(
+                "[dim]Get your API key at https://synod.run/dashboard/keys[/dim]\n"
+            )
             raise typer.Exit(1)
 
         cfg = load_config()
@@ -372,7 +380,7 @@ def config(api_key: Optional[str] = typer.Argument(None, help="Your Synod API ke
         save_config(cfg)
 
         console.print(f"\n[{GREEN}]✓ API key saved[/{GREEN}]")
-        console.print(f"[dim]Run 'synod' to start an interactive session[/dim]\n")
+        console.print("[dim]Run 'synod' to start an interactive session[/dim]\n")
         return
 
     # No API key provided - show current status or prompt
@@ -382,14 +390,18 @@ def config(api_key: Optional[str] = typer.Argument(None, help="Your Synod API ke
         # Already configured
         masked = current_key[:10] + "..." + current_key[-4:]
         console.print(f"\n[{CYAN}]Current API key:[/{CYAN}] {masked}")
-        console.print(f"\n[dim]To update, run: synod config <new-api-key>[/dim]")
-        console.print(f"[dim]Manage API keys at https://synod.run/dashboard/keys[/dim]\n")
+        console.print("\n[dim]To update, run: synod config <new-api-key>[/dim]")
+        console.print(
+            "[dim]Manage API keys at https://synod.run/dashboard/keys[/dim]\n"
+        )
 
         update = typer.confirm("Would you like to update your API key?", default=False)
         if update:
             new_key = typer.prompt("Enter your new API key")
             if not new_key.startswith("sk_"):
-                console.print(f"\n[red]Invalid API key format. Should start with 'sk_'[/red]\n")
+                console.print(
+                    "\n[red]Invalid API key format. Should start with 'sk_'[/red]\n"
+                )
                 raise typer.Exit(1)
 
             cfg = load_config()
@@ -400,11 +412,13 @@ def config(api_key: Optional[str] = typer.Argument(None, help="Your Synod API ke
         # Not configured - show onboarding
         show_onboarding_required()
 
+
 def _find_free_port() -> int:
     """Find a free port for the callback server."""
     import socket
+
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(('localhost', 0))
+        s.bind(("localhost", 0))
         return s.getsockname()[1]
 
 
@@ -427,16 +441,16 @@ def _run_callback_server(port: int, timeout: int = 120) -> Optional[str]:
         def do_GET(self):
             parsed = urlparse(self.path)
 
-            if parsed.path == '/callback':
+            if parsed.path == "/callback":
                 params = parse_qs(parsed.query)
-                if 'key' in params:
-                    api_key_result["key"] = params['key'][0]
+                if "key" in params:
+                    api_key_result["key"] = params["key"][0]
 
                     # Send success response
                     self.send_response(200)
-                    self.send_header('Content-Type', 'text/html')
+                    self.send_header("Content-Type", "text/html")
                     self.end_headers()
-                    self.wfile.write(b'''
+                    self.wfile.write(b"""
                     <html>
                     <head>
                         <title>Synod CLI - Authorized</title>
@@ -456,7 +470,7 @@ def _run_callback_server(port: int, timeout: int = 120) -> Optional[str]:
                         </div>
                     </body>
                     </html>
-                    ''')
+                    """)
                     server_done.set()
                 else:
                     self.send_response(400)
@@ -465,14 +479,14 @@ def _run_callback_server(port: int, timeout: int = 120) -> Optional[str]:
                 self.send_response(404)
                 self.end_headers()
 
-    server = HTTPServer(('localhost', port), CallbackHandler)
+    server = HTTPServer(("localhost", port), CallbackHandler)
     server.timeout = 1  # Check every second
 
     # Run server with timeout
-    start_time = __import__('time').time()
+    start_time = __import__("time").time()
     while not server_done.is_set():
         server.handle_request()
-        if __import__('time').time() - start_time > timeout:
+        if __import__("time").time() - start_time > timeout:
             break
 
     server.server_close()
@@ -481,7 +495,9 @@ def _run_callback_server(port: int, timeout: int = 120) -> Optional[str]:
 
 @app.command()
 def login(
-    manual: bool = typer.Option(False, "--manual", "-m", help="Use manual API key entry instead of browser flow")
+    manual: bool = typer.Option(
+        False, "--manual", "-m", help="Use manual API key entry instead of browser flow"
+    ),
 ):
     """
     Login to Synod Cloud.
@@ -501,32 +517,37 @@ def login(
         try:
             with httpx.Client(timeout=10.0) as client:
                 response = client.get(
-                    "https://api.synod.run/me",
-                    headers={"Authorization": current_key}
+                    "https://api.synod.run/me", headers={"Authorization": current_key}
                 )
                 if response.status_code == 200:
                     data = response.json()
                     email = data.get("user", {}).get("email", "Unknown")
                     console.print(f"[{GREEN}]✓ Already logged in as {email}[/{GREEN}]")
-                    console.print(f"[dim]Run 'synod logout' to switch accounts[/dim]")
+                    console.print("[dim]Run 'synod logout' to switch accounts[/dim]")
                     console.print()
                     return
-        except:
+        except Exception:
             pass  # Key invalid, continue with login flow
 
     if manual:
         # Manual API key entry - fallback mode
         console.print(f"[{CYAN}]Manual login mode[/{CYAN}]")
         console.print()
-        console.print(f"[{GOLD}]Note: The automatic flow (synod login) is recommended.[/{GOLD}]")
-        console.print(f"[dim]It generates an API key automatically without copy/paste.[/dim]")
+        console.print(
+            f"[{GOLD}]Note: The automatic flow (synod login) is recommended.[/{GOLD}]"
+        )
+        console.print(
+            "[dim]It generates an API key automatically without copy/paste.[/dim]"
+        )
         console.print()
-        console.print(f"[dim]If you already have a Synod API key, enter it below.[/dim]")
-        console.print(f"[dim]Keys start with 'sk_' and can be generated from synod.run/dashboard[/dim]")
+        console.print("[dim]If you already have a Synod API key, enter it below.[/dim]")
+        console.print(
+            "[dim]Keys start with 'sk_' and can be generated from synod.run/dashboard[/dim]"
+        )
         console.print()
         api_key = typer.prompt("Enter your API key")
         if not api_key.strip():
-            console.print(f"\n[red]No API key provided.[/red]\n")
+            console.print("\n[red]No API key provided.[/red]\n")
             raise typer.Exit(1)
 
         api_key = api_key.strip()
@@ -542,38 +563,45 @@ def login(
         try:
             webbrowser.open(auth_url)
         except Exception:
-            console.print(f"[yellow]Could not open browser automatically.[/yellow]")
+            console.print("[yellow]Could not open browser automatically.[/yellow]")
             console.print(f"Please visit: {auth_url}")
 
         console.print(f"[{GOLD}]Waiting for authorization...[/{GOLD}]")
-        console.print(f"[dim]Complete the login in your browser. This will timeout in 2 minutes.[/dim]")
+        console.print(
+            "[dim]Complete the login in your browser. This will timeout in 2 minutes.[/dim]"
+        )
         console.print()
 
         # Wait for callback
         api_key = _run_callback_server(port, timeout=120)
 
         if not api_key:
-            console.print(f"\n[red]Authorization timed out or was cancelled.[/red]")
-            console.print(f"[dim]Try again with 'synod login' or use 'synod login --manual'[/dim]\n")
+            console.print("\n[red]Authorization timed out or was cancelled.[/red]")
+            console.print(
+                "[dim]Try again with 'synod login' or use 'synod login --manual'[/dim]\n"
+            )
             raise typer.Exit(1)
 
     # Validate key format
     if not api_key.startswith("sk_"):
-        console.print(f"\n[red]Invalid API key format. Should start with 'sk_'[/red]")
-        console.print(f"[dim]Get your API key at https://synod.run/dashboard/keys[/dim]\n")
+        console.print("\n[red]Invalid API key format. Should start with 'sk_'[/red]")
+        console.print(
+            "[dim]Get your API key at https://synod.run/dashboard/keys[/dim]\n"
+        )
         raise typer.Exit(1)
 
     # Verify the key works
-    console.print(f"[dim]Verifying API key...[/dim]")
+    console.print("[dim]Verifying API key...[/dim]")
     try:
         with httpx.Client(timeout=10.0) as client:
             response = client.get(
-                "https://api.synod.run/me",
-                headers={"Authorization": api_key}
+                "https://api.synod.run/me", headers={"Authorization": api_key}
             )
 
             if response.status_code == 401:
-                console.print(f"\n[red]Invalid API key. Please check and try again.[/red]\n")
+                console.print(
+                    "\n[red]Invalid API key. Please check and try again.[/red]\n"
+                )
                 raise typer.Exit(1)
 
             if response.status_code != 200:
@@ -586,7 +614,9 @@ def login(
 
     except httpx.RequestError as e:
         console.print(f"\n[red]Network error: {e}[/red]")
-        console.print(f"[dim]Saving key anyway - you can verify later with 'synod status'[/dim]\n")
+        console.print(
+            "[dim]Saving key anyway - you can verify later with 'synod status'[/dim]\n"
+        )
         email = "Unknown"
         tier = "unknown"
 
@@ -613,7 +643,7 @@ def logout():
     current_key = get_api_key()
 
     if not current_key:
-        console.print(f"\n[dim]Not logged in.[/dim]\n")
+        console.print("\n[dim]Not logged in.[/dim]\n")
         return
 
     cfg = load_config()
@@ -621,7 +651,7 @@ def logout():
     save_config(cfg)
 
     console.print(f"\n[{GREEN}]✓ Logged out successfully[/{GREEN}]")
-    console.print(f"[dim]Run 'synod login' to log in again[/dim]\n")
+    console.print("[dim]Run 'synod login' to log in again[/dim]\n")
 
 
 @app.command()
@@ -633,18 +663,21 @@ def whoami():
 
     api_key = get_api_key()
     if not api_key:
-        console.print(f"\n[dim]Not logged in. Run 'synod login' to authenticate.[/dim]\n")
+        console.print(
+            "\n[dim]Not logged in. Run 'synod login' to authenticate.[/dim]\n"
+        )
         return
 
     try:
         with httpx.Client(timeout=10.0) as client:
             response = client.get(
-                "https://api.synod.run/me",
-                headers={"Authorization": api_key}
+                "https://api.synod.run/me", headers={"Authorization": api_key}
             )
 
             if response.status_code == 401:
-                console.print(f"\n[red]Session expired. Run 'synod login' to re-authenticate.[/red]\n")
+                console.print(
+                    "\n[red]Session expired. Run 'synod login' to re-authenticate.[/red]\n"
+                )
                 return
 
             if response.status_code != 200:
@@ -668,7 +701,9 @@ def whoami():
 @app.command()
 def review(
     pr: Optional[int] = typer.Option(None, "--pr", "-p", help="PR number to review"),
-    diff: bool = typer.Option(False, "--diff", "-d", help="Review current uncommitted changes"),
+    diff: bool = typer.Option(
+        False, "--diff", "-d", help="Review current uncommitted changes"
+    ),
 ):
     """
     Run adversarial code review on a PR or diff.
@@ -686,7 +721,7 @@ def review(
         return
 
     if not is_git_repo():
-        console.print(f"\n[red]Not a git repository[/red]\n")
+        console.print("\n[red]Not a git repository[/red]\n")
         raise typer.Exit(1)
 
     async def run_review():
@@ -704,6 +739,7 @@ def review(
             await handle_diff_command()
             # Run review on current changes
             from synod.core.git_commands import get_git_diff
+
             diff_content = get_git_diff()
             if diff_content:
                 query = f"""Review this code diff for issues:
@@ -740,12 +776,13 @@ def status():
     try:
         with httpx.Client(timeout=10.0) as client:
             response = client.get(
-                "https://api.synod.run/me",
-                headers={"Authorization": api_key}
+                "https://api.synod.run/me", headers={"Authorization": api_key}
             )
 
             if response.status_code == 401:
-                console.print(f"\n[red]Invalid API key. Run 'synod config <key>' to update.[/red]\n")
+                console.print(
+                    "\n[red]Invalid API key. Run 'synod config <key>' to update.[/red]\n"
+                )
                 raise typer.Exit(1)
 
             if response.status_code != 200:
@@ -766,29 +803,33 @@ def status():
         status_text = Text()
         status_text.append("Account\n", style=f"bold {PRIMARY}")
         status_text.append(f"  Email:    {user.get('email', 'Unknown')}\n", style="dim")
-        status_text.append(f"  Mode:     ", style="dim")
-        mode = user.get('mode', 'byok').upper()
+        status_text.append("  Mode:     ", style="dim")
+        mode = user.get("mode", "byok").upper()
         mode_color = GREEN if mode == "BYOK" else GOLD
         status_text.append(f"{mode}\n", style=f"bold {mode_color}")
-        status_text.append(f"  Credits:  ", style="dim")
-        status_text.append(f"${credits.get('balance', 0):.2f}\n\n", style=f"bold {GOLD}")
+        status_text.append("  Credits:  ", style="dim")
+        status_text.append(
+            f"${credits.get('balance', 0):.2f}\n\n", style=f"bold {GOLD}"
+        )
 
         status_text.append("This Month\n", style=f"bold {PRIMARY}")
         status_text.append(f"  Debates:  {month.get('debates', 0)}\n", style="dim")
         status_text.append(f"  Tokens:   {month.get('tokens', 0):,}\n", style="dim")
         status_text.append(f"  Cost:     ${month.get('cost', 0):.2f}\n", style="dim")
 
-        console.print(Panel(
-            status_text,
-            title=f"[{CYAN}]Synod Status[/{CYAN}]",
-            border_style=CYAN,
-            padding=(1, 2)
-        ))
+        console.print(
+            Panel(
+                status_text,
+                title=f"[{CYAN}]Synod Status[/{CYAN}]",
+                border_style=CYAN,
+                padding=(1, 2),
+            )
+        )
         console.print()
 
     except httpx.RequestError as e:
         console.print(f"\n[red]Connection error: {e}[/red]")
-        console.print(f"[dim]Check your internet connection[/dim]\n")
+        console.print("[dim]Check your internet connection[/dim]\n")
         raise typer.Exit(1)
 
 
@@ -801,11 +842,13 @@ def upgrade():
     new_version = check_for_updates(current)
 
     if new_version:
-        console.print(f"[yellow]New version available: {current} → {new_version}[/yellow]")
+        console.print(
+            f"[yellow]New version available: {current} → {new_version}[/yellow]"
+        )
         if auto_upgrade():
             raise typer.Exit(0)
         else:
-            console.print(f"\n[dim]Manual upgrade: pipx upgrade synod-cli[/dim]")
+            console.print("\n[dim]Manual upgrade: pipx upgrade synod-cli[/dim]")
             raise typer.Exit(1)
     else:
         console.print(f"[green]✓ Already on latest version ({current})[/green]\n")
@@ -815,8 +858,17 @@ def upgrade():
 @app.callback(invoke_without_command=True)
 def default_command(
     ctx: typer.Context,
-    version: bool = typer.Option(None, "--version", "-v", callback=version_callback, is_eager=True, help="Show version"),
-    yes: bool = typer.Option(False, "--yes", "-y", help="Auto-approve all tool executions without prompting"),
+    version: bool = typer.Option(
+        None,
+        "--version",
+        "-v",
+        callback=version_callback,
+        is_eager=True,
+        help="Show version",
+    ),
+    yes: bool = typer.Option(
+        False, "--yes", "-y", help="Auto-approve all tool executions without prompting"
+    ),
 ):
     """
     Synod - Interactive AI coding debates.
@@ -860,7 +912,7 @@ async def _handle_slash_command(
     from datetime import datetime
 
     # ========== SESSION COMMANDS ==========
-    if command in ['exit', 'quit', 'q']:
+    if command in ["exit", "quit", "q"]:
         # Exit command
         try:
             session.save()
@@ -871,7 +923,7 @@ async def _handle_slash_command(
         display_session_summary(session)
         return True
 
-    elif command == 'logout':
+    elif command == "logout":
         # Logout command - clear API key and exit
         try:
             session.save()
@@ -884,18 +936,18 @@ async def _handle_slash_command(
         save_config(cfg)
 
         console.print(f"\n[{GREEN}]✓ Logged out successfully[/{GREEN}]")
-        console.print(f"[dim]Run 'synod login' to log in again[/dim]")
+        console.print("[dim]Run 'synod login' to log in again[/dim]")
         display_session_summary(session)
         return True
 
-    elif command in ['clear', 'reset', 'new']:
+    elif command in ["clear", "reset", "new"]:
         # Clear conversation context
         archives.clear()
         console.print(f"\n[{GREEN}]✓ Conversation history cleared![/{GREEN}]")
-        console.print(f"[dim]Starting fresh with empty context.[/dim]\n")
+        console.print("[dim]Starting fresh with empty context.[/dim]\n")
         return False
 
-    elif command == 'resume':
+    elif command == "resume":
         # Resume a previous session
         sessions = get_recent_sessions(limit=10)
         if not sessions:
@@ -905,13 +957,17 @@ async def _handle_slash_command(
         console.print(f"\n[{CYAN}]Recent Sessions:[/{CYAN}]\n")
         for i, s in enumerate(sessions, 1):
             date_str = datetime.fromtimestamp(s.start_time).strftime("%Y-%m-%d %H:%M")
-            console.print(f"  {i}. {date_str} - {s.debates} debates, ${s.total_cost:.4f}")
+            console.print(
+                f"  {i}. {date_str} - {s.debates} debates, ${s.total_cost:.4f}"
+            )
 
-        console.print(f"\n[dim]Session context will be restored in a future update.[/dim]")
-        console.print(f"[dim]For now, use /history to view past sessions.[/dim]\n")
+        console.print(
+            "\n[dim]Session context will be restored in a future update.[/dim]"
+        )
+        console.print("[dim]For now, use /history to view past sessions.[/dim]\n")
         return False
 
-    elif command == 'cost':
+    elif command == "cost":
         # Show cost summary
         console.print(f"\n[{CYAN}]Session Cost Summary:[/{CYAN}]")
         console.print(f"[dim]  Total Tokens: {session.total_tokens:,}[/dim]")
@@ -919,7 +975,7 @@ async def _handle_slash_command(
         console.print(f"[dim]  Debates: {session.debates}[/dim]\n")
         return False
 
-    elif command == 'history':
+    elif command == "history":
         # Show recent history
         sessions = get_recent_sessions(limit=5)
         if not sessions:
@@ -927,43 +983,47 @@ async def _handle_slash_command(
         else:
             console.print(f"\n[{CYAN}]Recent Sessions:[/{CYAN}]\n")
             for s in sessions:
-                date_str = datetime.fromtimestamp(s.start_time).strftime("%Y-%m-%d %H:%M")
-                console.print(f"[dim]  {date_str} - {s.debates} debates, ${s.total_cost:.4f}[/dim]")
+                date_str = datetime.fromtimestamp(s.start_time).strftime(
+                    "%Y-%m-%d %H:%M"
+                )
+                console.print(
+                    f"[dim]  {date_str} - {s.debates} debates, ${s.total_cost:.4f}[/dim]"
+                )
             console.print()
         return False
 
-    elif command == 'stats':
+    elif command == "stats":
         # Show detailed stats
         display_session_summary(session)
         return False
 
-    elif command == 'compact':
+    elif command == "compact":
         # Compact conversation
         console.print(f"\n[{CYAN}]Compacting conversation history...[/{CYAN}]")
         archives.compact()
         console.print(f"[{GREEN}]✓ Conversation compacted![/{GREEN}]\n")
         return False
 
-    elif command in ['rewind', 'undo']:
+    elif command in ["rewind", "undo"]:
         # Checkpoint/undo system
         await handle_rewind_command(args)
         return False
 
     # ========== GIT COMMANDS ==========
-    elif command == 'commit':
+    elif command == "commit":
         await handle_commit_command(args, run_debate_fn=debate_fn)
         return False
 
-    elif command == 'pr':
+    elif command == "pr":
         await handle_pr_command(args, run_debate_fn=debate_fn)
         return False
 
-    elif command == 'diff':
+    elif command == "diff":
         await handle_diff_command(args)
         return False
 
     # ========== REVIEW COMMANDS ==========
-    elif command == 'review':
+    elif command == "review":
         # Code review mode
         if args.strip():
             # Review specific file or PR
@@ -973,7 +1033,7 @@ async def _handle_slash_command(
             else:
                 # Review a file
                 if os.path.exists(target):
-                    with open(target, 'r') as f:
+                    with open(target, "r") as f:
                         content = f.read()
                     query = f"""Review this file for issues:
 
@@ -989,17 +1049,17 @@ Provide a thorough code review."""
                     console.print(f"[red]File not found: {target}[/red]")
         else:
             console.print(f"\n[{CYAN}]Usage: /review <file|pr-number>[/{CYAN}]")
-            console.print(f"[dim]Or run: synod review --pr 123[/dim]\n")
+            console.print("[dim]Or run: synod review --pr 123[/dim]\n")
         return False
 
-    elif command == 'critique':
+    elif command == "critique":
         # Critique specific files
         if args.strip():
             files = args.strip().split()
             content_parts = []
             for f in files:
                 if os.path.exists(f):
-                    with open(f, 'r') as fp:
+                    with open(f, "r") as fp:
                         content_parts.append(f"### {f}\n```\n{fp.read()[:5000]}\n```")
 
             if content_parts and debate_fn:
@@ -1018,47 +1078,48 @@ Identify:
         return False
 
     # ========== CONFIGURATION COMMANDS ==========
-    elif command in ['config', 'settings']:
+    elif command in ["config", "settings"]:
         # Open dashboard in browser
         console.print(f"\n[{CYAN}]Opening dashboard in browser...[/{CYAN}]")
-        console.print(f"[dim]Manage your account at synod.run/dashboard[/dim]\n")
+        console.print("[dim]Manage your account at synod.run/dashboard[/dim]\n")
         webbrowser.open("https://synod.run/dashboard")
         return False
 
-    elif command in ['bishops', 'pope']:
+    elif command in ["bishops", "pope"]:
         # Open API keys page
         console.print(f"\n[{CYAN}]Model selection is configured via API keys.[/{CYAN}]")
-        console.print(f"[dim]Opening API keys page...[/dim]\n")
+        console.print("[dim]Opening API keys page...[/dim]\n")
         webbrowser.open("https://synod.run/dashboard/keys")
         return False
 
-    elif command == 'memory':
+    elif command == "memory":
         # Get API key for cloud memory visualization
         api_key = get_api_key()
         project_path = os.getcwd()
         await handle_memory_command(args, api_key=api_key, project_path=project_path)
         return False
 
-    elif command == 'hooks':
+    elif command == "hooks":
         await handle_hooks_command(args)
         return False
 
     # ========== WORKSPACE COMMANDS ==========
-    elif command in ('search', 'find', 'grep'):
+    elif command in ("search", "find", "grep"):
         # Intelligent code search with parallel strategies
         from .core.code_search import handle_search_command
+
         await handle_search_command(args, root_path=os.getcwd())
         return False
 
-    elif command == 'context':
+    elif command == "context":
         # Show context usage
         tokens_used = session.total_tokens
         console.print(f"\n[{CYAN}]Session Context:[/{CYAN}]")
         console.print(f"[dim]  Total Tokens: {tokens_used:,}[/dim]")
-        console.print(f"[dim]  View full usage at synod.run/dashboard[/dim]\n")
+        console.print("[dim]  View full usage at synod.run/dashboard[/dim]\n")
         return False
 
-    elif command in ['index', 'reindex']:
+    elif command in ["index", "reindex"]:
         # Re-index workspace
         console.print(f"\n[{CYAN}]Re-indexing workspace...[/{CYAN}]")
         project_path = os.getcwd()
@@ -1067,12 +1128,12 @@ Identify:
         console.print(f"[{GREEN}]✓ Indexed {file_count} files[/{GREEN}]\n")
         return False
 
-    elif command == 'files':
+    elif command == "files":
         # List indexed files
         indexed = quick_index(os.getcwd())
         if not indexed or not indexed.files:
             console.print(f"\n[{CYAN}]No files indexed yet.[/{CYAN}]")
-            console.print(f"[dim]Run /index to index the workspace.[/dim]\n")
+            console.print("[dim]Run /index to index the workspace.[/dim]\n")
         else:
             console.print(f"\n[{CYAN}]Indexed Files ({len(indexed.files)}):[/{CYAN}]")
             for f in indexed.files[:20]:
@@ -1082,22 +1143,26 @@ Identify:
             console.print()
         return False
 
-    elif command == 'add':
+    elif command == "add":
         # Add files to context
         if not args:
             console.print(f"\n[{ACCENT}]Usage: /add <file_path>[/{ACCENT}]")
-            console.print(f"[dim]Add a file to the conversation context.[/dim]\n")
+            console.print("[dim]Add a file to the conversation context.[/dim]\n")
         else:
             file_path = args.strip()
             if os.path.exists(file_path):
                 try:
-                    with open(file_path, 'r', encoding='utf-8') as f:
+                    with open(file_path, "r", encoding="utf-8") as f:
                         content = f.read()
                     archives.add_exchange(
                         query=f"[User added file: {file_path}]",
-                        synthesis=f"```\n{content[:5000]}\n```" if len(content) > 5000 else f"```\n{content}\n```"
+                        synthesis=f"```\n{content[:5000]}\n```"
+                        if len(content) > 5000
+                        else f"```\n{content}\n```",
                     )
-                    console.print(f"[{GREEN}]✓ Added {file_path} to context[/{GREEN}]\n")
+                    console.print(
+                        f"[{GREEN}]✓ Added {file_path} to context[/{GREEN}]\n"
+                    )
                 except Exception as e:
                     console.print(f"[{ACCENT}]Could not read file: {e}[/{ACCENT}]\n")
             else:
@@ -1105,7 +1170,7 @@ Identify:
         return False
 
     # ========== GENERAL COMMANDS ==========
-    elif command in ['help', '?']:
+    elif command in ["help", "?"]:
         # Show help with all commands
         console.print(f"\n[{CYAN}]Available Commands:[/{CYAN}]\n")
 
@@ -1118,16 +1183,18 @@ Identify:
             table.add_row(display, cmd.description)
 
         console.print(table)
-        console.print(f"\n[dim]Type / followed by a command name, or just / to see the menu.[/dim]\n")
+        console.print(
+            "\n[dim]Type / followed by a command name, or just / to see the menu.[/dim]\n"
+        )
         return False
 
-    elif command in ['version', 'v']:
+    elif command in ["version", "v"]:
         # Show version
         console.print(f"\n[{CYAN}]Synod v{VERSION}[/{CYAN}]")
         console.print(f"[dim]{TAGLINE_FULL}[/dim]\n")
         return False
 
-    elif command == 'init':
+    elif command == "init":
         await handle_init_command(args)
         return False
 
@@ -1143,7 +1210,7 @@ Identify:
     else:
         # Unknown command
         console.print(f"[{ACCENT}]Unknown command: /{command}[/{ACCENT}]")
-        console.print(f"[dim]Type /help to see available commands[/dim]\n")
+        console.print("[dim]Type /help to see available commands[/dim]\n")
         return False
 
 
@@ -1155,12 +1222,13 @@ async def _interactive_session(auto_approve: bool = False):
     """
     # Safety check - main flow should have already ensured API key exists
     if not is_onboarded():
-        console.print(f"\n[red]Not authenticated. Run 'synod login' first.[/red]\n")
+        console.print("\n[red]Not authenticated. Run 'synod login' first.[/red]\n")
         return
 
     # Reset/initialize session auto-approve state
     # If --yes flag was passed, enable auto-approve; otherwise reset to prompt mode
     from synod.tools import reset_session_auto_approve, set_session_auto_approve
+
     if auto_approve:
         set_session_auto_approve(True)
     else:
@@ -1170,11 +1238,13 @@ async def _interactive_session(auto_approve: bool = False):
 
     # Check workspace trust before indexing
     from synod.core.workspace import check_workspace_trust
+
     project_path = os.getcwd()
 
     if not await check_workspace_trust(project_path):
         # User declined to trust workspace - exit
         import sys
+
         sys.exit(0)
 
     # Load project context (.synod/SYNOD.md)
@@ -1184,20 +1254,23 @@ async def _interactive_session(auto_approve: bool = False):
     initialize_custom_commands(project_path)
 
     # Initialize checkpoint manager
-    checkpoint_manager = get_checkpoint_manager(project_path)
+    _checkpoint_manager = get_checkpoint_manager(project_path)
 
     # Initialize hook manager
-    hook_manager = get_hook_manager(project_path)
+    _hook_manager = get_hook_manager(project_path)
 
     # Run session start hooks
     run_hooks(HookEvent.SESSION_START, working_directory=project_path)
 
     # Index project files (silently if already indexed, with progress if new)
     from synod.core.indexer import is_workspace_indexed
+
     already_indexed = is_workspace_indexed(project_path)
 
     if not already_indexed:
-        console.print(f"\n[{CYAN}]📂 Indexing workspace for intelligent context suggestions...[/{CYAN}]")
+        console.print(
+            f"\n[{CYAN}]📂 Indexing workspace for intelligent context suggestions...[/{CYAN}]"
+        )
 
     indexed_project = quick_index(project_path)
     file_count = len(indexed_project.files) if indexed_project else 0
@@ -1224,7 +1297,9 @@ async def _interactive_session(auto_approve: bool = False):
     welcome_text = Text()
     welcome_text.append("Synod Interactive Session\n", style=f"bold {PRIMARY}")
     welcome_text.append("Type your queries or 'exit' to quit\n", style="dim")
-    welcome_text.append("💡 Tip: Context persists across queries with auto-compacting!", style=f"{GOLD}")
+    welcome_text.append(
+        "💡 Tip: Context persists across queries with auto-compacting!", style=f"{GOLD}"
+    )
 
     console.print(Panel(welcome_text, border_style=PRIMARY, box=HEAVY))
     console.print()
@@ -1236,7 +1311,7 @@ async def _interactive_session(auto_approve: bool = False):
     if project_context.has_context:
         archives.add_exchange(
             query="[Project context loaded]",
-            synthesis=project_context.get_combined_context()
+            synthesis=project_context.get_combined_context(),
         )
 
     # Initialize chat interface
@@ -1252,7 +1327,9 @@ async def _interactive_session(auto_approve: bool = False):
         if archives:
             ctx_str = archives.get_context_for_debate()
             if ctx_str:
-                full_context = f"{ctx_str}\n\n{full_context}" if full_context else ctx_str
+                full_context = (
+                    f"{ctx_str}\n\n{full_context}" if full_context else ctx_str
+                )
 
         state = await run_cloud_debate(
             api_key=api_key,
@@ -1298,6 +1375,7 @@ async def _interactive_session(auto_approve: bool = False):
             except EOFError:
                 # User pressed Ctrl+D - exit gracefully
                 from synod.core.session import display_session_summary
+
                 session = get_current_session()
 
                 try:
@@ -1316,7 +1394,7 @@ async def _interactive_session(auto_approve: bool = False):
                 continue
 
             # Check for slash commands first
-            if user_input.strip().startswith('/'):
+            if user_input.strip().startswith("/"):
                 command_name, args = parse_slash_command(user_input)
 
                 if command_name:
@@ -1333,17 +1411,24 @@ async def _interactive_session(auto_approve: bool = False):
                         )
                         if should_exit:
                             # Run session end hooks
-                            run_hooks(HookEvent.SESSION_END, working_directory=project_path)
+                            run_hooks(
+                                HookEvent.SESSION_END, working_directory=project_path
+                            )
                             break
                         continue
                     else:
-                        console.print(f"[{ACCENT}]Unknown command: /{command_name}[/{ACCENT}]")
-                        console.print(f"[dim]Type /help to see available commands[/dim]\n")
+                        console.print(
+                            f"[{ACCENT}]Unknown command: /{command_name}[/{ACCENT}]"
+                        )
+                        console.print(
+                            "[dim]Type /help to see available commands[/dim]\n"
+                        )
                         continue
 
             # Check for logout command
-            if user_input.strip().lower() == 'logout':
+            if user_input.strip().lower() == "logout":
                 from synod.core.session import display_session_summary
+
                 session = get_current_session()
 
                 # Save session before logout
@@ -1361,15 +1446,16 @@ async def _interactive_session(auto_approve: bool = False):
                 run_hooks(HookEvent.SESSION_END, working_directory=project_path)
 
                 console.print(f"\n[{GREEN}]✓ Logged out successfully[/{GREEN}]")
-                console.print(f"[dim]Run 'synod login' to log in again[/dim]")
+                console.print("[dim]Run 'synod login' to log in again[/dim]")
                 display_session_summary(session)
                 break
 
             # Check for exit commands (explicit or natural language)
-            exit_commands = ['exit', 'quit', 'q', 'bye', 'goodbye', 'stop']
+            exit_commands = ["exit", "quit", "q", "bye", "goodbye", "stop"]
             if user_input.strip().lower() in exit_commands:
                 # Save and show session summary before exiting
                 from synod.core.session import display_session_summary
+
                 session = get_current_session()
 
                 # Save session to disk
@@ -1387,37 +1473,54 @@ async def _interactive_session(auto_approve: bool = False):
                 break
 
             # Run pre-debate hooks
-            hook_result = run_hooks(HookEvent.PRE_DEBATE, query=user_input, working_directory=project_path)
+            hook_result = run_hooks(
+                HookEvent.PRE_DEBATE, query=user_input, working_directory=project_path
+            )
             if not hook_result.allow:
-                console.print(f"[yellow]Blocked by hook: {hook_result.message}[/yellow]\n")
+                console.print(
+                    f"[yellow]Blocked by hook: {hook_result.message}[/yellow]\n"
+                )
                 continue
 
             # Run query via cloud
             try:
-                await _arun_query(user_input, "", archives=archives, auto_approve=auto_approve)
+                await _arun_query(
+                    user_input, "", archives=archives, auto_approve=auto_approve
+                )
                 console.print()
 
                 # Run post-debate hooks
-                run_hooks(HookEvent.POST_DEBATE, query=user_input, working_directory=project_path)
+                run_hooks(
+                    HookEvent.POST_DEBATE,
+                    query=user_input,
+                    working_directory=project_path,
+                )
 
                 # Process queued messages if any
                 if message_queue:
-                    console.print(f"[{GOLD}]📬 Processing {len(message_queue)} queued message(s)...[/{GOLD}]\n")
+                    console.print(
+                        f"[{GOLD}]📬 Processing {len(message_queue)} queued message(s)...[/{GOLD}]\n"
+                    )
                     for queued_msg in message_queue:
                         console.print(f"[{PRIMARY}]synod>[/{PRIMARY}] {queued_msg}")
-                        await _arun_query(queued_msg, "", archives=archives, auto_approve=auto_approve)
+                        await _arun_query(
+                            queued_msg, "", archives=archives, auto_approve=auto_approve
+                        )
                         console.print()
                     message_queue.clear()
             except Exception as e:
                 # Catch any error during query execution and continue the loop
                 console.print(f"\n[bold red]Error: {str(e)}[/bold red]")
-                console.print(f"[dim]The session will continue. Type 'exit' to quit.[/dim]\n")
+                console.print(
+                    "[dim]The session will continue. Type 'exit' to quit.[/dim]\n"
+                )
                 continue
 
         except KeyboardInterrupt:
             console.print()  # New line after Ctrl+C
             # Save and show session summary before exiting
             from synod.core.session import display_session_summary
+
             session = get_current_session()
 
             # Save session to disk
@@ -1436,9 +1539,11 @@ async def _interactive_session(auto_approve: bool = False):
             run_hooks(HookEvent.SESSION_END, working_directory=project_path)
             break
 
+
 def main():
     """Main entry point. Always launches interactive mode."""
     app()
+
 
 if __name__ == "__main__":
     main()

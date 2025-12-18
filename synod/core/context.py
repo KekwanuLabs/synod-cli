@@ -2,6 +2,7 @@
 import os
 from typing import List, Optional
 
+
 def read_file_content(file_paths: List[str], base_dir: Optional[str] = None) -> str:
     """
     Reads the content of specified files and formats them into a single string
@@ -21,8 +22,12 @@ def read_file_content(file_paths: List[str], base_dir: Optional[str] = None) -> 
 
     context_lines = []
     for rel_path in file_paths:
-        file_path = os.path.join(base_dir or os.getcwd(), rel_path) if not os.path.isabs(rel_path) else rel_path
-        
+        file_path = (
+            os.path.join(base_dir or os.getcwd(), rel_path)
+            if not os.path.isabs(rel_path)
+            else rel_path
+        )
+
         if not os.path.exists(file_path):
             context_lines.append(f"--- File Not Found: {rel_path} ---")
             continue
@@ -31,7 +36,7 @@ def read_file_content(file_paths: List[str], base_dir: Optional[str] = None) -> 
             continue
 
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 content = f.read()
             context_lines.append(f"--- START FILE: {rel_path} ---")
             context_lines.append(content)

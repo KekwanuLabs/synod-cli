@@ -18,44 +18,41 @@ from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.shortcuts import CompleteStyle
-from typing import Optional, List
-import asyncio
+from typing import Optional
 
-from .theme import PRIMARY, CYAN, GOLD, GREEN, ACCENT
-from .slash_commands import get_all_commands, get_command, SlashCommand
+from .theme import PRIMARY, CYAN, ACCENT
+from .slash_commands import get_all_commands
 
 
 # Custom style for Synod chat interface
-SYNOD_CHAT_STYLE = Style.from_dict({
-    # Prompt styling
-    'prompt': f'{PRIMARY} bold',
-    'prompt-arrow': f'{CYAN}',
-
-    # Input area
-    'input': '#FFFFFF',
-    'input-placeholder': '#6B6B85 italic',
-
-    # Bottom toolbar
-    'bottom-toolbar': f'bg:{ACCENT} #FFFFFF',
-    'bottom-toolbar.key': 'bg:#7C3AED #FFFFFF bold',
-    'bottom-toolbar.text': 'bg:#7C3AED #E0E0E0',
-
-    # Completions
-    'completion-menu': 'bg:#2A2A3E #FFFFFF',
-    'completion-menu.completion': 'bg:#2A2A3E #FFFFFF',
-    'completion-menu.completion.current': 'bg:#FF6B35 #000000 bold',
-
-    # Scrollbar
-    'scrollbar.background': 'bg:#1A1A2E',
-    'scrollbar.button': 'bg:#FF6B35',
-})
+SYNOD_CHAT_STYLE = Style.from_dict(
+    {
+        # Prompt styling
+        "prompt": f"{PRIMARY} bold",
+        "prompt-arrow": f"{CYAN}",
+        # Input area
+        "input": "#FFFFFF",
+        "input-placeholder": "#6B6B85 italic",
+        # Bottom toolbar
+        "bottom-toolbar": f"bg:{ACCENT} #FFFFFF",
+        "bottom-toolbar.key": "bg:#7C3AED #FFFFFF bold",
+        "bottom-toolbar.text": "bg:#7C3AED #E0E0E0",
+        # Completions
+        "completion-menu": "bg:#2A2A3E #FFFFFF",
+        "completion-menu.completion": "bg:#2A2A3E #FFFFFF",
+        "completion-menu.completion.current": "bg:#FF6B35 #000000 bold",
+        # Scrollbar
+        "scrollbar.background": "bg:#1A1A2E",
+        "scrollbar.button": "bg:#FF6B35",
+    }
+)
 
 
 def create_keybindings() -> KeyBindings:
     """Create custom keybindings for Synod chat interface."""
     kb = KeyBindings()
 
-    @kb.add('enter')
+    @kb.add("enter")
     def _(event):
         """Submit on Enter (only if not empty and completion menu not open)"""
         buffer = event.current_buffer
@@ -67,31 +64,31 @@ def create_keybindings() -> KeyBindings:
         if buffer.text.strip():
             buffer.validate_and_handle()
 
-    @kb.add('/')
+    @kb.add("/")
     def _(event):
         """When / is typed at the start, insert it and show completions."""
         buffer = event.current_buffer
-        buffer.insert_text('/')
+        buffer.insert_text("/")
         # Only trigger completion if / is at the start of the line
-        if buffer.text.strip() == '/':
+        if buffer.text.strip() == "/":
             buffer.start_completion(select_first=False)
 
-    @kb.add('c-j')  # Ctrl+J (alternative for newline)
+    @kb.add("c-j")  # Ctrl+J (alternative for newline)
     def _(event):
         """Insert newline with Ctrl+J"""
-        event.current_buffer.insert_text('\n')
+        event.current_buffer.insert_text("\n")
 
-    @kb.add('escape', 'enter')  # Alt/Esc+Enter
+    @kb.add("escape", "enter")  # Alt/Esc+Enter
     def _(event):
         """Insert newline with Alt+Enter"""
-        event.current_buffer.insert_text('\n')
+        event.current_buffer.insert_text("\n")
 
-    @kb.add('c-c')  # Ctrl+C
+    @kb.add("c-c")  # Ctrl+C
     def _(event):
         """Clear current input on Ctrl+C"""
-        event.current_buffer.text = ''
+        event.current_buffer.text = ""
 
-    @kb.add('c-d')  # Ctrl+D
+    @kb.add("c-d")  # Ctrl+D
     def _(event):
         """Exit on Ctrl+D"""
         event.app.exit(exception=EOFError)
@@ -102,11 +99,11 @@ def create_keybindings() -> KeyBindings:
 def get_bottom_toolbar() -> HTML:
     """Generate bottom toolbar with helpful hints."""
     return HTML(
-        '<b>[Enter]</b> Submit  '
-        '<b>[/]</b> Commands  '
-        '<b>[↑↓]</b> History  '
-        '<b>[Ctrl+C]</b> Clear  '
-        '<b>[Ctrl+D]</b> Exit'
+        "<b>[Enter]</b> Submit  "
+        "<b>[/]</b> Commands  "
+        "<b>[↑↓]</b> History  "
+        "<b>[Ctrl+C]</b> Clear  "
+        "<b>[Ctrl+D]</b> Exit"
     )
 
 
@@ -118,7 +115,7 @@ class SlashCommandCompleter(Completer):
         text = document.text_before_cursor.strip()
 
         # Only complete if the line starts with /
-        if not text.startswith('/'):
+        if not text.startswith("/"):
             return
 
         # Get the command being typed (without the /)
@@ -139,13 +136,17 @@ class SlashCommandCompleter(Completer):
                     start_position=-len(command_text),
                     display=display,
                     display_meta=display_meta,
-                    style='class:completion-command',
-                    selected_style='class:completion-command-selected',
+                    style="class:completion-command",
+                    selected_style="class:completion-command-selected",
                 )
 
             # Also check aliases
             for alias in cmd.aliases:
-                if command_text and alias.startswith(command_text) and alias != cmd.name:
+                if (
+                    command_text
+                    and alias.startswith(command_text)
+                    and alias != cmd.name
+                ):
                     display = f"/{alias}"
                     display_meta = f"{cmd.description} (→ /{cmd.name})"
 
@@ -154,8 +155,8 @@ class SlashCommandCompleter(Completer):
                         start_position=-len(command_text),
                         display=display,
                         display_meta=display_meta,
-                        style='class:completion-command',
-                        selected_style='class:completion-command-selected',
+                        style="class:completion-command",
+                        selected_style="class:completion-command-selected",
                     )
 
 
@@ -204,14 +205,14 @@ class SynodChatInterface:
     def _get_prompt_message(self):
         """Get formatted prompt message."""
         return [
-            ('class:prompt', 'synod'),
-            ('class:prompt-arrow', '> '),
+            ("class:prompt", "synod"),
+            ("class:prompt-arrow", "> "),
         ]
 
     def _get_continuation(self):
         """Get continuation prompt for multi-line input."""
         return [
-            ('class:prompt-arrow', '... '),
+            ("class:prompt-arrow", "... "),
         ]
 
     async def get_input(self, context_info: Optional[str] = None) -> str:

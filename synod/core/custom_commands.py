@@ -18,20 +18,18 @@ File format:
   Your prompt template here. Use $ARGUMENTS for user input.
 """
 
-import os
 import re
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict
 from dataclasses import dataclass
 
 from rich.console import Console
 from rich.panel import Panel
-from rich.text import Text
 from rich.table import Table
 from rich import box
 
-from .theme import PRIMARY, CYAN, GREEN, GOLD, GRAY
-from .slash_commands import register_command, get_registry
+from .theme import CYAN
+from .slash_commands import register_command
 
 console = Console()
 
@@ -48,9 +46,11 @@ USER_COMMANDS_DIR = Path.home() / ".synod" / "commands"
 # DATA CLASSES
 # ============================================================================
 
+
 @dataclass
 class CustomCommand:
     """A custom slash command loaded from a file."""
+
     name: str
     description: str
     prompt_template: str
@@ -78,7 +78,7 @@ class CustomCommand:
             prompt = prompt.replace(f"${i}", arg)
 
         # Clear unused placeholders
-        prompt = re.sub(r'\$\d+', '', prompt)
+        prompt = re.sub(r"\$\d+", "", prompt)
 
         return prompt.strip()
 
@@ -86,6 +86,7 @@ class CustomCommand:
 # ============================================================================
 # LOADING FUNCTIONS
 # ============================================================================
+
 
 def parse_command_file(filepath: Path) -> Optional[CustomCommand]:
     """Parse a command markdown file.
@@ -105,13 +106,13 @@ def parse_command_file(filepath: Path) -> Optional[CustomCommand]:
     description = ""
     prompt_template = content
 
-    frontmatter_match = re.match(r'^---\s*\n(.*?)\n---\s*\n(.*)$', content, re.DOTALL)
+    frontmatter_match = re.match(r"^---\s*\n(.*?)\n---\s*\n(.*)$", content, re.DOTALL)
     if frontmatter_match:
         frontmatter = frontmatter_match.group(1)
         prompt_template = frontmatter_match.group(2)
 
         # Parse description from frontmatter
-        desc_match = re.search(r'description:\s*(.+)', frontmatter)
+        desc_match = re.search(r"description:\s*(.+)", frontmatter)
         if desc_match:
             description = desc_match.group(1).strip()
 
@@ -120,7 +121,7 @@ def parse_command_file(filepath: Path) -> Optional[CustomCommand]:
 
     if not description:
         # Generate description from first line of prompt
-        first_line = prompt_template.split('\n')[0].strip()
+        first_line = prompt_template.split("\n")[0].strip()
         description = first_line[:60] + "..." if len(first_line) > 60 else first_line
 
     return CustomCommand(
@@ -128,7 +129,8 @@ def parse_command_file(filepath: Path) -> Optional[CustomCommand]:
         description=description,
         prompt_template=prompt_template,
         file_path=str(filepath),
-        is_user_command=USER_COMMANDS_DIR in filepath.parents or filepath.parent == USER_COMMANDS_DIR,
+        is_user_command=USER_COMMANDS_DIR in filepath.parents
+        or filepath.parent == USER_COMMANDS_DIR,
     )
 
 
@@ -224,11 +226,11 @@ def is_custom_command(name: str) -> bool:
 # CREATION HELPERS
 # ============================================================================
 
-COMMAND_TEMPLATE = '''---
+COMMAND_TEMPLATE = """---
 description: {description}
 ---
 {prompt}
-'''
+"""
 
 
 def create_custom_command(
@@ -276,6 +278,7 @@ def create_custom_command(
 # DISPLAY
 # ============================================================================
 
+
 def display_custom_commands() -> None:
     """Display all custom commands."""
     commands = list(_custom_commands.values())
@@ -296,11 +299,15 @@ def display_custom_commands() -> None:
         source = "user" if cmd.is_user_command else "project"
         table.add_row(
             f"/{cmd.name}",
-            cmd.description[:50] + "..." if len(cmd.description) > 50 else cmd.description,
+            cmd.description[:50] + "..."
+            if len(cmd.description) > 50
+            else cmd.description,
             source,
         )
 
-    console.print(Panel(table, title="[cyan]Custom Commands[/cyan]", border_style="cyan"))
+    console.print(
+        Panel(table, title="[cyan]Custom Commands[/cyan]", border_style="cyan")
+    )
 
 
 # ============================================================================
@@ -381,4 +388,6 @@ def create_example_commands(project_path: str = ".") -> None:
             )
             filepath.write_text(content, encoding="utf-8")
 
-    console.print(f"[green]✓ Created {len(EXAMPLE_COMMANDS)} example commands in {commands_dir}[/green]")
+    console.print(
+        f"[green]✓ Created {len(EXAMPLE_COMMANDS)} example commands in {commands_dir}[/green]"
+    )

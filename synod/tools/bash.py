@@ -28,15 +28,41 @@ The command runs in the current working directory. Be careful with destructive c
 
     # Commands that are considered safe (don't need confirmation)
     SAFE_COMMANDS = {
-        "ls", "pwd", "echo", "cat", "head", "tail", "wc", "find", "grep",
-        "which", "whoami", "date", "env", "printenv", "tree", "file",
-        "git status", "git log", "git diff", "git branch", "git remote",
+        "ls",
+        "pwd",
+        "echo",
+        "cat",
+        "head",
+        "tail",
+        "wc",
+        "find",
+        "grep",
+        "which",
+        "whoami",
+        "date",
+        "env",
+        "printenv",
+        "tree",
+        "file",
+        "git status",
+        "git log",
+        "git diff",
+        "git branch",
+        "git remote",
     }
 
     # Commands that are dangerous and should always be confirmed
     DANGEROUS_PATTERNS = [
-        "rm -rf", "rm -r", "rmdir", "sudo", "chmod 777",
-        "mkfs", "dd if=", "> /dev/", "curl | sh", "wget | sh",
+        "rm -rf",
+        "rm -r",
+        "rmdir",
+        "sudo",
+        "chmod 777",
+        "mkfs",
+        "dd if=",
+        "> /dev/",
+        "curl | sh",
+        "wget | sh",
     ]
 
     def __init__(self, working_directory: str, session_flags=None, timeout: int = 120):
@@ -63,7 +89,9 @@ The command runs in the current working directory. Be careful with destructive c
                 return True
         return False
 
-    def get_confirmation_info(self, command: str, **kwargs) -> Optional[ConfirmationRequired]:
+    def get_confirmation_info(
+        self, command: str, **kwargs
+    ) -> Optional[ConfirmationRequired]:
         """Get confirmation info for bash commands."""
         # Safe commands don't need confirmation
         if self._is_safe_command(command):
@@ -83,7 +111,9 @@ The command runs in the current working directory. Be careful with destructive c
             details=f"Working directory: {self.current_directory}",
         )
 
-    async def execute(self, command: str, timeout: Optional[int] = None, **kwargs) -> ToolResult:
+    async def execute(
+        self, command: str, timeout: Optional[int] = None, **kwargs
+    ) -> ToolResult:
         """Execute a bash command.
 
         Args:
@@ -111,8 +141,7 @@ The command runs in the current working directory. Be careful with destructive c
 
             try:
                 stdout, _ = await asyncio.wait_for(
-                    process.communicate(),
-                    timeout=effective_timeout
+                    process.communicate(), timeout=effective_timeout
                 )
             except asyncio.TimeoutError:
                 process.kill()

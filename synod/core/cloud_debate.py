@@ -14,7 +14,7 @@ import json
 import time
 import os
 from dataclasses import dataclass, field
-from typing import Optional, Dict, List, Any, AsyncIterator, Callable, Awaitable, Tuple
+from typing import Optional, Dict, List, Any, AsyncIterator, Tuple
 
 import httpx
 from rich.console import Console, Group
@@ -23,11 +23,9 @@ from rich.table import Table
 from rich.text import Text
 from rich.live import Live
 from rich.markdown import Markdown
-from rich.spinner import Spinner
-from rich.syntax import Syntax
 from rich import box
 
-from .theme import PRIMARY, CYAN, ACCENT, SECONDARY, GOLD, GREEN, GRAY, format_model_name
+from .theme import PRIMARY, CYAN, SECONDARY, GOLD, GREEN, format_model_name
 from .display import get_version
 from .auto_context import gather_auto_context
 
@@ -38,18 +36,21 @@ console = Console()
 # SSE Event Types (mirrors cloud types)
 # ============================================================
 
+
 @dataclass
 class CritiqueSummary:
     """Summary of a single critique for grid display."""
+
     critic: str
     target: str
     severity: str  # 'critical' | 'moderate' | 'minor'
-    summary: str   # One-line summary
+    summary: str  # One-line summary
 
 
 @dataclass
 class ToolCall:
     """A pending tool call from the cloud."""
+
     call_id: str
     tool: str
     parameters: Dict[str, Any]
@@ -61,6 +62,7 @@ class ToolCall:
 @dataclass
 class DebateState:
     """Tracks current state of the debate for rendering."""
+
     stage: int = 0
     stage_name: str = "analysis"
 
@@ -72,10 +74,14 @@ class DebateState:
     reasoning: str = ""  # Why these bishops were selected
 
     # Bishop status
-    bishop_status: Dict[str, str] = field(default_factory=dict)  # model -> 'pending'|'running'|'complete'
+    bishop_status: Dict[str, str] = field(
+        default_factory=dict
+    )  # model -> 'pending'|'running'|'complete'
     bishop_content: Dict[str, str] = field(default_factory=dict)  # model -> content
     bishop_tokens: Dict[str, int] = field(default_factory=dict)  # model -> tokens
-    bishop_approach: Dict[str, str] = field(default_factory=dict)  # model -> approach summary
+    bishop_approach: Dict[str, str] = field(
+        default_factory=dict
+    )  # model -> approach summary
 
     # Consensus
     consensus_score: Optional[float] = None
@@ -93,23 +99,37 @@ class DebateState:
     current_round: int = 0
     max_rounds: int = 3
     critique_pairs: int = 0
-    critique_status: Dict[str, str] = field(default_factory=dict)  # "critic->target" -> 'running'|'complete'
+    critique_status: Dict[str, str] = field(
+        default_factory=dict
+    )  # "critic->target" -> 'running'|'complete'
     critique_content: Dict[str, str] = field(default_factory=dict)
-    critique_severity: Dict[str, str] = field(default_factory=dict)  # "critic->target" -> severity
-    critique_summaries: List[CritiqueSummary] = field(default_factory=list)  # For grid display
-    running_critiques: List[Dict[str, str]] = field(default_factory=list)  # [{critic, target}, ...] for in-progress
+    critique_severity: Dict[str, str] = field(
+        default_factory=dict
+    )  # "critic->target" -> severity
+    critique_summaries: List[CritiqueSummary] = field(
+        default_factory=list
+    )  # For grid display
+    running_critiques: List[Dict[str, str]] = field(
+        default_factory=list
+    )  # [{critic, target}, ...] for in-progress
     consensus_reached: bool = False
     consensus_reached_round: int = 0
     # Round-specific tracking for persistent display
-    round_summaries: Dict[int, List[CritiqueSummary]] = field(default_factory=dict)  # round -> completed critiques
-    round_consensus: Dict[int, float] = field(default_factory=dict)  # round -> consensus after round
+    round_summaries: Dict[int, List[CritiqueSummary]] = field(
+        default_factory=dict
+    )  # round -> completed critiques
+    round_consensus: Dict[int, float] = field(
+        default_factory=dict
+    )  # round -> consensus after round
     # Issue counts from critiques
     critical_issues: int = 0
     moderate_issues: int = 0
     minor_issues: int = 0
     # Early exit tracking
     debate_early_exit: bool = False
-    debate_exit_reason: str = ""  # 'consensus_high', 'no_critical_issues', 'issues_resolved', 'no_new_issues'
+    debate_exit_reason: str = (
+        ""  # 'consensus_high', 'no_critical_issues', 'issues_resolved', 'no_new_issues'
+    )
     debate_exit_explanation: str = ""  # Human-readable explanation
 
     # Pope synthesis
@@ -121,7 +141,9 @@ class DebateState:
     memories_retrieved: int = 0
     memories_stored: int = 0
     memory_tokens: int = 0
-    memory_summaries: List[Dict[str, Any]] = field(default_factory=list)  # [{type, content, score, scope}, ...]
+    memory_summaries: List[Dict[str, Any]] = field(
+        default_factory=list
+    )  # [{type, content, score, scope}, ...]
 
     # Stage 0 Progress Tracking
     analysis_started: bool = False
@@ -145,7 +167,9 @@ class DebateState:
     # Tool execution
     tool_calls: List[ToolCall] = field(default_factory=list)
     current_tool: Optional[ToolCall] = None
-    pending_tool_batch: List[ToolCall] = field(default_factory=list)  # Batch of tools to execute
+    pending_tool_batch: List[ToolCall] = field(
+        default_factory=list
+    )  # Batch of tools to execute
     tools_executed: int = 0
 
     # Final
@@ -158,130 +182,138 @@ class DebateState:
 
     # Timing
     start_time: float = field(default_factory=time.time)
-    stage_start_times: Dict[int, float] = field(default_factory=dict)  # stage -> start time
-    stage_end_times: Dict[int, float] = field(default_factory=dict)    # stage -> end time
-
+    stage_start_times: Dict[int, float] = field(
+        default_factory=dict
+    )  # stage -> start time
+    stage_end_times: Dict[int, float] = field(default_factory=dict)  # stage -> end time
 
 
 # ============================================================
 # SSE Event Handlers
 # ============================================================
 
+
 def handle_event(state: DebateState, event: dict) -> None:
     """Update state based on SSE event."""
-    event_type = event.get('type')
+    event_type = event.get("type")
 
-    if event_type == 'stage':
+    if event_type == "stage":
         # End previous stage timing (if any)
         prev_stage = state.stage
-        if prev_stage in state.stage_start_times and prev_stage not in state.stage_end_times:
+        if (
+            prev_stage in state.stage_start_times
+            and prev_stage not in state.stage_end_times
+        ):
             state.stage_end_times[prev_stage] = time.time()
 
         # Start new stage timing (don't overwrite if already set, e.g. stage 0)
-        state.stage = event['stage']
-        state.stage_name = event['name']
+        state.stage = event["stage"]
+        state.stage_name = event["name"]
         if state.stage not in state.stage_start_times:
             state.stage_start_times[state.stage] = time.time()
 
-    elif event_type == 'analysis_complete':
-        state.complexity = event['complexity']
-        state.domains = event['domains']
-        state.bishops = event['bishops']
-        state.pope = event['pope']
-        state.reasoning = event.get('reasoning', '')
-        state.bishop_status = {b: 'pending' for b in state.bishops}
+    elif event_type == "analysis_complete":
+        state.complexity = event["complexity"]
+        state.domains = event["domains"]
+        state.bishops = event["bishops"]
+        state.pope = event["pope"]
+        state.reasoning = event.get("reasoning", "")
+        state.bishop_status = {b: "pending" for b in state.bishops}
         state.classification_done = True
         # Store context plan for future reference (what files SHOULD be gathered)
-        context_plan = event.get('context_plan', {})
-        if context_plan.get('needs_codebase_search'):
-            state.context_plan_searches = context_plan.get('searches', [])
+        context_plan = event.get("context_plan", {})
+        if context_plan.get("needs_codebase_search"):
+            state.context_plan_searches = context_plan.get("searches", [])
         # Mark stage 0 as complete
         if 0 not in state.stage_end_times:
             state.stage_end_times[0] = time.time()
 
-    elif event_type == 'context_hints':
+    elif event_type == "context_hints":
         # Context analysis from the API
         state.context_hints_received = True
-        query_analysis = event.get('query_analysis', {})
-        state.search_keywords = query_analysis.get('keywords', [])
-        state.search_symbols = query_analysis.get('symbol_names', [])
-        state.language_hints = query_analysis.get('language_hints', [])
-        search_strategy = event.get('search_strategy', {})
-        state.search_type = search_strategy.get('search_type', '')
-        state.memory_hints = event.get('memory_hints', [])
+        query_analysis = event.get("query_analysis", {})
+        state.search_keywords = query_analysis.get("keywords", [])
+        state.search_symbols = query_analysis.get("symbol_names", [])
+        state.language_hints = query_analysis.get("language_hints", [])
+        search_strategy = event.get("search_strategy", {})
+        state.search_type = search_strategy.get("search_type", "")
+        state.memory_hints = event.get("memory_hints", [])
 
-    elif event_type == 'bishop_start':
-        state.bishop_status[event['model']] = 'running'
+    elif event_type == "bishop_start":
+        state.bishop_status[event["model"]] = "running"
 
-    elif event_type == 'bishop_summary':
+    elif event_type == "bishop_summary":
         # Quick approach summary for grid display
-        state.bishop_approach[event['model']] = event['approach']
+        state.bishop_approach[event["model"]] = event["approach"]
 
-    elif event_type == 'bishop_complete':
-        state.bishop_status[event['model']] = 'complete'
-        state.bishop_tokens[event['model']] = event['tokens']
+    elif event_type == "bishop_complete":
+        state.bishop_status[event["model"]] = "complete"
+        state.bishop_tokens[event["model"]] = event["tokens"]
 
-    elif event_type == 'bishop_stream':
+    elif event_type == "bishop_stream":
         # Streaming chunk from a bishop - accumulate content
-        model = event['model']
-        chunk = event['chunk']
+        model = event["model"]
+        chunk = event["chunk"]
         if model not in state.bishop_content:
-            state.bishop_content[model] = ''
+            state.bishop_content[model] = ""
         state.bishop_content[model] += chunk
 
-    elif event_type == 'bishop_content':
-        state.bishop_content[event['model']] = event['content']
+    elif event_type == "bishop_content":
+        state.bishop_content[event["model"]] = event["content"]
 
-    elif event_type == 'consensus':
-        state.consensus_score = event['score']
+    elif event_type == "consensus":
+        state.consensus_score = event["score"]
 
     # Pope Assessment (before critiques)
-    elif event_type == 'pope_assessment':
+    elif event_type == "pope_assessment":
         state.pope_assessment_done = True
-        state.should_debate = event['shouldDebate']
-        state.overall_similarity = event['overallSimilarity']
-        state.assessment_reasoning = event['reasoning']
-        state.disagreement_pairs = event.get('disagreementPairs', [])
+        state.should_debate = event["shouldDebate"]
+        state.overall_similarity = event["overallSimilarity"]
+        state.assessment_reasoning = event["reasoning"]
+        state.disagreement_pairs = event.get("disagreementPairs", [])
 
-    elif event_type == 'debate_skipped':
+    elif event_type == "debate_skipped":
         state.debate_skipped = True
-        state.debate_skip_reason = event['reason']
+        state.debate_skip_reason = event["reason"]
 
     # Critique rounds
-    elif event_type == 'critique_round_start':
-        state.current_round = event['round']
-        state.max_rounds = event['maxRounds']
-        state.critique_pairs = event['pairs']
+    elif event_type == "critique_round_start":
+        state.current_round = event["round"]
+        state.max_rounds = event["maxRounds"]
+        state.critique_pairs = event["pairs"]
         # Initialize round tracking
         if state.current_round not in state.round_summaries:
             state.round_summaries[state.current_round] = []
 
-    elif event_type == 'critique_start':
-        critic = event['critic']
-        targets = event.get('targets', [])
-        target = targets[0] if targets else 'unknown'
+    elif event_type == "critique_start":
+        critic = event["critic"]
+        targets = event.get("targets", [])
+        target = targets[0] if targets else "unknown"
         key = f"{critic}->{target}"
-        state.critique_status[key] = 'running'
+        state.critique_status[key] = "running"
         # Track running critique for display
-        state.running_critiques.append({'critic': critic, 'target': target})
+        state.running_critiques.append({"critic": critic, "target": target})
 
-    elif event_type == 'critique_summary':
+    elif event_type == "critique_summary":
         # One-line summary for grid display
-        critic = event['critic']
-        target = event['target']
+        critic = event["critic"]
+        target = event["target"]
         key = f"{critic}->{target}"
         # Mark as complete
-        state.critique_status[key] = 'complete'
-        state.critique_severity[key] = event['severity']
+        state.critique_status[key] = "complete"
+        state.critique_severity[key] = event["severity"]
         # Remove from running critiques
-        state.running_critiques = [c for c in state.running_critiques
-                                   if not (c['critic'] == critic and c['target'] == target)]
+        state.running_critiques = [
+            c
+            for c in state.running_critiques
+            if not (c["critic"] == critic and c["target"] == target)
+        ]
         # Add to summaries (avoid duplicates)
         new_summary = CritiqueSummary(
             critic=critic,
             target=target,
-            severity=event['severity'],
-            summary=event['summary']
+            severity=event["severity"],
+            summary=event["summary"],
         )
         # Always add to round_summaries for the current round (each round can have its own critiques)
         if state.current_round in state.round_summaries:
@@ -291,98 +323,108 @@ def handle_event(state: DebateState, event: dict) -> None:
         if (new_summary.critic, new_summary.target) not in existing:
             state.critique_summaries.append(new_summary)
 
-    elif event_type == 'critique_complete':
+    elif event_type == "critique_complete":
         # Also handle critique_complete (backup for critique_summary)
-        critic = event.get('critic', '')
-        target = event.get('target', '')
+        critic = event.get("critic", "")
+        target = event.get("target", "")
         if critic and target:
             key = f"{critic}->{target}"
-            state.critique_status[key] = 'complete'
-            state.critique_severity[key] = event.get('severity', 'minor')
-            state.running_critiques = [c for c in state.running_critiques
-                                       if not (c['critic'] == critic and c['target'] == target)]
+            state.critique_status[key] = "complete"
+            state.critique_severity[key] = event.get("severity", "minor")
+            state.running_critiques = [
+                c
+                for c in state.running_critiques
+                if not (c["critic"] == critic and c["target"] == target)
+            ]
 
-    elif event_type == 'critique_content':
-        state.critique_content[event['critic']] = event['content']
+    elif event_type == "critique_content":
+        state.critique_content[event["critic"]] = event["content"]
 
-    elif event_type == 'critique_round_complete':
-        state.consensus_score = event['consensusScore']
+    elif event_type == "critique_round_complete":
+        state.consensus_score = event["consensusScore"]
         # Store consensus for this round (for persistent display)
-        state.round_consensus[state.current_round] = event['consensusScore']
+        state.round_consensus[state.current_round] = event["consensusScore"]
         # Capture issue counts
-        state.critical_issues += event.get('criticalIssues', 0)
-        state.moderate_issues += event.get('moderateIssues', 0)
-        state.minor_issues += event.get('minorIssues', 0)
+        state.critical_issues += event.get("criticalIssues", 0)
+        state.moderate_issues += event.get("moderateIssues", 0)
+        state.minor_issues += event.get("minorIssues", 0)
 
-    elif event_type == 'consensus_reached':
+    elif event_type == "consensus_reached":
         state.consensus_reached = True
-        state.consensus_reached_round = event['round']
-        state.consensus_score = event['score']
+        state.consensus_reached_round = event["round"]
+        state.consensus_score = event["score"]
 
-    elif event_type == 'debate_early_exit':
+    elif event_type == "debate_early_exit":
         state.debate_early_exit = True
-        state.debate_exit_reason = event.get('reason', '')
-        state.debate_exit_explanation = event.get('explanation', '')
-        state.consensus_score = event.get('finalConsensus', state.consensus_score)
+        state.debate_exit_reason = event.get("reason", "")
+        state.debate_exit_explanation = event.get("explanation", "")
+        state.consensus_score = event.get("finalConsensus", state.consensus_score)
 
     # Memory events
-    elif event_type == 'memory_retrieved':
-        state.memories_retrieved = event.get('user_memories', 0) + event.get('project_memories', 0)
-        state.memory_tokens = event.get('tokens', 0)
-        state.memory_summaries = event.get('memories', [])
+    elif event_type == "memory_retrieved":
+        state.memories_retrieved = event.get("user_memories", 0) + event.get(
+            "project_memories", 0
+        )
+        state.memory_tokens = event.get("tokens", 0)
+        state.memory_summaries = event.get("memories", [])
         state.memory_search_done = True
 
-    elif event_type == 'memory_extracted':
-        state.memories_stored = event.get('stored', 0)
+    elif event_type == "memory_extracted":
+        state.memories_stored = event.get("stored", 0)
 
     # Pope synthesis
-    elif event_type == 'pope_start':
-        state.pope_status = 'running'
+    elif event_type == "pope_start":
+        state.pope_status = "running"
 
-    elif event_type == 'pope_stream':
-        state.pope_content += event['chunk']
+    elif event_type == "pope_stream":
+        state.pope_content += event["chunk"]
 
-    elif event_type == 'pope_complete':
-        state.pope_status = 'complete'
-        state.pope_content = event['content']
-        state.pope_tokens = event['tokens']
+    elif event_type == "pope_complete":
+        state.pope_status = "complete"
+        state.pope_content = event["content"]
+        state.pope_tokens = event["tokens"]
 
-    elif event_type == 'complete':
+    elif event_type == "complete":
         state.complete = True
-        state.debate_id = event['debate_id']
-        state.total_tokens = event['total_tokens']
-        state.duration_ms = event['duration_ms']
-        state.cost_usd = event.get('cost_usd')
-        state.memories_retrieved = event.get('memories_retrieved', state.memories_retrieved)
-        state.memories_stored = event.get('memories_stored', state.memories_stored)
+        state.debate_id = event["debate_id"]
+        state.total_tokens = event["total_tokens"]
+        state.duration_ms = event["duration_ms"]
+        state.cost_usd = event.get("cost_usd")
+        state.memories_retrieved = event.get(
+            "memories_retrieved", state.memories_retrieved
+        )
+        state.memories_stored = event.get("memories_stored", state.memories_stored)
         # End final stage timing
-        if state.stage in state.stage_start_times and state.stage not in state.stage_end_times:
+        if (
+            state.stage in state.stage_start_times
+            and state.stage not in state.stage_end_times
+        ):
             state.stage_end_times[state.stage] = time.time()
 
-    elif event_type == 'error':
-        state.error = event['message']
+    elif event_type == "error":
+        state.error = event["message"]
 
     # Tool execution events
-    elif event_type == 'tools_required':
+    elif event_type == "tools_required":
         # Receive debate_id early so we can send tool results back
-        state.debate_id = event['debate_id']
+        state.debate_id = event["debate_id"]
 
-    elif event_type == 'tool_call':
+    elif event_type == "tool_call":
         tool_call = ToolCall(
-            call_id=event['call_id'],
-            tool=event['tool'],
-            parameters=event.get('parameters', {}),
-            status='pending',
+            call_id=event["call_id"],
+            tool=event["tool"],
+            parameters=event.get("parameters", {}),
+            status="pending",
         )
         state.tool_calls.append(tool_call)
         state.current_tool = tool_call
 
-    elif event_type == 'tool_result_ack':
+    elif event_type == "tool_result_ack":
         # Cloud acknowledged our tool result
-        call_id = event.get('call_id')
+        call_id = event.get("call_id")
         for tc in state.tool_calls:
             if tc.call_id == call_id:
-                tc.status = 'complete'
+                tc.status = "complete"
                 state.tools_executed += 1
                 break
         state.current_tool = None
@@ -394,10 +436,34 @@ def handle_event(state: DebateState, event: dict) -> None:
 
 SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
 THINKING_FRAMES = ["🧠", "💭", "💡", "✨", "🔮", "⚡"]
-STREAMING_FRAMES = ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█", "▇", "▆", "▅", "▄", "▃", "▂"]
+STREAMING_FRAMES = [
+    "▁",
+    "▂",
+    "▃",
+    "▄",
+    "▅",
+    "▆",
+    "▇",
+    "█",
+    "▇",
+    "▆",
+    "▅",
+    "▄",
+    "▃",
+    "▂",
+]
 PULSE_FRAMES = ["◉", "◎", "○", "◎"]
 # Mesmerizing gradient wave frames for status bar
-WAVE_FRAMES = ["░▒▓█▓▒░", "▒▓█▓▒░░", "▓█▓▒░░▒", "█▓▒░░▒▓", "▓▒░░▒▓█", "▒░░▒▓█▓", "░░▒▓█▓▒", "░▒▓█▓▒░"]
+WAVE_FRAMES = [
+    "░▒▓█▓▒░",
+    "▒▓█▓▒░░",
+    "▓█▓▒░░▒",
+    "█▓▒░░▒▓",
+    "▓▒░░▒▓█",
+    "▒░░▒▓█▓",
+    "░░▒▓█▓▒",
+    "░▒▓█▓▒░",
+]
 DOT_WAVE_FRAMES = ["·•●•·", "•●•··", "●•··•", "•··•●", "··•●•", "·•●•·"]
 PROGRESS_FRAMES = ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"]
 # Pope observation frames - calm, watching
@@ -469,7 +535,9 @@ def get_stage_time(state: DebateState, stage: int) -> str:
     """Get formatted time for a stage (elapsed or completed)."""
     if stage in state.stage_end_times:
         # Stage completed - show total time
-        duration = state.stage_end_times[stage] - state.stage_start_times.get(stage, state.start_time)
+        duration = state.stage_end_times[stage] - state.stage_start_times.get(
+            stage, state.start_time
+        )
         return f"{max(0, duration):.1f}s"  # Ensure non-negative
     elif stage in state.stage_start_times:
         # Stage in progress - show elapsed time
@@ -493,49 +561,69 @@ def build_analysis_panel(state: DebateState) -> Panel:
 
         # Complexity with color
         complexity_colors = {
-            'trivial': GREEN,
-            'simple': CYAN,
-            'moderate': GOLD,
-            'complex': PRIMARY,
-            'expert': 'red'
+            "trivial": GREEN,
+            "simple": CYAN,
+            "moderate": GOLD,
+            "complex": PRIMARY,
+            "expert": "red",
         }
         color = complexity_colors.get(state.complexity, CYAN)
-        elements.append(Text(f"Complexity: ", style="dim") + Text(state.complexity.upper(), style=f"bold {color}"))
+        elements.append(
+            Text("Complexity: ", style="dim")
+            + Text(state.complexity.upper(), style=f"bold {color}")
+        )
 
         # Domains
         if state.domains:
-            elements.append(Text(f"Domains: ", style="dim") + Text(", ".join(state.domains), style=CYAN))
+            elements.append(
+                Text("Domains: ", style="dim")
+                + Text(", ".join(state.domains), style=CYAN)
+            )
 
         # Memory retrieved - show what was actually found
         if state.memories_retrieved > 0:
-            elements.append(Text(f"🧠 Memory: ", style="dim") + Text(f"{state.memories_retrieved} relevant learnings ({state.memory_tokens} tokens)", style=CYAN))
+            elements.append(
+                Text("🧠 Memory: ", style="dim")
+                + Text(
+                    f"{state.memories_retrieved} relevant learnings ({state.memory_tokens} tokens)",
+                    style=CYAN,
+                )
+            )
             # Show actual memories
             for mem in state.memory_summaries[:5]:  # Show top 5
-                mem_type = mem.get('type', 'unknown')
-                mem_content = mem.get('content', '')
-                mem_score = mem.get('score', 0)
-                mem_scope = mem.get('scope', 'user')
+                mem_type = mem.get("type", "unknown")
+                mem_content = mem.get("content", "")
+                mem_score = mem.get("score", 0)
+                mem_scope = mem.get("scope", "user")
                 score_pct = int(mem_score * 100)
 
                 # Color by type
                 type_colors = {
-                    'preference': CYAN,
-                    'pattern': GOLD,
-                    'skill': GREEN,
-                    'architecture': PRIMARY,
-                    'convention': 'magenta',
-                    'bug': 'red',
-                    'decision': 'blue',
+                    "preference": CYAN,
+                    "pattern": GOLD,
+                    "skill": GREEN,
+                    "architecture": PRIMARY,
+                    "convention": "magenta",
+                    "bug": "red",
+                    "decision": "blue",
                 }
-                type_color = type_colors.get(mem_type, 'white')
-                scope_icon = '👤' if mem_scope == 'user' else '📁'
+                type_color = type_colors.get(mem_type, "white")
+                scope_icon = "👤" if mem_scope == "user" else "📁"
 
-                elements.append(Text(f"   {scope_icon} ", style="dim") +
-                              Text(f"[{mem_type}] ", style=f"bold {type_color}") +
-                              Text(f"{score_pct}% ", style="dim") +
-                              Text(mem_content[:60] + ('...' if len(mem_content) > 60 else ''), style="dim italic"))
+                elements.append(
+                    Text(f"   {scope_icon} ", style="dim")
+                    + Text(f"[{mem_type}] ", style=f"bold {type_color}")
+                    + Text(f"{score_pct}% ", style="dim")
+                    + Text(
+                        mem_content[:60] + ("..." if len(mem_content) > 60 else ""),
+                        style="dim italic",
+                    )
+                )
         elif state.memory_search_done:
-            elements.append(Text(f"🧠 Memory: ", style="dim") + Text("No prior learnings found (fresh query)", style="dim"))
+            elements.append(
+                Text("🧠 Memory: ", style="dim")
+                + Text("No prior learnings found (fresh query)", style="dim")
+            )
 
         # Context hints (if received)
         if state.context_hints_received:
@@ -547,7 +635,10 @@ def build_analysis_panel(state: DebateState) -> Panel:
             if state.search_type:
                 hints_parts.append(f"search: {state.search_type}")
             if hints_parts:
-                elements.append(Text(f"Context: ", style="dim") + Text(" | ".join(hints_parts), style="dim"))
+                elements.append(
+                    Text("Context: ", style="dim")
+                    + Text(" | ".join(hints_parts), style="dim")
+                )
 
         # Bishops selected
         elements.append(Text(""))
@@ -566,48 +657,75 @@ def build_analysis_panel(state: DebateState) -> Panel:
         bar = get_streaming_bar()
         pulse = get_pulse()
 
-        elements.append(Text(f"{think} Stage 0: Analysis in Progress", style=f"bold {CYAN}"))
+        elements.append(
+            Text(f"{think} Stage 0: Analysis in Progress", style=f"bold {CYAN}")
+        )
         elements.append(Text(""))
 
         # Show what's happening in parallel
         # Memory search status
         if state.memory_search_done:
             if state.memories_retrieved > 0:
-                elements.append(Text(f"  ✓ Memory search: ", style="dim") +
-                              Text(f"{state.memories_retrieved} learnings found", style=GREEN))
+                elements.append(
+                    Text("  ✓ Memory search: ", style="dim")
+                    + Text(f"{state.memories_retrieved} learnings found", style=GREEN)
+                )
             else:
-                elements.append(Text(f"  ✓ Memory search: ", style="dim") +
-                              Text("No prior context", style="dim"))
+                elements.append(
+                    Text("  ✓ Memory search: ", style="dim")
+                    + Text("No prior context", style="dim")
+                )
         else:
-            elements.append(Text(f"  {spinner} Memory search: ", style="dim") +
-                          Text(f"Searching vector database {bar}", style=CYAN))
+            elements.append(
+                Text(f"  {spinner} Memory search: ", style="dim")
+                + Text(f"Searching vector database {bar}", style=CYAN)
+            )
 
         # Query classification status
         if state.classification_done:
-            elements.append(Text(f"  ✓ Classification: ", style="dim") +
-                          Text("Complete", style=GREEN))
+            elements.append(
+                Text("  ✓ Classification: ", style="dim")
+                + Text("Complete", style=GREEN)
+            )
         else:
-            elements.append(Text(f"  {spinner} Classification: ", style="dim") +
-                          Text(f"Analyzing complexity & selecting bishops {pulse}", style=CYAN))
+            elements.append(
+                Text(f"  {spinner} Classification: ", style="dim")
+                + Text(f"Analyzing complexity & selecting bishops {pulse}", style=CYAN)
+            )
 
         # Context hints status
         if state.context_hints_received:
-            elements.append(Text(f"  ✓ Context analysis: ", style="dim") +
-                          Text("Ready", style=GREEN))
+            elements.append(
+                Text("  ✓ Context analysis: ", style="dim") + Text("Ready", style=GREEN)
+            )
             if state.search_keywords:
-                elements.append(Text(f"      Keywords: {', '.join(state.search_keywords[:4])}", style="dim"))
+                elements.append(
+                    Text(
+                        f"      Keywords: {', '.join(state.search_keywords[:4])}",
+                        style="dim",
+                    )
+                )
         else:
-            elements.append(Text(f"  {spinner} Context analysis: ", style="dim") +
-                          Text(f"Extracting search hints {bar}", style=CYAN))
+            elements.append(
+                Text(f"  {spinner} Context analysis: ", style="dim")
+                + Text(f"Extracting search hints {bar}", style=CYAN)
+            )
 
         # Auto-context files (if gathered)
         if state.auto_context_files:
-            elements.append(Text(f"  ✓ Auto-context: ", style="dim") +
-                          Text(f"{len(state.auto_context_files)} file(s) included", style=GREEN))
+            elements.append(
+                Text("  ✓ Auto-context: ", style="dim")
+                + Text(f"{len(state.auto_context_files)} file(s) included", style=GREEN)
+            )
             for path in state.auto_context_files[:3]:
                 elements.append(Text(f"      + {path}", style="dim"))
             if len(state.auto_context_files) > 3:
-                elements.append(Text(f"      ... and {len(state.auto_context_files) - 3} more", style="dim"))
+                elements.append(
+                    Text(
+                        f"      ... and {len(state.auto_context_files) - 3} more",
+                        style="dim",
+                    )
+                )
 
     # Build title with timing
     stage_time = get_stage_time(state, 0)
@@ -617,7 +735,7 @@ def build_analysis_panel(state: DebateState) -> Panel:
         Group(*elements),
         title=f"[{CYAN}]Stage 0: Analysis{time_suffix}[/{CYAN}]",
         border_style=CYAN,
-        padding=(0, 2)
+        padding=(0, 2),
     )
 
 
@@ -629,16 +747,22 @@ def build_proposals_panel(state: DebateState) -> Panel:
     if state.stage == 1:
         observer = get_pope_observe()
         pulse = get_pulse()
-        elements.append(Text(f"👑 Pope {format_model_name(state.pope)} observing ", style="grey50") +
-                       Text(f"{observer} {pulse}", style=GOLD))
+        elements.append(
+            Text(f"👑 Pope {format_model_name(state.pope)} observing ", style="grey50")
+            + Text(f"{observer} {pulse}", style=GOLD)
+        )
     else:
         # Stage complete - static text
-        elements.append(Text(f"👑 Pope {format_model_name(state.pope)} observed", style="grey50"))
+        elements.append(
+            Text(f"👑 Pope {format_model_name(state.pope)} observed", style="grey50")
+        )
     elements.append(Text(""))
 
     # Build grid table for bishops
     if state.bishops:
-        table = Table(box=box.ROUNDED, show_header=True, header_style=f"bold {CYAN}", expand=True)
+        table = Table(
+            box=box.ROUNDED, show_header=True, header_style=f"bold {CYAN}", expand=True
+        )
 
         # Add columns for each bishop
         for bishop in state.bishops:
@@ -647,11 +771,11 @@ def build_proposals_panel(state: DebateState) -> Panel:
         # Status row with enhanced animations
         status_cells = []
         for bishop in state.bishops:
-            status = state.bishop_status.get(bishop, 'pending')
-            if status == 'complete':
+            status = state.bishop_status.get(bishop, "pending")
+            if status == "complete":
                 tokens = state.bishop_tokens.get(bishop, 0)
                 status_cells.append(Text(f"✓ {tokens} tokens", style=GREEN))
-            elif status == 'running':
+            elif status == "running":
                 # More expressive running animation
                 bar = get_streaming_bar()
                 think = get_thinking_indicator()
@@ -679,7 +803,11 @@ def build_proposals_panel(state: DebateState) -> Panel:
         elements.append(table)
 
     # Show full proposals once all bishops are complete (collapsible style)
-    all_complete = all(state.bishop_status.get(b) == 'complete' for b in state.bishops) if state.bishops else False
+    all_complete = (
+        all(state.bishop_status.get(b) == "complete" for b in state.bishops)
+        if state.bishops
+        else False
+    )
     if all_complete and state.bishop_content:
         elements.append(Text(""))
         elements.append(Text("📜 Bishop Proposals:", style=f"bold {PRIMARY}"))
@@ -688,12 +816,14 @@ def build_proposals_panel(state: DebateState) -> Panel:
             if content:
                 # Show first 200 chars with expand indicator
                 tokens = state.bishop_tokens.get(bishop, 0)
-                preview = content[:300].replace('\n', ' ')
+                preview = content[:300].replace("\n", " ")
                 if len(content) > 300:
                     preview += "..."
                 elements.append(Text(""))
-                elements.append(Text(f"  {format_model_name(bishop)} ", style=f"bold {CYAN}") +
-                              Text(f"({tokens} tokens)", style="dim"))
+                elements.append(
+                    Text(f"  {format_model_name(bishop)} ", style=f"bold {CYAN}")
+                    + Text(f"({tokens} tokens)", style="dim")
+                )
                 elements.append(Text(f"  {preview}", style="dim"))
 
     # Consensus score
@@ -709,7 +839,10 @@ def build_proposals_panel(state: DebateState) -> Panel:
         else:
             style = "red"
             label = "LOW"
-        elements.append(Text(f"📊 Consensus: ", style="dim") + Text(f"{score_pct}% ({label})", style=f"bold {style}"))
+        elements.append(
+            Text("📊 Consensus: ", style="dim")
+            + Text(f"{score_pct}% ({label})", style=f"bold {style}")
+        )
 
     # Pope assessment result - shows consensus level with detailed pairwise breakdown
     if state.pope_assessment_done:
@@ -727,28 +860,41 @@ def build_proposals_panel(state: DebateState) -> Panel:
             consensus_label = "LOW AGREEMENT"
             consensus_style = "red"
 
-        elements.append(Text(f"⚖️ Pope Assessment: ", style="dim") +
-                       Text(f"{sim_pct}% consensus ", style=f"bold {consensus_style}") +
-                       Text(f"({consensus_label})", style=consensus_style))
+        elements.append(
+            Text("⚖️ Pope Assessment: ", style="dim")
+            + Text(f"{sim_pct}% consensus ", style=f"bold {consensus_style}")
+            + Text(f"({consensus_label})", style=consensus_style)
+        )
 
         # Show the reasoning from the server
         if state.assessment_reasoning:
-            elements.append(Text(f"   → {state.assessment_reasoning}", style="dim italic"))
+            elements.append(
+                Text(f"   → {state.assessment_reasoning}", style="dim italic")
+            )
 
         # Explain why debate happens even with high consensus
         if sim_pct >= 80 and not state.debate_skipped:
-            elements.append(Text(f"   ⚠️ High consensus ≠ correct answer. Debate verifies no shared blind spots.", style=f"dim {GOLD}"))
+            elements.append(
+                Text(
+                    "   ⚠️ High consensus ≠ correct answer. Debate verifies no shared blind spots.",
+                    style=f"dim {GOLD}",
+                )
+            )
 
         # Show pairwise similarities if available
         if state.disagreement_pairs:
-            elements.append(Text(f"   Pairwise scores:", style="dim"))
+            elements.append(Text("   Pairwise scores:", style="dim"))
             for pair in state.disagreement_pairs:
-                b1 = format_model_name(pair['bishop1'])
-                b2 = format_model_name(pair['bishop2'])
-                pair_sim = int(pair['similarity'] * 100)
-                pair_style = GREEN if pair_sim >= 80 else (GOLD if pair_sim >= 50 else "red")
-                elements.append(Text(f"     • {b1} ↔ {b2}: ", style="dim") +
-                              Text(f"{pair_sim}%", style=pair_style))
+                b1 = format_model_name(pair["bishop1"])
+                b2 = format_model_name(pair["bishop2"])
+                pair_sim = int(pair["similarity"] * 100)
+                pair_style = (
+                    GREEN if pair_sim >= 80 else (GOLD if pair_sim >= 50 else "red")
+                )
+                elements.append(
+                    Text(f"     • {b1} ↔ {b2}: ", style="dim")
+                    + Text(f"{pair_sim}%", style=pair_style)
+                )
 
     # Build title with timing
     stage_time = get_stage_time(state, 1)
@@ -758,7 +904,7 @@ def build_proposals_panel(state: DebateState) -> Panel:
         Group(*elements),
         title=f"[{CYAN}]Stage 1: Bishop Proposals{time_suffix}[/{CYAN}]",
         border_style=CYAN,
-        padding=(0, 2)
+        padding=(0, 2),
     )
 
 
@@ -772,31 +918,51 @@ def build_critiques_panel(state: DebateState) -> Panel:
 
     # Check if debate was skipped
     if state.debate_skipped:
-        elements.append(Text(f"✓ Debate skipped: {state.debate_skip_reason}", style=GREEN))
+        elements.append(
+            Text(f"✓ Debate skipped: {state.debate_skip_reason}", style=GREEN)
+        )
         return Panel(
             Group(*elements),
             title=f"[{GOLD}]Stage 2: Adversarial Critiques{time_suffix}[/{GOLD}]",
             border_style=GOLD,
-            padding=(0, 2)
+            padding=(0, 2),
         )
 
     # Show debate explanation header
     if state.max_rounds > 0 and state.stage == 2:
-        elements.append(Text(f"📋 Debate plan: Up to {state.max_rounds} round(s), exit early at 80%+ consensus", style="dim"))
+        elements.append(
+            Text(
+                f"📋 Debate plan: Up to {state.max_rounds} round(s), exit early at 80%+ consensus",
+                style="dim",
+            )
+        )
         elements.append(Text(""))
 
     # Pope presiding - show animation only during active critiques, static when done
     if state.stage >= 3 or state.consensus_reached or state.debate_early_exit:
-        elements.append(Text(f"👑 Pope {format_model_name(state.pope)} presided over debate", style="grey50"))
+        elements.append(
+            Text(
+                f"👑 Pope {format_model_name(state.pope)} presided over debate",
+                style="grey50",
+            )
+        )
     else:
         preside = get_pope_preside()
         pulse = get_pulse()
-        elements.append(Text(f"👑 Pope {format_model_name(state.pope)} presiding ", style="grey50") +
-                       Text(f"{preside} {pulse}", style=GOLD))
+        elements.append(
+            Text(f"👑 Pope {format_model_name(state.pope)} presiding ", style="grey50")
+            + Text(f"{preside} {pulse}", style=GOLD)
+        )
     elements.append(Text(""))
 
     # Display completed rounds persistently
-    completed_rounds = sorted([r for r in state.round_summaries.keys() if r < state.current_round or state.stage >= 3])
+    completed_rounds = sorted(
+        [
+            r
+            for r in state.round_summaries.keys()
+            if r < state.current_round or state.stage >= 3
+        ]
+    )
     for round_num in completed_rounds:
         round_critiques = state.round_summaries.get(round_num, [])
         round_cons = state.round_consensus.get(round_num)
@@ -806,34 +972,45 @@ def build_critiques_panel(state: DebateState) -> Panel:
         round_header.append(f"  Round {round_num}", style=f"bold {GOLD}")
         if round_cons is not None:
             cons_pct = int(round_cons * 100)
-            round_header.append(f" • ", style="dim")
+            round_header.append(" • ", style="dim")
             round_header.append(f"{cons_pct}% consensus", style="dim")
-        round_header.append(f" ✓", style=GREEN)
+        round_header.append(" ✓", style=GREEN)
         elements.append(round_header)
 
         # Critiques for this round
         for crit in round_critiques:
-            severity_color = {'critical': 'red', 'moderate': GOLD, 'minor': GREEN}.get(crit.severity, GREEN)
+            severity_color = {"critical": "red", "moderate": GOLD, "minor": GREEN}.get(
+                crit.severity, GREEN
+            )
             row_text = Text()
-            row_text.append(f"    ✓ ", style=GREEN)
+            row_text.append("    ✓ ", style=GREEN)
             row_text.append(f"{format_model_name(crit.critic)}", style=CYAN)
             row_text.append(" → ", style="dim")
             row_text.append(f"{format_model_name(crit.target)} ", style=CYAN)
-            row_text.append(f"[{crit.severity.upper()}] ", style=f"bold {severity_color}")
+            row_text.append(
+                f"[{crit.severity.upper()}] ", style=f"bold {severity_color}"
+            )
             row_text.append(crit.summary[:50], style="dim")
             elements.append(row_text)
         elements.append(Text(""))
 
     # Current round (if in progress)
-    if state.current_round > 0 and state.stage < 3 and not state.consensus_reached and not state.debate_early_exit:
+    if (
+        state.current_round > 0
+        and state.stage < 3
+        and not state.consensus_reached
+        and not state.debate_early_exit
+    ):
         # Check if this round has any completed critiques yet
         current_round_done = state.current_round in completed_rounds
         if not current_round_done:
             round_header = Text()
             spinner = get_spinner()
-            round_header.append(f"  {spinner} Round {state.current_round}", style=f"bold {GOLD}")
+            round_header.append(
+                f"  {spinner} Round {state.current_round}", style=f"bold {GOLD}"
+            )
             round_header.append(f" of {state.max_rounds}", style="dim")
-            round_header.append(f" • ", style="dim")
+            round_header.append(" • ", style="dim")
             round_header.append(f"{state.critique_pairs} pairs critiquing", style=GOLD)
             elements.append(round_header)
 
@@ -851,39 +1028,53 @@ def build_critiques_panel(state: DebateState) -> Panel:
             # Show completed critiques in current round (not yet moved to round_summaries)
             current_round_critiques = state.round_summaries.get(state.current_round, [])
             for crit in current_round_critiques:
-                severity_color = {'critical': 'red', 'moderate': GOLD, 'minor': GREEN}.get(crit.severity, GREEN)
+                severity_color = {
+                    "critical": "red",
+                    "moderate": GOLD,
+                    "minor": GREEN,
+                }.get(crit.severity, GREEN)
                 row_text = Text()
-                row_text.append(f"    ✓ ", style=GREEN)
+                row_text.append("    ✓ ", style=GREEN)
                 row_text.append(f"{format_model_name(crit.critic)}", style=CYAN)
                 row_text.append(" → ", style="dim")
                 row_text.append(f"{format_model_name(crit.target)} ", style=CYAN)
-                row_text.append(f"[{crit.severity.upper()}] ", style=f"bold {severity_color}")
+                row_text.append(
+                    f"[{crit.severity.upper()}] ", style=f"bold {severity_color}"
+                )
                 row_text.append(crit.summary[:50], style="dim")
                 elements.append(row_text)
 
     # Starting message if no rounds yet
     if state.current_round == 0:
         spinner = get_spinner()
-        elements.append(Text(f"  {spinner} Adversarial critique phase starting...", style=GOLD))
+        elements.append(
+            Text(f"  {spinner} Adversarial critique phase starting...", style=GOLD)
+        )
 
     # Early exit message (smart dynamic exit)
     if state.debate_early_exit:
         score_pct = int(state.consensus_score * 100) if state.consensus_score else 0
         exit_text = Text()
         exit_text.append("✓ ", style=GREEN)
-        exit_text.append(f"Debate concluded early", style=f"bold {GREEN}")
-        exit_text.append(f" (round {state.current_round}/{state.max_rounds})", style="dim")
+        exit_text.append("Debate concluded early", style=f"bold {GREEN}")
+        exit_text.append(
+            f" (round {state.current_round}/{state.max_rounds})", style="dim"
+        )
         elements.append(exit_text)
         # Show the explanation
         if state.debate_exit_explanation:
-            elements.append(Text(f"   → {state.debate_exit_explanation}", style="dim italic"))
+            elements.append(
+                Text(f"   → {state.debate_exit_explanation}", style="dim italic")
+            )
         # Show issue counts
         if state.critical_issues or state.moderate_issues or state.minor_issues:
             issue_text = Text("   Issues: ", style="dim")
             if state.critical_issues:
                 issue_text.append(f"🔴 {state.critical_issues} critical  ", style="red")
             if state.moderate_issues:
-                issue_text.append(f"🟡 {state.moderate_issues} moderate  ", style="yellow")
+                issue_text.append(
+                    f"🟡 {state.moderate_issues} moderate  ", style="yellow"
+                )
             if state.minor_issues:
                 issue_text.append(f"🟢 {state.minor_issues} minor", style="green")
             elements.append(issue_text)
@@ -893,19 +1084,28 @@ def build_critiques_panel(state: DebateState) -> Panel:
         score_pct = int(state.consensus_score * 100) if state.consensus_score else 0
         consensus_text = Text()
         consensus_text.append("✓ ", style=GREEN)
-        consensus_text.append(f"Consensus reached!", style=f"bold {GREEN}")
-        consensus_text.append(f" ({score_pct}% after round {state.consensus_reached_round})", style="dim")
+        consensus_text.append("Consensus reached!", style=f"bold {GREEN}")
+        consensus_text.append(
+            f" ({score_pct}% after round {state.consensus_reached_round})", style="dim"
+        )
         elements.append(consensus_text)
         if state.consensus_reached_round < state.max_rounds:
-            elements.append(Text(f"   Skipped {state.max_rounds - state.consensus_reached_round} remaining round(s)", style="dim italic"))
+            elements.append(
+                Text(
+                    f"   Skipped {state.max_rounds - state.consensus_reached_round} remaining round(s)",
+                    style="dim italic",
+                )
+            )
 
     # Final summary when stage 2 complete (no early exit, no consensus reached)
     elif state.stage >= 3:
         final_cons = int(state.consensus_score * 100) if state.consensus_score else 0
         summary_text = Text()
-        summary_text.append(f"✓ ", style=GREEN)
-        summary_text.append(f"Debate complete", style=f"bold {GREEN}")
-        summary_text.append(f" • {state.current_round} round(s) • {final_cons}% consensus", style="dim")
+        summary_text.append("✓ ", style=GREEN)
+        summary_text.append("Debate complete", style=f"bold {GREEN}")
+        summary_text.append(
+            f" • {state.current_round} round(s) • {final_cons}% consensus", style="dim"
+        )
         elements.append(summary_text)
         # Show issue counts
         if state.critical_issues or state.moderate_issues or state.minor_issues:
@@ -913,7 +1113,9 @@ def build_critiques_panel(state: DebateState) -> Panel:
             if state.critical_issues:
                 issue_text.append(f"🔴 {state.critical_issues} critical  ", style="red")
             if state.moderate_issues:
-                issue_text.append(f"🟡 {state.moderate_issues} moderate  ", style="yellow")
+                issue_text.append(
+                    f"🟡 {state.moderate_issues} moderate  ", style="yellow"
+                )
             if state.minor_issues:
                 issue_text.append(f"🟢 {state.minor_issues} minor", style="green")
             elements.append(issue_text)
@@ -924,28 +1126,31 @@ def build_critiques_panel(state: DebateState) -> Panel:
     else:
         title = f"[{GOLD}]Stage 2: Adversarial Critiques{time_suffix}[/{GOLD}]"
 
-    return Panel(
-        Group(*elements),
-        title=title,
-        border_style=GOLD,
-        padding=(0, 2)
-    )
+    return Panel(Group(*elements), title=title, border_style=GOLD, padding=(0, 2))
 
 
 def build_synthesis_panel(state: DebateState) -> Panel:
     """Build Stage 3 synthesis panel for live display."""
     elements = []
 
-    if state.pope_status == 'complete':
+    if state.pope_status == "complete":
         # Complete - show full synthesis content with stats
-        total_elapsed = (time.time() - state.start_time)
+        total_elapsed = time.time() - state.start_time
         # Use stage 3 time for synthesis duration, total time for the stats line
-        stage3_time = get_stage_time(state, 3)
-        elements.append(Text(f"✓ {format_model_name(state.pope)} synthesis complete", style=f"bold {GREEN}"))
+        _stage3_time = get_stage_time(state, 3)
+        elements.append(
+            Text(
+                f"✓ {format_model_name(state.pope)} synthesis complete",
+                style=f"bold {GREEN}",
+            )
+        )
         elements.append(Text(""))
 
         # Stats line - show total debate time, tokens, and other stats
-        stats_parts = [f"⏱ {total_elapsed:.1f}s total", f"📊 {state.total_tokens:,} tokens"]
+        stats_parts = [
+            f"⏱ {total_elapsed:.1f}s total",
+            f"📊 {state.total_tokens:,} tokens",
+        ]
         if state.cost_usd:
             stats_parts.append(f"💰 ${state.cost_usd:.4f}")
         if state.memories_retrieved > 0:
@@ -964,24 +1169,31 @@ def build_synthesis_panel(state: DebateState) -> Panel:
             )
             elements.append(md)
 
-    elif state.pope_status == 'running':
+    elif state.pope_status == "running":
         # Pope is synthesizing - use SLOWER animation (divide by 8 instead of 4)
         # This reduces flickering during the long synthesis phase
         slow_idx = _frame_idx // 8  # Extra slow for synthesis
         think_frames = ["🧠", "💭", "💡", "✨"]
         think = think_frames[slow_idx % len(think_frames)]
-        elements.append(Text(f"👑 {think} ", style=SECONDARY) +
-                       Text(f"{format_model_name(state.pope)} synthesizing", style=f"bold {SECONDARY}"))
+        elements.append(
+            Text(f"👑 {think} ", style=SECONDARY)
+            + Text(
+                f"{format_model_name(state.pope)} synthesizing",
+                style=f"bold {SECONDARY}",
+            )
+        )
 
         if state.pope_content:
             elements.append(Text(""))
             # Show streaming content preview with markdown rendering
             content = state.pope_content
-            lines = content.split('\n')
+            lines = content.split("\n")
             # Show last 15 lines for streaming effect
             if len(lines) > 15:
-                visible_content = '\n'.join(lines[-15:])
-                elements.append(Text(f"... ({len(lines) - 15} lines above)", style="dim"))
+                visible_content = "\n".join(lines[-15:])
+                elements.append(
+                    Text(f"... ({len(lines) - 15} lines above)", style="dim")
+                )
             else:
                 visible_content = content
 
@@ -1002,27 +1214,26 @@ def build_synthesis_panel(state: DebateState) -> Panel:
         # Waiting state with animation
         spinner = get_spinner()
         if state.debate_skipped:
-            elements.append(Text(f"{spinner} Preparing synthesis (debate skipped)...", style="dim"))
+            elements.append(
+                Text(f"{spinner} Preparing synthesis (debate skipped)...", style="dim")
+            )
         else:
-            elements.append(Text(f"{spinner} Awaiting debate conclusion...", style="dim"))
+            elements.append(
+                Text(f"{spinner} Awaiting debate conclusion...", style="dim")
+            )
 
     # Build title with timing - show "Final Synthesis" when complete
     stage_time = get_stage_time(state, 3)
     time_suffix = f" [{stage_time}]" if stage_time else ""
 
-    if state.pope_status == 'complete':
+    if state.pope_status == "complete":
         title = f"[bold {GREEN}]✓ Final Synthesis{time_suffix}[/bold {GREEN}]"
         border = GREEN
     else:
         title = f"[{SECONDARY}]Stage 3: Pope Synthesis{time_suffix}[/{SECONDARY}]"
         border = SECONDARY
 
-    return Panel(
-        Group(*elements),
-        title=title,
-        border_style=border,
-        padding=(1, 2)
-    )
+    return Panel(Group(*elements), title=title, border_style=border, padding=(1, 2))
 
 
 def build_error_panel(state: DebateState) -> Panel:
@@ -1040,14 +1251,14 @@ def build_error_panel(state: DebateState) -> Panel:
             ),
             title="[yellow]⏰ Limit Reached[/yellow]",
             border_style="yellow",
-            padding=(1, 2)
+            padding=(1, 2),
         )
 
     return Panel(
         Text(f"❌ {error_msg}", style="bold red"),
         title="[red]Error[/red]",
         border_style="red",
-        padding=(1, 2)
+        padding=(1, 2),
     )
 
 
@@ -1060,7 +1271,7 @@ def build_final_synthesis(state: DebateState) -> Group:
     elements = []
 
     # Header with stats
-    elapsed = (time.time() - state.start_time)
+    elapsed = time.time() - state.start_time
     header_parts = [
         f"✓ {format_model_name(state.pope)} synthesis complete",
     ]
@@ -1106,7 +1317,10 @@ def build_tool_panel(state: DebateState) -> Optional[Panel]:
     # Show current tool being executed
     if state.current_tool:
         tc = state.current_tool
-        elements.append(Text(f"{get_spinner()} Executing: ", style=CYAN) + Text(tc.tool, style=f"bold {PRIMARY}"))
+        elements.append(
+            Text(f"{get_spinner()} Executing: ", style=CYAN)
+            + Text(tc.tool, style=f"bold {PRIMARY}")
+        )
 
         # Show parameters - smart display based on tool type
         if tc.tool == "bash" and "command" in tc.parameters:
@@ -1126,8 +1340,10 @@ def build_tool_panel(state: DebateState) -> Optional[Panel]:
             # For search, show query and path
             query = tc.parameters.get("query", "")
             path = tc.parameters.get("path", ".")
-            elements.append(Text(f"   query: ", style="dim") + Text(query, style="white"))
-            elements.append(Text(f"   path: ", style="dim") + Text(path, style="white"))
+            elements.append(
+                Text("   query: ", style="dim") + Text(query, style="white")
+            )
+            elements.append(Text("   path: ", style="dim") + Text(path, style="white"))
         else:
             # Generic: show all parameters with reasonable truncation
             for k, v in list(tc.parameters.items())[:5]:
@@ -1140,12 +1356,15 @@ def build_tool_panel(state: DebateState) -> Optional[Panel]:
                 elements.append(param_text)
 
     # Show recent completed tools
-    completed = [tc for tc in state.tool_calls if tc.status == 'complete']
+    completed = [tc for tc in state.tool_calls if tc.status == "complete"]
     if completed:
         elements.append(Text(""))
         for tc in completed[-5:]:  # Show last 5
             if tc.error:
-                elements.append(Text(f"  ✗ {tc.tool}: ", style="red") + Text(tc.error[:80], style="dim"))
+                elements.append(
+                    Text(f"  ✗ {tc.tool}: ", style="red")
+                    + Text(tc.error[:80], style="dim")
+                )
             else:
                 elements.append(Text(f"  ✓ {tc.tool}", style=GREEN))
 
@@ -1156,7 +1375,7 @@ def build_tool_panel(state: DebateState) -> Optional[Panel]:
         Group(*elements),
         title=f"[{CYAN}]Tool Execution[/{CYAN}]",
         border_style=CYAN,
-        padding=(0, 2)
+        padding=(0, 2),
     )
 
 
@@ -1181,13 +1400,13 @@ def get_current_action(state: DebateState) -> str:
 
     # Stage 1: Proposals
     if state.stage == 1:
-        running_bishops = [b for b, s in state.bishop_status.items() if s == 'running']
+        running_bishops = [b for b, s in state.bishop_status.items() if s == "running"]
         if running_bishops:
             if len(running_bishops) == 1:
                 return f"{format_model_name(running_bishops[0])} proposing"
             else:
                 return f"{len(running_bishops)} bishops proposing"
-        pending = [b for b, s in state.bishop_status.items() if s == 'pending']
+        pending = [b for b, s in state.bishop_status.items() if s == "pending"]
         if pending:
             return "Awaiting proposals"
         return "Assessing consensus"
@@ -1196,10 +1415,12 @@ def get_current_action(state: DebateState) -> str:
     if state.stage == 2:
         if state.debate_skipped:
             return "Debate skipped (high consensus)"
-        running_critics = [k for k, s in state.critique_status.items() if s == 'running']
+        running_critics = [
+            k for k, s in state.critique_status.items() if s == "running"
+        ]
         if running_critics:
             if len(running_critics) == 1:
-                parts = running_critics[0].split('→')
+                parts = running_critics[0].split("→")
                 if len(parts) == 2:
                     return f"{format_model_name(parts[0])} critiquing"
             return f"{len(running_critics)} critiques in parallel"
@@ -1211,9 +1432,9 @@ def get_current_action(state: DebateState) -> str:
 
     # Stage 3: Synthesis
     if state.stage == 3:
-        if state.pope_status == 'running':
+        if state.pope_status == "running":
             return f"Pope {format_model_name(state.pope)} synthesizing"
-        elif state.pope_status == 'complete':
+        elif state.pope_status == "complete":
             return "Synthesis complete"
         return "Preparing synthesis"
 
@@ -1227,17 +1448,19 @@ def get_parallel_activities(state: DebateState) -> List[str]:
     # Stage 1: Running bishops
     if state.stage == 1:
         for bishop, status in state.bishop_status.items():
-            if status == 'running':
+            if status == "running":
                 tokens = state.bishop_tokens.get(bishop, 0)
                 activities.append(f"{format_model_name(bishop)}: {tokens} tokens")
 
     # Stage 2: Running critiques
     if state.stage == 2 and not state.debate_skipped:
         for key, status in state.critique_status.items():
-            if status == 'running':
-                parts = key.split('→')
+            if status == "running":
+                parts = key.split("→")
                 if len(parts) == 2:
-                    activities.append(f"{format_model_name(parts[0])}→{format_model_name(parts[1])}")
+                    activities.append(
+                        f"{format_model_name(parts[0])}→{format_model_name(parts[1])}"
+                    )
 
     return activities
 
@@ -1296,8 +1519,12 @@ def build_status_bar(state: DebateState) -> Text:
 
     # Token counter with live accumulation indicator
     token_indicator = "↓" if not state.complete else "✓"
-    status.append(f"{token_indicator} ", style=f"dim {'green' if state.complete else GOLD}")
-    status.append(f"{state.total_tokens:,}", style=f"{'green' if state.complete else GOLD}")
+    status.append(
+        f"{token_indicator} ", style=f"dim {'green' if state.complete else GOLD}"
+    )
+    status.append(
+        f"{state.total_tokens:,}", style=f"{'green' if state.complete else GOLD}"
+    )
     status.append(" tokens", style="dim")
 
     # Cost if available
@@ -1352,11 +1579,10 @@ def build_display(state: DebateState) -> Group:
     return Group(*panels)
 
 
-
-
 # ============================================================
 # SSE Client
 # ============================================================
+
 
 async def stream_sse(
     url: str,
@@ -1408,9 +1634,15 @@ async def stream_sse(
                 error_body = await response.aread()
                 try:
                     error_json = json.loads(error_body)
-                    yield {"type": "error", "message": error_json.get("error", "Unknown error")}
-                except:
-                    yield {"type": "error", "message": f"HTTP {response.status_code}: {error_body.decode()}"}
+                    yield {
+                        "type": "error",
+                        "message": error_json.get("error", "Unknown error"),
+                    }
+                except Exception:
+                    yield {
+                        "type": "error",
+                        "message": f"HTTP {response.status_code}: {error_body.decode()}",
+                    }
                 return
 
             async for line in response.aiter_lines():
@@ -1425,6 +1657,7 @@ async def stream_sse(
 # ============================================================
 # Tool Execution
 # ============================================================
+
 
 async def execute_tool_call(
     tool_call: ToolCall,
@@ -1442,7 +1675,7 @@ async def execute_tool_call(
 
     executor = ToolExecutor(working_directory)
 
-    tool_call.status = 'running'
+    tool_call.status = "running"
 
     try:
         result = await executor.execute(
@@ -1464,7 +1697,7 @@ async def execute_tool_call(
         }
 
     except Exception as e:
-        tool_call.status = 'error'
+        tool_call.status = "error"
         tool_call.error = str(e)
         return {
             "call_id": tool_call.call_id,
@@ -1494,7 +1727,7 @@ async def call_classify(
     Returns:
         Classification result with context_plan, or None if failed
     """
-    base_url = api_url.rstrip('/').replace('/debate', '')
+    base_url = api_url.rstrip("/").replace("/debate", "")
     url = f"{base_url}/debate/classify"
 
     payload: Dict[str, Any] = {"query": query}
@@ -1522,7 +1755,7 @@ async def call_classify(
             else:
                 # Classification failed, return None (will fall back to old behavior)
                 return None
-    except Exception as e:
+    except Exception:
         # Network error, return None
         return None
 
@@ -1542,11 +1775,11 @@ async def gather_context_from_plan(
     Returns:
         Tuple of (files dict, file_paths list)
     """
-    if not context_plan.get('needs_codebase_search'):
+    if not context_plan.get("needs_codebase_search"):
         return {}, []
 
-    searches = context_plan.get('searches', [])
-    max_files = context_plan.get('max_files', 5)
+    searches = context_plan.get("searches", [])
+    max_files = context_plan.get("max_files", 5)
 
     files: Dict[str, str] = {}
     file_paths: List[str] = []
@@ -1557,9 +1790,9 @@ async def gather_context_from_plan(
         if len(file_paths) >= max_files:
             break
 
-        patterns = search.get('patterns', [])
-        file_types = search.get('file_types', [])
-        limit = search.get('limit', 3)
+        patterns = search.get("patterns", [])
+        file_types = search.get("file_types", [])
+        limit = search.get("limit", 3)
 
         for pattern in patterns:
             if len(file_paths) >= max_files:
@@ -1576,17 +1809,27 @@ async def gather_context_from_plan(
 
                 # Read file content
                 try:
-                    full_path = os.path.join(root_path, file_path) if not os.path.isabs(file_path) else file_path
+                    full_path = (
+                        os.path.join(root_path, file_path)
+                        if not os.path.isabs(file_path)
+                        else file_path
+                    )
                     if os.path.exists(full_path) and os.path.isfile(full_path):
-                        with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        with open(
+                            full_path, "r", encoding="utf-8", errors="ignore"
+                        ) as f:
                             content = f.read()
 
                         # Check token budget
                         if total_chars + len(content) > max_chars:
                             # Truncate or skip
                             remaining = max_chars - total_chars
-                            if remaining > 1000:  # Only include if we can get meaningful content
-                                content = content[:remaining] + "\n\n[... truncated ...]"
+                            if (
+                                remaining > 1000
+                            ):  # Only include if we can get meaningful content
+                                content = (
+                                    content[:remaining] + "\n\n[... truncated ...]"
+                                )
                             else:
                                 continue
 
@@ -1621,7 +1864,7 @@ async def _search_files(
     results: List[str] = []
 
     # Build glob patterns
-    if '.' in pattern and not '*' in pattern:
+    if "." in pattern and "*" not in pattern:
         # Looks like a filename - search for exact match
         glob_patterns = [f"**/{pattern}"]
     else:
@@ -1645,7 +1888,18 @@ async def _search_files(
                     # Get relative path
                     rel_path = os.path.relpath(match, root_path)
                     # Skip common non-code directories
-                    if any(skip in rel_path for skip in ['node_modules', '.git', '__pycache__', '.venv', 'venv', 'dist', 'build']):
+                    if any(
+                        skip in rel_path
+                        for skip in [
+                            "node_modules",
+                            ".git",
+                            "__pycache__",
+                            ".venv",
+                            "venv",
+                            "dist",
+                            "build",
+                        ]
+                    ):
                         continue
                     if rel_path not in results:
                         results.append(rel_path)
@@ -1673,7 +1927,7 @@ async def send_tool_results(
         SSE events from the continued synthesis
     """
     # Construct the tool-result endpoint URL
-    base_url = api_url.rstrip('/').replace('/debate', '')
+    base_url = api_url.rstrip("/").replace("/debate", "")
     url = f"{base_url}/debate/{debate_id}/tool-result"
 
     payload = {
@@ -1702,9 +1956,15 @@ async def send_tool_results(
                 error_body = await response.aread()
                 try:
                     error_json = json.loads(error_body)
-                    yield {"type": "error", "message": error_json.get("error", "Unknown error")}
-                except:
-                    yield {"type": "error", "message": f"HTTP {response.status_code}: {error_body.decode()}"}
+                    yield {
+                        "type": "error",
+                        "message": error_json.get("error", "Unknown error"),
+                    }
+                except Exception:
+                    yield {
+                        "type": "error",
+                        "message": f"HTTP {response.status_code}: {error_body.decode()}",
+                    }
                 return
 
             async for line in response.aiter_lines():
@@ -1719,6 +1979,7 @@ async def send_tool_results(
 # ============================================================
 # Main Entry Point
 # ============================================================
+
 
 async def process_events(
     event_stream: AsyncIterator[dict],
@@ -1737,10 +1998,10 @@ async def process_events(
     pending_tool_results: List[Dict[str, Any]] = []
 
     async for event in event_stream:
-        event_type = event.get('type')
+        event_type = event.get("type")
 
         # Handle tool calls specially
-        if event_type == 'tool_call':
+        if event_type == "tool_call":
             handle_event(state, event)
             live.update(build_display(state), refresh=True)
 
@@ -1749,7 +2010,9 @@ async def process_events(
                 # Execute tool outside of live context for interactive prompts
                 live.stop()
 
-                result = await execute_tool_call(state.current_tool, work_dir, auto_approve)
+                result = await execute_tool_call(
+                    state.current_tool, work_dir, auto_approve
+                )
 
                 live.start()
                 live.update(build_display(state), refresh=True)
@@ -1757,13 +2020,13 @@ async def process_events(
                 # Store result for batch sending
                 pending_tool_results.append(result)
 
-        elif event_type == 'complete':
+        elif event_type == "complete":
             handle_event(state, event)
             live.update(build_display(state), refresh=True)
             # Debate is complete, no more tool calls
             return False
 
-        elif event_type == 'error':
+        elif event_type == "error":
             handle_event(state, event)
             live.update(build_display(state), refresh=True)
             return False
@@ -1778,27 +2041,31 @@ async def process_events(
     # If we have pending tool results and a debate_id, we need to send them back
     if pending_tool_results and state.debate_id:
         # Send all tool results back to the cloud
-        async for event in send_tool_results(api_url, api_key, state.debate_id, pending_tool_results):
-            event_type = event.get('type')
+        async for event in send_tool_results(
+            api_url, api_key, state.debate_id, pending_tool_results
+        ):
+            event_type = event.get("type")
 
-            if event_type == 'tool_call':
+            if event_type == "tool_call":
                 handle_event(state, event)
                 live.update(build_display(state), refresh=True)
 
                 # Execute the new tool
                 if state.current_tool:
                     live.stop()
-                    result = await execute_tool_call(state.current_tool, work_dir, auto_approve)
+                    result = await execute_tool_call(
+                        state.current_tool, work_dir, auto_approve
+                    )
                     live.start()
                     live.update(build_display(state), refresh=True)
                     pending_tool_results.append(result)
 
-            elif event_type == 'complete':
+            elif event_type == "complete":
                 handle_event(state, event)
                 live.update(build_display(state), refresh=True)
                 return False
 
-            elif event_type == 'error':
+            elif event_type == "error":
                 handle_event(state, event)
                 live.update(build_display(state), refresh=True)
                 return False
@@ -1881,9 +2148,9 @@ async def run_cloud_debate(
                             stream_done = True
                             continue
 
-                        event_type = event.get('type')
+                        event_type = event.get("type")
 
-                        if event_type == 'tool_call':
+                        if event_type == "tool_call":
                             handle_event(state, event)
                             if live:
                                 live.update(build_display(state), refresh=True)
@@ -1893,13 +2160,13 @@ async def run_cloud_debate(
                                 need_tool_execution = True
                                 # DON'T break - wait for all tool_call events
 
-                        elif event_type == 'complete':
+                        elif event_type == "complete":
                             handle_event(state, event)
                             if live:
                                 live.update(build_display(state), refresh=True)
                             stream_done = True
 
-                        elif event_type == 'error':
+                        elif event_type == "error":
                             handle_event(state, event)
                             if live:
                                 live.update(build_display(state), refresh=True)
@@ -1913,7 +2180,7 @@ async def run_cloud_debate(
                         advance_animation()
                         # During synthesis, only refresh every 5th frame to reduce flicker
                         if live:
-                            if state.stage == 3 and state.pope_status == 'running':
+                            if state.stage == 3 and state.pope_status == "running":
                                 if _frame_idx % 5 == 0:
                                     live.update(build_display(state), refresh=True)
                             else:
@@ -1945,7 +2212,7 @@ async def run_cloud_debate(
                     pass
             try:
                 await event_stream.aclose()
-            except:
+            except Exception:
                 pass
 
         # Store collected tools for execution
@@ -1960,13 +2227,15 @@ async def run_cloud_debate(
     live.update(build_display(state), refresh=True)
 
     # Step 1: Call /classify to get context_plan
-    classify_task = asyncio.create_task(call_classify(
-        api_url=api_url,
-        api_key=api_key,
-        query=query,
-        bishops=bishops,
-        pope=pope,
-    ))
+    classify_task = asyncio.create_task(
+        call_classify(
+            api_url=api_url,
+            api_key=api_key,
+            query=query,
+            bishops=bishops,
+            pope=pope,
+        )
+    )
 
     while not classify_task.done():
         try:
@@ -1981,16 +2250,18 @@ async def run_cloud_debate(
     auto_files: Dict[str, str] = {}
     auto_file_paths: List[str] = []
 
-    if classification and classification.get('context_plan'):
+    if classification and classification.get("context_plan"):
         # Use smart AI-driven context gathering
-        context_plan = classification['context_plan']
-        max_tokens = context_plan.get('max_tokens', 8000)
+        context_plan = classification["context_plan"]
+        max_tokens = context_plan.get("max_tokens", 8000)
 
-        gather_task = asyncio.create_task(gather_context_from_plan(
-            context_plan=context_plan,
-            root_path=proj_path,
-            max_tokens=max_tokens,
-        ))
+        gather_task = asyncio.create_task(
+            gather_context_from_plan(
+                context_plan=context_plan,
+                root_path=proj_path,
+                max_tokens=max_tokens,
+            )
+        )
 
         while not gather_task.done():
             try:
@@ -2002,14 +2273,18 @@ async def run_cloud_debate(
         auto_files, auto_file_paths = gather_task.result()
 
         # Store context plan in state for display
-        if context_plan.get('searches'):
-            state.context_plan_searches = [s.get('intent', '') for s in context_plan['searches']]
+        if context_plan.get("searches"):
+            state.context_plan_searches = [
+                s.get("intent", "") for s in context_plan["searches"]
+            ]
     else:
         # Fall back to old keyword-based context gathering
-        fallback_task = asyncio.create_task(gather_auto_context(
-            query=query,
-            root_path=proj_path,
-        ))
+        fallback_task = asyncio.create_task(
+            gather_auto_context(
+                query=query,
+                root_path=proj_path,
+            )
+        )
 
         while not fallback_task.done():
             try:
@@ -2071,7 +2346,9 @@ async def run_cloud_debate(
             live.start()
             live.update(build_display(state), refresh=True)
 
-            tool_stream = send_tool_results(api_url, api_key, state.debate_id, results_to_send)
+            tool_stream = send_tool_results(
+                api_url, api_key, state.debate_id, results_to_send
+            )
             stream_complete = await process_stream(tool_stream)
 
             if stream_complete:
@@ -2102,6 +2379,7 @@ async def run_cloud_debate(
 # Synchronous wrapper for CLI
 # ============================================================
 
+
 def run_debate_sync(
     api_key: str,
     query: str,
@@ -2116,6 +2394,8 @@ def run_debate_sync(
     Args:
         auto_approve: If True, automatically approve all tool executions without prompting
     """
-    return asyncio.run(run_cloud_debate(
-        api_key, query, context, bishops, pope, api_url, auto_approve=auto_approve
-    ))
+    return asyncio.run(
+        run_cloud_debate(
+            api_key, query, context, bishops, pope, api_url, auto_approve=auto_approve
+        )
+    )

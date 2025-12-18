@@ -15,7 +15,7 @@ from rich.panel import Panel
 from rich.text import Text
 
 from .indexer import IndexedProject
-from .theme import PRIMARY, CYAN, GOLD, emoji
+from .theme import PRIMARY, CYAN, emoji
 from .display import console
 
 
@@ -50,50 +50,100 @@ class ContextSuggester:
             Dict with extracted hints (keywords, file_mentions, languages)
         """
         hints = {
-            'keywords': [],
-            'file_mentions': [],
-            'languages': [],
-            'extensions': [],
+            "keywords": [],
+            "file_mentions": [],
+            "languages": [],
+            "extensions": [],
         }
 
         # Extract potential file mentions (e.g., "utils.py", "config.json")
-        file_pattern = r'\b[\w\-\.]+\.(py|js|ts|tsx|jsx|java|cpp|c|go|rs|rb|php|swift|kt|cs|scala|sh|json|yml|yaml|md|txt)\b'
-        hints['file_mentions'] = re.findall(file_pattern, query, re.IGNORECASE)
+        file_pattern = r"\b[\w\-\.]+\.(py|js|ts|tsx|jsx|java|cpp|c|go|rs|rb|php|swift|kt|cs|scala|sh|json|yml|yaml|md|txt)\b"
+        hints["file_mentions"] = re.findall(file_pattern, query, re.IGNORECASE)
 
         # Extract language mentions
         language_keywords = {
-            'python': ['python', 'py', 'django', 'flask', 'fastapi'],
-            'javascript': ['javascript', 'js', 'node', 'react', 'vue', 'angular'],
-            'typescript': ['typescript', 'ts', 'tsx'],
-            'java': ['java', 'spring', 'maven', 'gradle'],
-            'go': ['go', 'golang'],
-            'rust': ['rust', 'cargo'],
+            "python": ["python", "py", "django", "flask", "fastapi"],
+            "javascript": ["javascript", "js", "node", "react", "vue", "angular"],
+            "typescript": ["typescript", "ts", "tsx"],
+            "java": ["java", "spring", "maven", "gradle"],
+            "go": ["go", "golang"],
+            "rust": ["rust", "cargo"],
         }
 
         query_lower = query.lower()
         for lang, keywords in language_keywords.items():
             if any(kw in query_lower for kw in keywords):
-                hints['languages'].append(lang.capitalize())
+                hints["languages"].append(lang.capitalize())
 
         # Extract general keywords (split by spaces, remove common words)
         common_words = {
-            'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
-            'of', 'with', 'by', 'from', 'is', 'are', 'was', 'were', 'be', 'been',
-            'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
-            'should', 'can', 'may', 'might', 'this', 'that', 'these', 'those',
-            'how', 'what', 'where', 'when', 'why', 'which', 'who', 'i', 'you',
-            'we', 'they', 'it', 'my', 'your', 'our', 'their', 'its'
+            "the",
+            "a",
+            "an",
+            "and",
+            "or",
+            "but",
+            "in",
+            "on",
+            "at",
+            "to",
+            "for",
+            "of",
+            "with",
+            "by",
+            "from",
+            "is",
+            "are",
+            "was",
+            "were",
+            "be",
+            "been",
+            "have",
+            "has",
+            "had",
+            "do",
+            "does",
+            "did",
+            "will",
+            "would",
+            "could",
+            "should",
+            "can",
+            "may",
+            "might",
+            "this",
+            "that",
+            "these",
+            "those",
+            "how",
+            "what",
+            "where",
+            "when",
+            "why",
+            "which",
+            "who",
+            "i",
+            "you",
+            "we",
+            "they",
+            "it",
+            "my",
+            "your",
+            "our",
+            "their",
+            "its",
         }
 
-        words = re.findall(r'\b\w+\b', query_lower)
-        hints['keywords'] = [
-            w for w in words
-            if len(w) > 3 and w not in common_words
-        ][:10]  # Top 10 keywords
+        words = re.findall(r"\b\w+\b", query_lower)
+        hints["keywords"] = [w for w in words if len(w) > 3 and w not in common_words][
+            :10
+        ]  # Top 10 keywords
 
         return hints
 
-    def search_file_contents(self, keyword: str, max_results: int = 20) -> List[Tuple[str, str]]:
+    def search_file_contents(
+        self, keyword: str, max_results: int = 20
+    ) -> List[Tuple[str, str]]:
         """Search for keyword in file contents using ripgrep.
 
         Args:
@@ -106,34 +156,36 @@ class ContextSuggester:
         try:
             # Use ripgrep to search file contents
             cmd = [
-                'rg',
-                '--max-count', '1',  # Only first match per file
-                '--no-heading',
-                '--with-filename',
-                '--line-number',
-                '--case-insensitive',
-                '--glob', '!.git/',
-                '--glob', '!.synod/',
-                '--glob', '!node_modules/',
-                '--glob', '!__pycache__/',
+                "rg",
+                "--max-count",
+                "1",  # Only first match per file
+                "--no-heading",
+                "--with-filename",
+                "--line-number",
+                "--case-insensitive",
+                "--glob",
+                "!.git/",
+                "--glob",
+                "!.synod/",
+                "--glob",
+                "!node_modules/",
+                "--glob",
+                "!__pycache__/",
                 keyword,
-                str(self.project.path)
+                str(self.project.path),
             ]
 
             result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                cwd=self.project.path
+                cmd, capture_output=True, text=True, cwd=self.project.path
             )
 
             matches = []
-            for line in result.stdout.strip().split('\n')[:max_results]:
+            for line in result.stdout.strip().split("\n")[:max_results]:
                 if not line:
                     continue
 
                 # Parse: "path:line:content"
-                parts = line.split(':', 2)
+                parts = line.split(":", 2)
                 if len(parts) >= 3:
                     file_path = parts[0]
                     content = parts[2].strip()
@@ -158,32 +210,30 @@ class ContextSuggester:
         scored_files: Dict[str, FileSuggestion] = {}
 
         # Strategy 1: Direct file mentions
-        for file_mention in hints['file_mentions']:
+        for file_mention in hints["file_mentions"]:
             matches = self.project.search_files(file_mention)
             for file_path in matches:
                 if file_path not in scored_files:
                     scored_files[file_path] = FileSuggestion(
                         path=file_path,
                         score=100,  # Highest priority
-                        reasons=[f"📄 Mentioned in query: {file_mention}"]
+                        reasons=[f"📄 Mentioned in query: {file_mention}"],
                     )
 
         # Strategy 2: Language-specific files
-        for language in hints['languages']:
+        for language in hints["languages"]:
             lang_files = self.project.find_files_by_language(language)
             for file_path in lang_files[:10]:  # Limit per language
                 if file_path not in scored_files:
                     scored_files[file_path] = FileSuggestion(
-                        path=file_path,
-                        score=30,
-                        reasons=[f"🔤 {language} file"]
+                        path=file_path, score=30, reasons=[f"🔤 {language} file"]
                     )
                 else:
                     scored_files[file_path].score += 30
                     scored_files[file_path].reasons.append(f"🔤 {language} file")
 
         # Strategy 3: Keyword search in file contents
-        for keyword in hints['keywords'][:3]:  # Top 3 keywords
+        for keyword in hints["keywords"][:3]:  # Top 3 keywords
             matches = self.search_file_contents(keyword)
             for file_path, content in matches:
                 # Make path relative if it's absolute
@@ -195,23 +245,23 @@ class ContextSuggester:
                         path=file_path,
                         score=50,
                         reasons=[f"🔍 Contains '{keyword}'"],
-                        preview=content[:80] + "..." if len(content) > 80 else content
+                        preview=content[:80] + "..." if len(content) > 80 else content,
                     )
                 else:
                     scored_files[file_path].score += 50
                     scored_files[file_path].reasons.append(f"🔍 Contains '{keyword}'")
 
         # Strategy 4: Path-based keyword matching (with fuzzy matching)
-        for keyword in hints['keywords'][:5]:
+        for keyword in hints["keywords"][:5]:
             # Try exact match first
             matches = self.project.search_files(keyword)
 
             # Also try without common suffixes for better matching
             # e.g., "indexing" -> "index", "testing" -> "test"
-            if not matches and keyword.endswith('ing'):
+            if not matches and keyword.endswith("ing"):
                 stem = keyword[:-3]  # Remove 'ing'
                 matches = self.project.search_files(stem)
-            elif not matches and keyword.endswith('er'):
+            elif not matches and keyword.endswith("er"):
                 stem = keyword[:-2]  # Remove 'er'
                 matches = self.project.search_files(stem)
 
@@ -220,16 +270,14 @@ class ContextSuggester:
                     scored_files[file_path] = FileSuggestion(
                         path=file_path,
                         score=20,
-                        reasons=[f"📂 Path contains '{keyword}'"]
+                        reasons=[f"📂 Path contains '{keyword}'"],
                     )
                 else:
                     scored_files[file_path].score += 20
 
         # Sort by score and return top N
         sorted_suggestions = sorted(
-            scored_files.values(),
-            key=lambda s: s.score,
-            reverse=True
+            scored_files.values(), key=lambda s: s.score, reverse=True
         )
 
         return sorted_suggestions[:top_n]
@@ -259,7 +307,7 @@ class ContextSuggester:
             # File path with smart truncation
             file_display = suggestion.path
             if len(file_display) > 43:
-                parts = file_display.split('/')
+                parts = file_display.split("/")
                 if len(parts) > 2:
                     file_display = f".../{'/'.join(parts[-2:])}"
                 else:
@@ -270,26 +318,18 @@ class ContextSuggester:
             if len(all_reasons) > 50:
                 all_reasons = all_reasons[:47] + "..."
 
-            table.add_row(
-                str(i),
-                file_display,
-                all_reasons
-            )
+            table.add_row(str(i), file_display, all_reasons)
 
             # Show preview if available
             if suggestion.preview:
                 preview_text = suggestion.preview
                 if len(preview_text) > 70:
                     preview_text = preview_text[:67] + "..."
-                table.add_row(
-                    "",
-                    Text(f"  └─ {preview_text}", style="dim italic"),
-                    ""
-                )
+                table.add_row("", Text(f"  └─ {preview_text}", style="dim italic"), "")
 
         # Panel
         title_text = Text()
-        title_text.append(emoji('project'), style=PRIMARY)
+        title_text.append(emoji("project"), style=PRIMARY)
         title_text.append(" Smart Context Suggestions ", style="primary")
 
         panel = Panel(
@@ -304,9 +344,7 @@ class ContextSuggester:
 
 
 def suggest_context_files(
-    indexed_project: IndexedProject,
-    query: str,
-    top_n: int = 5
+    indexed_project: IndexedProject, query: str, top_n: int = 5
 ) -> List[str]:
     """Suggest relevant context files for a query.
 

@@ -29,7 +29,7 @@ def load_trusted_workspaces() -> set:
         return set()
 
     try:
-        with open(TRUSTED_WORKSPACES_FILE, 'r') as f:
+        with open(TRUSTED_WORKSPACES_FILE, "r") as f:
             data = json.load(f)
             return set(data.get("trusted_paths", []))
     except Exception:
@@ -42,7 +42,7 @@ def save_trusted_workspace(workspace_path: str) -> None:
     trusted.add(str(Path(workspace_path).resolve()))
 
     os.makedirs(CONFIG_DIR, exist_ok=True)
-    with open(TRUSTED_WORKSPACES_FILE, 'w') as f:
+    with open(TRUSTED_WORKSPACES_FILE, "w") as f:
         json.dump({"trusted_paths": list(trusted)}, f, indent=2)
 
 
@@ -76,19 +76,19 @@ async def prompt_workspace_trust(workspace_path: str) -> bool:
         " Safety check: Is this a project you created or one you trust? "
         "(Like your own code, a well-known open source project, or work from your team). "
         "If not, take a moment to review what's in this folder first.\n\n",
-        style="white"
+        style="white",
     )
 
     # Capabilities
     workspace_text.append(
         " The Council will be able to read, edit, and execute files here.\n\n",
-        style="white"
+        style="white",
     )
 
     # Security guide
     workspace_text.append(
         " Learn more: https://github.com/KekwanuLabs/synod-cli#security\n\n",
-        style="dim"
+        style="dim",
     )
 
     console.print(workspace_text)
@@ -97,14 +97,13 @@ async def prompt_workspace_trust(workspace_path: str) -> bool:
     try:
         choice = await questionary.select(
             "",
-            choices=[
-                "Yes, I trust this workspace",
-                "No, exit"
-            ],
-            style=questionary.Style([
-                ('selected', f'fg:{GREEN} bold'),
-                ('pointer', f'fg:{GREEN} bold'),
-            ])
+            choices=["Yes, I trust this workspace", "No, exit"],
+            style=questionary.Style(
+                [
+                    ("selected", f"fg:{GREEN} bold"),
+                    ("pointer", f"fg:{GREEN} bold"),
+                ]
+            ),
         ).ask_async()
 
         if choice == "Yes, I trust this workspace":
@@ -115,7 +114,9 @@ async def prompt_workspace_trust(workspace_path: str) -> bool:
             return True
         else:
             console.print()
-            console.print(" [red]✗ Workspace access denied. Exiting for your safety.[/red]")
+            console.print(
+                " [red]✗ Workspace access denied. Exiting for your safety.[/red]"
+            )
             console.print()
             return False
 

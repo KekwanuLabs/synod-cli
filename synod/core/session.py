@@ -3,6 +3,7 @@
 Simplified for thin client - detailed usage tracked in the cloud.
 This module tracks local session metrics for display purposes.
 """
+
 import time
 import json
 import uuid
@@ -29,6 +30,7 @@ def ensure_sessions_dir() -> Path:
 # DATA CLASSES
 # ============================================================================
 
+
 @dataclass
 class SynodSession:
     """Track a Synod session.
@@ -36,6 +38,7 @@ class SynodSession:
     Note: Detailed usage and pricing is tracked in the cloud.
     This is a simplified local tracker for display purposes.
     """
+
     session_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     start_time: float = field(default_factory=time.time)
     debates: int = 0
@@ -96,15 +99,15 @@ class SynodSession:
         filename = f"{timestamp}_{self.session_id[:8]}.json"
         filepath = date_dir / filename
 
-        with open(filepath, 'w') as f:
+        with open(filepath, "w") as f:
             json.dump(self.to_dict(), f, indent=2)
 
         return filepath
 
     @classmethod
-    def load(cls, filepath: Path) -> 'SynodSession':
+    def load(cls, filepath: Path) -> "SynodSession":
         """Load session from disk."""
-        with open(filepath, 'r') as f:
+        with open(filepath, "r") as f:
             data = json.load(f)
 
         return cls(
@@ -153,6 +156,7 @@ def end_session() -> Dict[str, Any]:
 # DISPLAY HELPER
 # ============================================================================
 
+
 def display_session_summary(session: SynodSession) -> None:
     """Display session summary on exit."""
     from rich.console import Console
@@ -166,11 +170,15 @@ def display_session_summary(session: SynodSession) -> None:
 
     # Session duration (wall clock time)
     session_duration = session.get_duration()
-    session_duration_str = f"{int(session_duration // 60)}m {int(session_duration % 60)}s"
+    session_duration_str = (
+        f"{int(session_duration // 60)}m {int(session_duration % 60)}s"
+    )
 
     # Actual debate time (time spent in debates, not idle)
     debate_duration_sec = session.total_debate_duration_ms / 1000
-    debate_duration_str = f"{int(debate_duration_sec // 60)}m {int(debate_duration_sec % 60)}s"
+    debate_duration_str = (
+        f"{int(debate_duration_sec // 60)}m {int(debate_duration_sec % 60)}s"
+    )
 
     summary = Text()
     summary.append("\n🏛️  Council Dismissed\n\n", style="bold cyan")
@@ -190,7 +198,9 @@ def display_session_summary(session: SynodSession) -> None:
     if session.is_managed_mode:
         summary.append(f"Cost:           ${session.total_cost:.4f}\n\n", style="dim")
     else:
-        summary.append(f"Cost:           BYOK (billed to your providers)\n\n", style="dim")
+        summary.append(
+            "Cost:           BYOK (billed to your providers)\n\n", style="dim"
+        )
 
     summary.append("Full usage details at synod.run/dashboard", style="dim")
 
@@ -201,6 +211,7 @@ def display_session_summary(session: SynodSession) -> None:
 # ============================================================================
 # SESSION HISTORY
 # ============================================================================
+
 
 def get_all_sessions() -> List[Path]:
     """Get all saved session files, sorted by date (newest first)."""

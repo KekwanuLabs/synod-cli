@@ -10,16 +10,15 @@ Features:
 - Memory-guided context boosting
 """
 
-import os
 import re
 import asyncio
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Tuple, Set
+from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass
 
 from rich.console import Console
 
-from .theme import CYAN, GRAY
+from .theme import GRAY
 
 console = Console()
 
@@ -27,6 +26,7 @@ console = Console()
 @dataclass
 class AutoContextConfig:
     """Configuration for auto-context gathering."""
+
     max_files: int = 5
     max_tokens: int = 4000
     max_file_size: int = 50_000  # 50KB per file
@@ -36,6 +36,7 @@ class AutoContextConfig:
 @dataclass
 class ContextFile:
     """A file gathered for context."""
+
     path: str
     content: str
     relevance: float  # 0-1
@@ -44,10 +45,35 @@ class ContextFile:
 
 # Common code file extensions
 CODE_EXTENSIONS = {
-    '.py', '.js', '.ts', '.tsx', '.jsx', '.rs', '.go', '.java',
-    '.cpp', '.c', '.h', '.hpp', '.rb', '.php', '.swift', '.kt',
-    '.scala', '.sh', '.bash', '.sql', '.yaml', '.yml', '.json',
-    '.toml', '.md', '.txt', '.html', '.css', '.scss',
+    ".py",
+    ".js",
+    ".ts",
+    ".tsx",
+    ".jsx",
+    ".rs",
+    ".go",
+    ".java",
+    ".cpp",
+    ".c",
+    ".h",
+    ".hpp",
+    ".rb",
+    ".php",
+    ".swift",
+    ".kt",
+    ".scala",
+    ".sh",
+    ".bash",
+    ".sql",
+    ".yaml",
+    ".yml",
+    ".json",
+    ".toml",
+    ".md",
+    ".txt",
+    ".html",
+    ".css",
+    ".scss",
 }
 
 
@@ -62,49 +88,117 @@ def analyze_query_for_context(query: str) -> Dict[str, Any]:
         - is_code_query: Whether this needs code context
     """
     analysis = {
-        'file_mentions': [],
-        'symbol_mentions': [],
-        'keywords': [],
-        'is_code_query': False,
+        "file_mentions": [],
+        "symbol_mentions": [],
+        "keywords": [],
+        "is_code_query": False,
     }
 
     # Extract explicit file paths (e.g., "src/auth.py", "./config.ts")
-    file_pattern = r'(?:^|[\s\'\"(])([./\w-]+\.(?:py|js|ts|tsx|jsx|rs|go|java|cpp|c|h|rb|php|swift|kt|scala|sh|sql|yaml|yml|json|toml|md|html|css|scss))(?:[\s\'\")\n,:]|$)'
+    file_pattern = r"(?:^|[\s\'\"(])([./\w-]+\.(?:py|js|ts|tsx|jsx|rs|go|java|cpp|c|h|rb|php|swift|kt|scala|sh|sql|yaml|yml|json|toml|md|html|css|scss))(?:[\s\'\")\n,:]|$)"
     file_matches = re.findall(file_pattern, query, re.IGNORECASE)
-    analysis['file_mentions'] = list(set(file_matches))
+    analysis["file_mentions"] = list(set(file_matches))
 
     # Extract symbol names (CamelCase, snake_case, SCREAMING_CASE)
-    symbol_pattern = r'\b([A-Z][a-zA-Z0-9]+|[a-z][a-z0-9]*(?:_[a-z0-9]+)+|[A-Z][A-Z0-9_]{2,})\b'
+    symbol_pattern = (
+        r"\b([A-Z][a-zA-Z0-9]+|[a-z][a-z0-9]*(?:_[a-z0-9]+)+|[A-Z][A-Z0-9_]{2,})\b"
+    )
     symbols = re.findall(symbol_pattern, query)
     # Filter out common words
-    common_words = {'the', 'and', 'for', 'this', 'that', 'with', 'from', 'have', 'been'}
-    analysis['symbol_mentions'] = [s for s in symbols if s.lower() not in common_words and len(s) > 2]
+    common_words = {"the", "and", "for", "this", "that", "with", "from", "have", "been"}
+    analysis["symbol_mentions"] = [
+        s for s in symbols if s.lower() not in common_words and len(s) > 2
+    ]
 
     # Detect if this is a code-related query
     code_indicators = [
-        'function', 'class', 'method', 'import', 'module', 'file',
-        'error', 'bug', 'fix', 'implement', 'code', 'variable',
-        'type', 'interface', 'struct', 'def ', 'const ', 'let ',
-        'async', 'await', 'return', 'export', 'import',
+        "function",
+        "class",
+        "method",
+        "import",
+        "module",
+        "file",
+        "error",
+        "bug",
+        "fix",
+        "implement",
+        "code",
+        "variable",
+        "type",
+        "interface",
+        "struct",
+        "def ",
+        "const ",
+        "let ",
+        "async",
+        "await",
+        "return",
+        "export",
+        "import",
     ]
     query_lower = query.lower()
-    analysis['is_code_query'] = (
-        len(analysis['file_mentions']) > 0 or
-        len(analysis['symbol_mentions']) > 0 or
-        any(ind in query_lower for ind in code_indicators)
+    analysis["is_code_query"] = (
+        len(analysis["file_mentions"]) > 0
+        or len(analysis["symbol_mentions"]) > 0
+        or any(ind in query_lower for ind in code_indicators)
     )
 
     # Extract important keywords
     stopwords = {
-        'the', 'a', 'an', 'in', 'on', 'at', 'to', 'for', 'of', 'and', 'or',
-        'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has',
-        'do', 'does', 'did', 'will', 'would', 'could', 'should', 'can',
-        'this', 'that', 'these', 'those', 'it', 'its', 'my', 'your',
-        'i', 'me', 'we', 'you', 'he', 'she', 'they', 'them', 'what',
-        'how', 'why', 'where', 'when', 'which', 'who',
+        "the",
+        "a",
+        "an",
+        "in",
+        "on",
+        "at",
+        "to",
+        "for",
+        "of",
+        "and",
+        "or",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "being",
+        "have",
+        "has",
+        "do",
+        "does",
+        "did",
+        "will",
+        "would",
+        "could",
+        "should",
+        "can",
+        "this",
+        "that",
+        "these",
+        "those",
+        "it",
+        "its",
+        "my",
+        "your",
+        "i",
+        "me",
+        "we",
+        "you",
+        "he",
+        "she",
+        "they",
+        "them",
+        "what",
+        "how",
+        "why",
+        "where",
+        "when",
+        "which",
+        "who",
     }
-    words = re.findall(r'\b\w+\b', query_lower)
-    analysis['keywords'] = [w for w in words if w not in stopwords and len(w) > 2][:10]
+    words = re.findall(r"\b\w+\b", query_lower)
+    analysis["keywords"] = [w for w in words if w not in stopwords and len(w) > 2][:10]
 
     return analysis
 
@@ -121,8 +215,7 @@ async def read_file_async(path: Path, max_size: int) -> Optional[str]:
         # Use asyncio to not block
         loop = asyncio.get_event_loop()
         content = await loop.run_in_executor(
-            None,
-            lambda: path.read_text(encoding='utf-8', errors='ignore')
+            None, lambda: path.read_text(encoding="utf-8", errors="ignore")
         )
         return content
     except Exception:
@@ -153,19 +246,19 @@ async def gather_auto_context(
     # Analyze query
     analysis = analyze_query_for_context(query)
 
-    if not analysis['is_code_query']:
+    if not analysis["is_code_query"]:
         return {}, []
 
     gathered: List[ContextFile] = []
 
     # 1. First, try explicit file mentions (highest priority)
-    for file_mention in analysis['file_mentions'][:cfg.max_files]:
+    for file_mention in analysis["file_mentions"][: cfg.max_files]:
         found = False
 
         # Try different path resolutions
         candidates = [
             root / file_mention,
-            root / file_mention.lstrip('./'),
+            root / file_mention.lstrip("./"),
         ]
 
         for candidate in candidates:
@@ -173,51 +266,70 @@ async def gather_auto_context(
                 content = await read_file_async(candidate, cfg.max_file_size)
                 if content:
                     rel_path = str(candidate.relative_to(root))
-                    gathered.append(ContextFile(
-                        path=rel_path,
-                        content=content,
-                        relevance=1.0,  # Explicit mentions are highest relevance
-                        match_reason=f"Mentioned in query: {file_mention}",
-                    ))
+                    gathered.append(
+                        ContextFile(
+                            path=rel_path,
+                            content=content,
+                            relevance=1.0,  # Explicit mentions are highest relevance
+                            match_reason=f"Mentioned in query: {file_mention}",
+                        )
+                    )
                     found = True
                 break
 
         # If not found at exact path, search recursively for the filename
         if not found:
             filename = Path(file_mention).name  # Get just the filename
-            for match in root.glob(f'**/{filename}'):
+            for match in root.glob(f"**/{filename}"):
                 # Skip common non-source directories
                 path_str = str(match)
-                if any(skip in path_str for skip in ['node_modules', '.git', '__pycache__', 'venv', '.venv', '.env', 'dist', 'build']):
+                if any(
+                    skip in path_str
+                    for skip in [
+                        "node_modules",
+                        ".git",
+                        "__pycache__",
+                        "venv",
+                        ".venv",
+                        ".env",
+                        "dist",
+                        "build",
+                    ]
+                ):
                     continue
 
                 content = await read_file_async(match, cfg.max_file_size)
                 if content:
                     rel_path = str(match.relative_to(root))
-                    gathered.append(ContextFile(
-                        path=rel_path,
-                        content=content,
-                        relevance=0.95,  # Slightly lower than exact match
-                        match_reason=f"Found file matching: {file_mention}",
-                    ))
+                    gathered.append(
+                        ContextFile(
+                            path=rel_path,
+                            content=content,
+                            relevance=0.95,  # Slightly lower than exact match
+                            match_reason=f"Found file matching: {file_mention}",
+                        )
+                    )
                     found = True
                     break  # Take first match
 
     # 2. Search for symbol definitions (medium priority)
-    if len(gathered) < cfg.max_files and analysis['symbol_mentions']:
-        symbols_to_find = analysis['symbol_mentions'][:3]
+    if len(gathered) < cfg.max_files and analysis["symbol_mentions"]:
+        symbols_to_find = analysis["symbol_mentions"][:3]
 
         for ext in CODE_EXTENSIONS:
             if len(gathered) >= cfg.max_files:
                 break
 
-            for file_path in root.glob(f'**/*{ext}'):
+            for file_path in root.glob(f"**/*{ext}"):
                 if len(gathered) >= cfg.max_files:
                     break
 
                 # Skip common non-source directories
                 path_str = str(file_path)
-                if any(skip in path_str for skip in ['node_modules', '.git', '__pycache__', 'venv', '.env']):
+                if any(
+                    skip in path_str
+                    for skip in ["node_modules", ".git", "__pycache__", "venv", ".env"]
+                ):
                     continue
 
                 content = await read_file_async(file_path, cfg.max_file_size)
@@ -228,12 +340,12 @@ async def gather_auto_context(
                 for symbol in symbols_to_find:
                     # Pattern for definitions
                     def_patterns = [
-                        rf'\bdef\s+{re.escape(symbol)}\s*\(',      # Python
-                        rf'\bclass\s+{re.escape(symbol)}[\s:(]',   # Class
-                        rf'\bfunction\s+{re.escape(symbol)}\s*\(', # JS
-                        rf'\bconst\s+{re.escape(symbol)}\s*=',     # JS const
-                        rf'\binterface\s+{re.escape(symbol)}[\s{{<]', # TS
-                        rf'\btype\s+{re.escape(symbol)}\s*=',      # TS type
+                        rf"\bdef\s+{re.escape(symbol)}\s*\(",  # Python
+                        rf"\bclass\s+{re.escape(symbol)}[\s:(]",  # Class
+                        rf"\bfunction\s+{re.escape(symbol)}\s*\(",  # JS
+                        rf"\bconst\s+{re.escape(symbol)}\s*=",  # JS const
+                        rf"\binterface\s+{re.escape(symbol)}[\s{{<]",  # TS
+                        rf"\btype\s+{re.escape(symbol)}\s*=",  # TS type
                     ]
 
                     for pattern in def_patterns:
@@ -241,12 +353,14 @@ async def gather_auto_context(
                             rel_path = str(file_path.relative_to(root))
                             # Check not already added
                             if not any(g.path == rel_path for g in gathered):
-                                gathered.append(ContextFile(
-                                    path=rel_path,
-                                    content=content,
-                                    relevance=0.8,
-                                    match_reason=f"Contains definition of '{symbol}'",
-                                ))
+                                gathered.append(
+                                    ContextFile(
+                                        path=rel_path,
+                                        content=content,
+                                        relevance=0.8,
+                                        match_reason=f"Contains definition of '{symbol}'",
+                                    )
+                                )
                             break
 
     # 3. Use memory hints (if available)
@@ -262,12 +376,14 @@ async def gather_auto_context(
                 if not any(g.path == rel_path for g in gathered):
                     content = await read_file_async(hint_path, cfg.max_file_size)
                     if content:
-                        gathered.append(ContextFile(
-                            path=rel_path,
-                            content=content,
-                            relevance=0.6,
-                            match_reason=f"From memory: {hint}",
-                        ))
+                        gathered.append(
+                            ContextFile(
+                                path=rel_path,
+                                content=content,
+                                relevance=0.6,
+                                match_reason=f"From memory: {hint}",
+                            )
+                        )
 
     # Sort by relevance and apply token budget
     gathered.sort(key=lambda x: -x.relevance)
@@ -280,8 +396,8 @@ async def gather_auto_context(
     for ctx_file in gathered:
         content = ctx_file.content
         if cfg.include_line_numbers:
-            lines = content.split('\n')
-            content = '\n'.join(f"{i+1:4}| {line}" for i, line in enumerate(lines))
+            lines = content.split("\n")
+            content = "\n".join(f"{i + 1:4}| {line}" for i, line in enumerate(lines))
 
         if total_chars + len(content) > char_limit:
             # Truncate if needed

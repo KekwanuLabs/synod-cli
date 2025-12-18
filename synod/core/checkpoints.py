@@ -8,9 +8,7 @@ Provides:
 Similar to Claude Code's checkpoint system.
 """
 
-import os
 import json
-import shutil
 import subprocess
 from pathlib import Path
 from typing import Optional, List, Dict, Any
@@ -19,12 +17,11 @@ from datetime import datetime
 
 from rich.console import Console
 from rich.panel import Panel
-from rich.text import Text
 from rich.table import Table
 from rich.prompt import Confirm
 from rich import box
 
-from .theme import PRIMARY, CYAN, GREEN, GOLD, GRAY, ACCENT
+from .theme import CYAN, GOLD
 
 console = Console()
 
@@ -41,9 +38,11 @@ MAX_CHECKPOINTS = 20  # Keep last 20 checkpoints
 # DATA CLASSES
 # ============================================================================
 
+
 @dataclass
 class FileBackup:
     """Backup of a single file."""
+
     path: str
     original_content: Optional[str]  # None if file didn't exist
     existed: bool
@@ -52,6 +51,7 @@ class FileBackup:
 @dataclass
 class Checkpoint:
     """A checkpoint representing the state before an action."""
+
     id: str
     timestamp: float
     action: str  # Description of what triggered this checkpoint
@@ -97,6 +97,7 @@ class Checkpoint:
 # ============================================================================
 # CHECKPOINT MANAGER
 # ============================================================================
+
 
 class CheckpointManager:
     """Manages checkpoints for a project."""
@@ -250,7 +251,9 @@ class CheckpointManager:
                     full_path.write_text(backup.original_content, encoding="utf-8")
                     restored += 1
                 except Exception as e:
-                    console.print(f"[yellow]Could not restore {backup.path}: {e}[/yellow]")
+                    console.print(
+                        f"[yellow]Could not restore {backup.path}: {e}[/yellow]"
+                    )
             elif not backup.existed:
                 # File was created, remove it
                 if full_path.exists():
@@ -258,10 +261,14 @@ class CheckpointManager:
                         full_path.unlink()
                         restored += 1
                     except Exception as e:
-                        console.print(f"[yellow]Could not remove {backup.path}: {e}[/yellow]")
+                        console.print(
+                            f"[yellow]Could not remove {backup.path}: {e}[/yellow]"
+                        )
 
         if restored > 0:
-            console.print(f"[green]✓ Restored {restored} file(s) from checkpoint[/green]")
+            console.print(
+                f"[green]✓ Restored {restored} file(s) from checkpoint[/green]"
+            )
             return True
         else:
             console.print("[yellow]No files to restore[/yellow]")
@@ -298,6 +305,7 @@ def reset_checkpoint_manager() -> None:
 # CONVENIENCE FUNCTIONS
 # ============================================================================
 
+
 def create_checkpoint(action: str, files: List[str]) -> Checkpoint:
     """Create a checkpoint before modifying files."""
     return get_checkpoint_manager().create_checkpoint(action, files)
@@ -317,6 +325,7 @@ def restore_latest() -> bool:
 # COMMAND HANDLERS
 # ============================================================================
 
+
 async def handle_rewind_command(args: str = "") -> None:
     """Handle /rewind command - restore from checkpoint."""
     manager = get_checkpoint_manager()
@@ -324,7 +333,9 @@ async def handle_rewind_command(args: str = "") -> None:
 
     if not checkpoints:
         console.print("[yellow]No checkpoints available[/yellow]")
-        console.print("[dim]Checkpoints are created automatically before file changes[/dim]")
+        console.print(
+            "[dim]Checkpoints are created automatically before file changes[/dim]"
+        )
         return
 
     if args.strip():
@@ -350,12 +361,15 @@ async def handle_rewind_command(args: str = "") -> None:
             str(len(cp.files)),
         )
 
-    console.print(Panel(table, title="[cyan]Available Checkpoints[/cyan]", border_style="cyan"))
+    console.print(
+        Panel(table, title="[cyan]Available Checkpoints[/cyan]", border_style="cyan")
+    )
 
     # Simple selection
     console.print("\n[dim]Enter checkpoint number to restore (or 'q' to cancel):[/dim]")
     try:
         from prompt_toolkit import prompt
+
         selection = prompt("> ").strip()
 
         if selection.lower() in ["q", "quit", "cancel", ""]:
@@ -377,6 +391,7 @@ async def handle_rewind_command(args: str = "") -> None:
 # ============================================================================
 # GIT-BASED RECOVERY
 # ============================================================================
+
 
 def git_stash_changes() -> bool:
     """Stash all current changes."""

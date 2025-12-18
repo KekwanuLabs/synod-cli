@@ -9,67 +9,59 @@ This module provides stunning terminal visualizations including:
 """
 
 import asyncio
-import time
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Optional
 from dataclasses import dataclass
-from datetime import datetime, timedelta
 import httpx
 
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
-from rich.layout import Layout
-from rich.live import Live
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
-from rich.box import HEAVY, ROUNDED, DOUBLE
+from rich.box import ROUNDED
 from rich.align import Align
 from rich.columns import Columns
-from rich.style import Style
 
 from .theme import (
     PRIMARY,
     CYAN,
     GOLD,
     GREEN,
-    GRAY,
-    ACCENT,
-    SynodStyles,
 )
 
 console = Console()
 
 # Memory type colors matching the API
 MEMORY_TYPE_COLORS = {
-    'preference': '#FF6B35',    # Synod Orange
-    'pattern': '#00D9FF',       # Cyan
-    'fact': '#22C55E',          # Green
-    'correction': '#FBBF24',    # Gold
-    'architecture': '#7C3AED',  # Purple
-    'convention': '#06B6D4',    # Teal
-    'bug': '#EF4444',           # Red
-    'decision': '#F59E0B',      # Amber
-    'skill': '#FFD700',         # Gold (premium)
-    'relationship': '#8B5CF6',  # Violet
+    "preference": "#FF6B35",  # Synod Orange
+    "pattern": "#00D9FF",  # Cyan
+    "fact": "#22C55E",  # Green
+    "correction": "#FBBF24",  # Gold
+    "architecture": "#7C3AED",  # Purple
+    "convention": "#06B6D4",  # Teal
+    "bug": "#EF4444",  # Red
+    "decision": "#F59E0B",  # Amber
+    "skill": "#FFD700",  # Gold (premium)
+    "relationship": "#8B5CF6",  # Violet
 }
 
 MEMORY_TYPE_ICONS = {
-    'preference': '',
-    'pattern': '',
-    'fact': '',
-    'correction': '',
-    'architecture': '',
-    'convention': '',
-    'bug': '',
-    'decision': '',
-    'skill': '',
-    'relationship': '',
+    "preference": "",
+    "pattern": "",
+    "fact": "",
+    "correction": "",
+    "architecture": "",
+    "convention": "",
+    "bug": "",
+    "decision": "",
+    "skill": "",
+    "relationship": "",
 }
 
 
 @dataclass
 class MemoryStats:
     """Memory statistics from the API."""
+
     total_memories: int
     user_memories: int
     project_memories: int
@@ -85,13 +77,15 @@ class MemoryStats:
     visualization_enabled: bool
 
 
-async def fetch_memory_stats(api_key: str, project_path: Optional[str] = None) -> Optional[MemoryStats]:
+async def fetch_memory_stats(
+    api_key: str, project_path: Optional[str] = None
+) -> Optional[MemoryStats]:
     """Fetch memory statistics from Synod Cloud."""
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             params = {}
             if project_path:
-                params['project_path'] = project_path
+                params["project_path"] = project_path
 
             response = await client.get(
                 "https://api.synod.run/memory/stats",
@@ -103,35 +97,37 @@ async def fetch_memory_stats(api_key: str, project_path: Optional[str] = None) -
                 return None
 
             data = response.json()
-            limits = data.get('limits', {})
+            limits = data.get("limits", {})
 
             return MemoryStats(
-                total_memories=data.get('total_memories', 0),
-                user_memories=data.get('user_memories', 0),
-                project_memories=data.get('project_memories', 0),
-                by_type=data.get('by_type', {}),
-                by_domain=data.get('by_domain', {}),
-                by_technology=data.get('by_technology', {}),
-                average_confidence=data.get('average_confidence', 0),
-                average_decay=data.get('average_decay', 1),
-                skill_count=data.get('skill_count', 0),
-                tier=data.get('tier', 'free'),
-                at_limit=limits.get('at_limit', False),
-                max_memories=limits.get('max_memories', 1000),
-                visualization_enabled=limits.get('visualization_enabled', False),
+                total_memories=data.get("total_memories", 0),
+                user_memories=data.get("user_memories", 0),
+                project_memories=data.get("project_memories", 0),
+                by_type=data.get("by_type", {}),
+                by_domain=data.get("by_domain", {}),
+                by_technology=data.get("by_technology", {}),
+                average_confidence=data.get("average_confidence", 0),
+                average_decay=data.get("average_decay", 1),
+                skill_count=data.get("skill_count", 0),
+                tier=data.get("tier", "free"),
+                at_limit=limits.get("at_limit", False),
+                max_memories=limits.get("max_memories", 1000),
+                visualization_enabled=limits.get("visualization_enabled", False),
             )
     except Exception as e:
         console.print(f"[dim]Error fetching memory stats: {e}[/dim]")
         return None
 
 
-async def fetch_memory_timeline(api_key: str, project_path: Optional[str] = None, days: int = 30) -> Optional[Dict]:
+async def fetch_memory_timeline(
+    api_key: str, project_path: Optional[str] = None, days: int = 30
+) -> Optional[Dict]:
     """Fetch memory timeline from Synod Cloud."""
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
-            params = {'days': str(days)}
+            params = {"days": str(days)}
             if project_path:
-                params['project_path'] = project_path
+                params["project_path"] = project_path
 
             response = await client.get(
                 "https://api.synod.run/memory/timeline",
@@ -147,13 +143,15 @@ async def fetch_memory_timeline(api_key: str, project_path: Optional[str] = None
         return None
 
 
-async def fetch_memory_graph(api_key: str, project_path: Optional[str] = None, limit: int = 50) -> Optional[Dict]:
+async def fetch_memory_graph(
+    api_key: str, project_path: Optional[str] = None, limit: int = 50
+) -> Optional[Dict]:
     """Fetch memory graph from Synod Cloud (Pro+ only)."""
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
-            params = {'limit': str(limit)}
+            params = {"limit": str(limit)}
             if project_path:
-                params['project_path'] = project_path
+                params["project_path"] = project_path
 
             response = await client.get(
                 "https://api.synod.run/memory/graph",
@@ -163,7 +161,7 @@ async def fetch_memory_graph(api_key: str, project_path: Optional[str] = None, l
 
             if response.status_code == 403:
                 # Feature not available for tier
-                return {'error': 'pro_required'}
+                return {"error": "pro_required"}
 
             if response.status_code != 200:
                 return None
@@ -200,8 +198,9 @@ def create_sparkline(values: List[int], width: int = 20) -> str:
     return sparkline
 
 
-def create_horizontal_bar(value: float, max_value: float, width: int = 20,
-                          color: str = CYAN, label: str = "") -> Text:
+def create_horizontal_bar(
+    value: float, max_value: float, width: int = 20, color: str = CYAN, label: str = ""
+) -> Text:
     """Create a horizontal bar chart."""
     if max_value == 0:
         filled = 0
@@ -231,8 +230,8 @@ def create_memory_type_chart(by_type: Dict[str, int]) -> Panel:
 
     content = Text()
     for mem_type, count in sorted(by_type.items(), key=lambda x: -x[1]):
-        color = MEMORY_TYPE_COLORS.get(mem_type, '#888888')
-        icon = MEMORY_TYPE_ICONS.get(mem_type, '')
+        color = MEMORY_TYPE_COLORS.get(mem_type, "#888888")
+        icon = MEMORY_TYPE_ICONS.get(mem_type, "")
 
         # Create bar
         bar_width = 20
@@ -282,13 +281,13 @@ def create_tier_badge(tier: str) -> Text:
     """Create a tier badge."""
     badge = Text()
 
-    if tier == 'free':
+    if tier == "free":
         badge.append(" FREE ", style="bold white on bright_black")
-    elif tier == 'pro':
+    elif tier == "pro":
         badge.append(" PRO ", style="bold white on #FF6B35")
-    elif tier == 'team':
+    elif tier == "team":
         badge.append(" TEAM ", style="bold black on #FFD700")
-    elif tier == 'enterprise':
+    elif tier == "enterprise":
         badge.append(" ENTERPRISE ", style="bold white on #7C3AED")
 
     return badge
@@ -296,14 +295,16 @@ def create_tier_badge(tier: str) -> Text:
 
 async def animate_memory_loading() -> None:
     """Animated loading screen for memory visualization."""
-    frames = [
+    _frames = [
         "◐ Loading memories...",
         "◓ Loading memories...",
         "◑ Loading memories...",
         "◒ Loading memories...",
     ]
 
-    with console.status("[cyan]Connecting to Synod Cloud...[/cyan]", spinner="dots") as status:
+    with console.status(
+        "[cyan]Connecting to Synod Cloud...[/cyan]", spinner="dots"
+    ) as status:
         await asyncio.sleep(0.5)
         status.update("[cyan]Fetching memory statistics...[/cyan]")
         await asyncio.sleep(0.3)
@@ -311,7 +312,9 @@ async def animate_memory_loading() -> None:
         await asyncio.sleep(0.2)
 
 
-async def display_memory_dashboard(api_key: str, project_path: Optional[str] = None) -> None:
+async def display_memory_dashboard(
+    api_key: str, project_path: Optional[str] = None
+) -> None:
     """Display the full memory dashboard with animations."""
     # Animated loading
     await animate_memory_loading()
@@ -320,11 +323,13 @@ async def display_memory_dashboard(api_key: str, project_path: Optional[str] = N
     stats = await fetch_memory_stats(api_key, project_path)
 
     if not stats:
-        console.print(Panel(
-            Text("Could not connect to Synod Cloud", style="red", justify="center"),
-            title="[red]Error[/red]",
-            border_style="red",
-        ))
+        console.print(
+            Panel(
+                Text("Could not connect to Synod Cloud", style="red", justify="center"),
+                title="[red]Error[/red]",
+                border_style="red",
+            )
+        )
         return
 
     console.clear()
@@ -336,7 +341,9 @@ async def display_memory_dashboard(api_key: str, project_path: Optional[str] = N
     header = Text()
     header.append("  SYNOD ADVERSARIAL MEMORY  ", style="bold white on #FF6B35")
     console.print(Align.center(header))
-    console.print(Align.center(Text("Memory you can trust. Verified by debate.", style="dim")))
+    console.print(
+        Align.center(Text("Memory you can trust. Verified by debate.", style="dim"))
+    )
     console.print()
 
     # Tier and limits info
@@ -348,10 +355,15 @@ async def display_memory_dashboard(api_key: str, project_path: Optional[str] = N
     if stats.max_memories > 0:
         usage_pct = stats.total_memories / stats.max_memories
         if usage_pct >= 0.9:
-            tier_info.append(f"Storage: {stats.total_memories}/{stats.max_memories} ", style="red bold")
+            tier_info.append(
+                f"Storage: {stats.total_memories}/{stats.max_memories} ",
+                style="red bold",
+            )
             tier_info.append("(NEAR LIMIT)", style="red")
         else:
-            tier_info.append(f"Storage: {stats.total_memories}/{stats.max_memories}", style="dim")
+            tier_info.append(
+                f"Storage: {stats.total_memories}/{stats.max_memories}", style="dim"
+            )
     else:
         tier_info.append(f"Storage: {stats.total_memories} (Unlimited)", style="green")
 
@@ -428,7 +440,9 @@ async def display_memory_dashboard(api_key: str, project_path: Optional[str] = N
         if stats.by_domain:
             domain_text = Text()
             domain_text.append("Top Domains\n", style=f"bold {CYAN}")
-            for domain, count in sorted(stats.by_domain.items(), key=lambda x: -x[1])[:5]:
+            for domain, count in sorted(stats.by_domain.items(), key=lambda x: -x[1])[
+                :5
+            ]:
                 domain_text.append(f"  {domain}: ", style="dim")
                 domain_text.append(f"{count}\n", style="bold")
             cols.append(Panel(domain_text, border_style="cyan", width=30))
@@ -436,7 +450,9 @@ async def display_memory_dashboard(api_key: str, project_path: Optional[str] = N
         if stats.by_technology:
             tech_text = Text()
             tech_text.append("Top Technologies\n", style=f"bold {GREEN}")
-            for tech, count in sorted(stats.by_technology.items(), key=lambda x: -x[1])[:5]:
+            for tech, count in sorted(stats.by_technology.items(), key=lambda x: -x[1])[
+                :5
+            ]:
                 tech_text.append(f"  {tech}: ", style="dim")
                 tech_text.append(f"{count}\n", style="bold")
             cols.append(Panel(tech_text, border_style="green", width=30))
@@ -447,18 +463,22 @@ async def display_memory_dashboard(api_key: str, project_path: Optional[str] = N
     # Pro features hint for free users
     if not stats.visualization_enabled:
         console.print()
-        console.print(Panel(
-            Text.from_markup(
-                f"[{GOLD}]Upgrade to Pro[/{GOLD}] for memory visualization graph, "
-                f"skill learning, and unlimited memories.\n"
-                f"[dim]synod.run/dashboard/upgrade[/dim]"
-            ),
-            border_style="yellow",
-            title="[yellow]Pro Features[/yellow]",
-        ))
+        console.print(
+            Panel(
+                Text.from_markup(
+                    f"[{GOLD}]Upgrade to Pro[/{GOLD}] for memory visualization graph, "
+                    f"skill learning, and unlimited memories.\n"
+                    f"[dim]synod.run/dashboard/upgrade[/dim]"
+                ),
+                border_style="yellow",
+                title="[yellow]Pro Features[/yellow]",
+            )
+        )
 
 
-async def display_memory_graph_ascii(api_key: str, project_path: Optional[str] = None) -> None:
+async def display_memory_graph_ascii(
+    api_key: str, project_path: Optional[str] = None
+) -> None:
     """Display an ASCII representation of the memory graph (Pro+ only)."""
     graph_data = await fetch_memory_graph(api_key, project_path, limit=30)
 
@@ -466,21 +486,23 @@ async def display_memory_graph_ascii(api_key: str, project_path: Optional[str] =
         console.print("[red]Failed to fetch memory graph[/red]")
         return
 
-    if graph_data.get('error') == 'pro_required':
-        console.print(Panel(
-            Text.from_markup(
-                f"[{GOLD}]Memory visualization requires Pro tier[/{GOLD}]\n\n"
-                f"Upgrade to see your memory connections as a beautiful graph.\n\n"
-                f"[dim]synod.run/dashboard/upgrade[/dim]"
-            ),
-            title="[yellow]Pro Feature[/yellow]",
-            border_style="yellow",
-        ))
+    if graph_data.get("error") == "pro_required":
+        console.print(
+            Panel(
+                Text.from_markup(
+                    f"[{GOLD}]Memory visualization requires Pro tier[/{GOLD}]\n\n"
+                    f"Upgrade to see your memory connections as a beautiful graph.\n\n"
+                    f"[dim]synod.run/dashboard/upgrade[/dim]"
+                ),
+                title="[yellow]Pro Feature[/yellow]",
+                border_style="yellow",
+            )
+        )
         return
 
-    nodes = graph_data.get('nodes', [])
-    edges = graph_data.get('edges', [])
-    stats = graph_data.get('stats', {})
+    nodes = graph_data.get("nodes", [])
+    edges = graph_data.get("edges", [])
+    stats = graph_data.get("stats", {})
 
     if not nodes:
         console.print("[dim]No memories to visualize yet.[/dim]")
@@ -488,22 +510,24 @@ async def display_memory_graph_ascii(api_key: str, project_path: Optional[str] =
 
     console.print()
     console.print(Align.center(Text("  MEMORY GRAPH  ", style="bold white on #7C3AED")))
-    console.print(Align.center(Text(f"{len(nodes)} nodes, {len(edges)} connections", style="dim")))
+    console.print(
+        Align.center(Text(f"{len(nodes)} nodes, {len(edges)} connections", style="dim"))
+    )
     console.print()
 
     # Create a simple ASCII graph representation
     # Group nodes by type for visualization
     type_groups: Dict[str, List[Dict]] = {}
     for node in nodes:
-        t = node['type']
+        t = node["type"]
         if t not in type_groups:
             type_groups[t] = []
         type_groups[t].append(node)
 
     # Display each type group with connections
     for mem_type, type_nodes in type_groups.items():
-        color = MEMORY_TYPE_COLORS.get(mem_type, '#888888')
-        icon = MEMORY_TYPE_ICONS.get(mem_type, '')
+        color = MEMORY_TYPE_COLORS.get(mem_type, "#888888")
+        icon = MEMORY_TYPE_ICONS.get(mem_type, "")
 
         header = Text()
         header.append(f"\n{icon} {mem_type.upper()} ", style=f"bold {color}")
@@ -512,11 +536,19 @@ async def display_memory_graph_ascii(api_key: str, project_path: Optional[str] =
 
         for i, node in enumerate(type_nodes[:5]):  # Show max 5 per type
             # Node visualization
-            content = node['content'][:60] + "..." if len(node['content']) > 60 else node['content']
-            conf = node['confidence']
+            content = (
+                node["content"][:60] + "..."
+                if len(node["content"]) > 60
+                else node["content"]
+            )
+            conf = node["confidence"]
 
             # Find connections for this node
-            node_edges = [e for e in edges if e['source'] == node['id'] or e['target'] == node['id']]
+            node_edges = [
+                e
+                for e in edges
+                if e["source"] == node["id"] or e["target"] == node["id"]
+            ]
 
             node_text = Text()
 
@@ -544,20 +576,26 @@ async def display_memory_graph_ascii(api_key: str, project_path: Optional[str] =
             console.print(node_text)
 
         if len(type_nodes) > 5:
-            console.print(Text(f"    └── ... and {len(type_nodes) - 5} more", style="dim"))
+            console.print(
+                Text(f"    └── ... and {len(type_nodes) - 5} more", style="dim")
+            )
 
     console.print()
 
     # Stats summary
     stats_text = Text()
     stats_text.append("Graph Stats: ", style="bold")
-    stats_text.append(f"Avg Confidence: {stats.get('average_confidence', 0):.0%} ", style="dim")
+    stats_text.append(
+        f"Avg Confidence: {stats.get('average_confidence', 0):.0%} ", style="dim"
+    )
     stats_text.append(f"| Health: {stats.get('average_decay', 1):.0%} ", style="dim")
     stats_text.append(f"| Skills: {stats.get('skill_count', 0)}", style=GOLD)
     console.print(stats_text)
 
 
-async def display_memory_timeline_viz(api_key: str, project_path: Optional[str] = None, days: int = 14) -> None:
+async def display_memory_timeline_viz(
+    api_key: str, project_path: Optional[str] = None, days: int = 14
+) -> None:
     """Display memory timeline with sparklines."""
     timeline_data = await fetch_memory_timeline(api_key, project_path, days)
 
@@ -565,18 +603,20 @@ async def display_memory_timeline_viz(api_key: str, project_path: Optional[str] 
         console.print("[dim]No timeline data available.[/dim]")
         return
 
-    timeline = timeline_data.get('timeline', [])
+    timeline = timeline_data.get("timeline", [])
 
     if not timeline:
         console.print("[dim]No memories in the last {days} days.[/dim]")
         return
 
     console.print()
-    console.print(Align.center(Text("  MEMORY TIMELINE  ", style="bold white on #06B6D4")))
+    console.print(
+        Align.center(Text("  MEMORY TIMELINE  ", style="bold white on #06B6D4"))
+    )
     console.print()
 
     # Create sparkline data
-    daily_counts = [day['count'] for day in reversed(timeline)]
+    daily_counts = [day["count"] for day in reversed(timeline)]
     sparkline = create_sparkline(daily_counts, width=min(30, len(daily_counts)))
 
     sparkline_text = Text()
@@ -594,30 +634,32 @@ async def display_memory_timeline_viz(api_key: str, project_path: Optional[str] 
     table.add_column("Sample", width=40)
 
     for day in timeline[:7]:  # Last 7 days
-        date = day['date']
-        count = day['count']
-        memories = day['memories']
+        date = day["date"]
+        count = day["count"]
+        memories = day["memories"]
 
         # Count types
         type_counts: Dict[str, int] = {}
         for mem in memories:
-            t = mem['type']
+            t = mem["type"]
             type_counts[t] = type_counts.get(t, 0) + 1
 
         types_text = Text()
         for t, c in sorted(type_counts.items(), key=lambda x: -x[1]):
-            color = MEMORY_TYPE_COLORS.get(t, '#888888')
+            color = MEMORY_TYPE_COLORS.get(t, "#888888")
             types_text.append(f"{t}:{c} ", style=color)
 
         # Sample memory
-        sample = memories[0]['content'][:35] + "..." if memories else ""
+        sample = memories[0]["content"][:35] + "..." if memories else ""
 
         table.add_row(date, str(count), types_text, sample)
 
     console.print(table)
 
 
-async def handle_memory_viz_command(args: str, api_key: str, project_path: Optional[str] = None) -> None:
+async def handle_memory_viz_command(
+    args: str, api_key: str, project_path: Optional[str] = None
+) -> None:
     """Handle /memory command with visualization subcommands."""
     parts = args.strip().split()
     subcommand = parts[0] if parts else ""
@@ -635,14 +677,16 @@ async def handle_memory_viz_command(args: str, api_key: str, project_path: Optio
         await display_memory_dashboard(api_key, project_path)
     else:
         # Show help
-        console.print(Panel(
-            Text.from_markup(
-                f"[{CYAN}]/memory[/{CYAN}]             Show memory dashboard\n"
-                f"[{CYAN}]/memory stats[/{CYAN}]       Show detailed statistics\n"
-                f"[{CYAN}]/memory graph[/{CYAN}]       Visualize memory connections (Pro)\n"
-                f"[{CYAN}]/memory timeline[/{CYAN}]    Show memory activity timeline\n"
-                f"[{CYAN}]/memory show[/{CYAN}]        Display local context files"
-            ),
-            title="[cyan]Memory Commands[/cyan]",
-            border_style="cyan",
-        ))
+        console.print(
+            Panel(
+                Text.from_markup(
+                    f"[{CYAN}]/memory[/{CYAN}]             Show memory dashboard\n"
+                    f"[{CYAN}]/memory stats[/{CYAN}]       Show detailed statistics\n"
+                    f"[{CYAN}]/memory graph[/{CYAN}]       Visualize memory connections (Pro)\n"
+                    f"[{CYAN}]/memory timeline[/{CYAN}]    Show memory activity timeline\n"
+                    f"[{CYAN}]/memory show[/{CYAN}]        Display local context files"
+                ),
+                title="[cyan]Memory Commands[/cyan]",
+                border_style="cyan",
+            )
+        )

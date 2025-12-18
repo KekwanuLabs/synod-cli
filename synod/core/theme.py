@@ -23,58 +23,56 @@ SECONDARY = "#7C3AED"
 ACCENT = "#EC4899"
 
 # Supporting Colors
-CYAN = "#06B6D4"      # Bishop proposals, information
-GOLD = "#FBBF24"      # Success, completed actions
-GREEN = "#10B981"     # Confirmations, positive results
-RED = "#EF4444"       # Errors, high disagreement
-GRAY = "#6B7280"      # Dim text, metadata
+CYAN = "#06B6D4"  # Bishop proposals, information
+GOLD = "#FBBF24"  # Success, completed actions
+GREEN = "#10B981"  # Confirmations, positive results
+RED = "#EF4444"  # Errors, high disagreement
+GRAY = "#6B7280"  # Dim text, metadata
 
 # ============================================================================
 # RICH THEME
 # ============================================================================
 
-SYNOD_THEME = Theme({
-    # Core Brand Colors
-    "primary": PRIMARY,
-    "secondary": SECONDARY,
-    "accent": ACCENT,
-
-    # Semantic Colors
-    "info": CYAN,
-    "success": GREEN,
-    "warning": GOLD,
-    "error": RED,
-    "dim": GRAY,
-
-    # Debate Roles
-    "bishop": f"bold {CYAN}",
-    "pope": f"bold {SECONDARY}",
-    "dissent": f"bold {ACCENT}",
-
-    # UI Elements
-    "prompt": PRIMARY,
-    "highlight": f"bold {PRIMARY}",
-    "title": f"bold {SECONDARY}",
-    "subtitle": CYAN,
-    "code": "#A78BFA",  # Light purple for code
-
-    # Status Indicators
-    "status.active": f"bold {PRIMARY}",
-    "status.complete": f"bold {GREEN}",
-    "status.error": f"bold {RED}",
-    "status.pending": GRAY,
-
-    # Progress & Metrics
-    "progress.percentage": PRIMARY,
-    "progress.complete": GREEN,
-    "progress.remaining": GRAY,
-    "cost": GOLD,
-    "tokens": CYAN,
-})
+SYNOD_THEME = Theme(
+    {
+        # Core Brand Colors
+        "primary": PRIMARY,
+        "secondary": SECONDARY,
+        "accent": ACCENT,
+        # Semantic Colors
+        "info": CYAN,
+        "success": GREEN,
+        "warning": GOLD,
+        "error": RED,
+        "dim": GRAY,
+        # Debate Roles
+        "bishop": f"bold {CYAN}",
+        "pope": f"bold {SECONDARY}",
+        "dissent": f"bold {ACCENT}",
+        # UI Elements
+        "prompt": PRIMARY,
+        "highlight": f"bold {PRIMARY}",
+        "title": f"bold {SECONDARY}",
+        "subtitle": CYAN,
+        "code": "#A78BFA",  # Light purple for code
+        # Status Indicators
+        "status.active": f"bold {PRIMARY}",
+        "status.complete": f"bold {GREEN}",
+        "status.error": f"bold {RED}",
+        "status.pending": GRAY,
+        # Progress & Metrics
+        "progress.percentage": PRIMARY,
+        "progress.complete": GREEN,
+        "progress.remaining": GRAY,
+        "cost": GOLD,
+        "tokens": CYAN,
+    }
+)
 
 # ============================================================================
 # STYLE PRESETS
 # ============================================================================
+
 
 class SynodStyles:
     """Pre-configured Rich styles for common use cases."""
@@ -107,6 +105,7 @@ class SynodStyles:
     TOKENS = Style(color=CYAN)
     PERCENTAGE = Style(color=PRIMARY)
 
+
 # ============================================================================
 # PANEL STYLES
 # ============================================================================
@@ -125,9 +124,9 @@ BORDER_STYLE_PRIMARY = PRIMARY
 # ============================================================================
 
 # Custom progress bar colors
-PROGRESS_BAR_COMPLETE = f"bar.complete"
-PROGRESS_BAR_FINISHED = f"bar.finished"
-PROGRESS_BAR_PULSE = f"bar.pulse"
+PROGRESS_BAR_COMPLETE = "bar.complete"
+PROGRESS_BAR_FINISHED = "bar.finished"
+PROGRESS_BAR_PULSE = "bar.pulse"
 
 # Progress bar gradient: Orange → Purple
 PROGRESS_GRADIENT = [PRIMARY, ACCENT, SECONDARY]
@@ -148,6 +147,7 @@ LOGO_COLORS = [
 # HELPER FUNCTIONS
 # ============================================================================
 
+
 def get_role_color(role: str) -> str:
     """Get color for a specific debate role.
 
@@ -164,6 +164,7 @@ def get_role_color(role: str) -> str:
         "user": PRIMARY,
     }
     return role_colors.get(role.lower(), CYAN)
+
 
 def get_status_color(status: str) -> str:
     """Get color for a status indicator.
@@ -183,6 +184,7 @@ def get_status_color(status: str) -> str:
         "active": PRIMARY,
     }
     return status_colors.get(status.lower(), CYAN)
+
 
 def gradient_text(text: str, colors: List[str]) -> str:
     """Apply a color gradient to text.
@@ -216,6 +218,7 @@ def gradient_text(text: str, colors: List[str]) -> str:
 
     return "".join(result)
 
+
 # ============================================================================
 # EMOJI SETS
 # ============================================================================
@@ -226,13 +229,11 @@ EMOJI = {
     "bishop": "🎓",
     "pope": "⚖️",
     "council": "🏛️",
-
     # Actions
     "debate": "💭",
     "critique": "🔍",
     "synthesis": "✨",
     "proposal": "💡",
-
     # Status
     "success": "✅",
     "error": "❌",
@@ -240,19 +241,18 @@ EMOJI = {
     "info": "ℹ️",
     "loading": "⏳",
     "complete": "🎯",
-
     # Metrics
     "cost": "💰",
     "tokens": "📊",
     "time": "🕐",
     "files": "📁",
     "project": "📦",
-
     # Navigation
     "enter": "↵",
     "exit": "🚪",
     "help": "❓",
 }
+
 
 def emoji(key: str) -> str:
     """Get emoji for a specific key.
@@ -264,6 +264,7 @@ def emoji(key: str) -> str:
         Emoji character or empty string if not found
     """
     return EMOJI.get(key.lower(), "")
+
 
 def format_model_name(model_id: str) -> str:
     """Format raw model ID into clean, user-friendly display name.
@@ -293,7 +294,6 @@ def format_model_name(model_id: str) -> str:
         "google/gemini-3.0": "Gemini 3.0",
         "deepseek/deepseek-v3.1": "DeepSeek V3.1",
         "deepseek/deepseek-chat-v3.1": "DeepSeek V3.1",
-
         # Classifiers (should not appear as bishops, but handle just in case)
         "qwen/qwen-2.5-coder-32b-instruct": "Qwen 2.5 Coder 32B",
         "qwen/qwen-2.5-coder-32b-instruct:free": "Qwen 2.5 Coder 32B",
@@ -309,13 +309,13 @@ def format_model_name(model_id: str) -> str:
 
     # Fallback: basic cleanup
     # Remove provider prefix
-    name = model_id.split('/', 1)[-1] if '/' in model_id else model_id
+    name = model_id.split("/", 1)[-1] if "/" in model_id else model_id
     # Remove :free suffix
-    name = name.replace(':free', '')
+    name = name.replace(":free", "")
     # Remove version suffixes like -v3.1
-    name = re.sub(r'-v\d+(\.\d+)?$', '', name)
+    name = re.sub(r"-v\d+(\.\d+)?$", "", name)
     # Remove -chat suffix
-    name = name.replace('-chat', '')
+    name = name.replace("-chat", "")
     # Capitalize words
-    name = ' '.join(word.capitalize() for word in name.replace('-', ' ').split())
+    name = " ".join(word.capitalize() for word in name.replace("-", " ").split())
     return name

@@ -4,7 +4,6 @@ import asyncio
 import json
 import os
 import fnmatch
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from dataclasses import dataclass
 
@@ -14,6 +13,7 @@ from .base import Tool, ToolResult, ToolStatus
 @dataclass
 class SearchMatch:
     """A single search match."""
+
     file: str
     line: int
     column: int
@@ -23,6 +23,7 @@ class SearchMatch:
 @dataclass
 class FileMatch:
     """A file match with relevance score."""
+
     path: str
     score: int
     reason: str
@@ -48,12 +49,32 @@ Examples:
 
     # Directories to ignore during search
     IGNORE_DIRS = {
-        "node_modules", ".git", ".svn", ".hg", "__pycache__", ".pytest_cache",
-        ".mypy_cache", ".tox", ".venv", "venv", "env", ".env", "dist", "build",
-        ".next", ".nuxt", "target", "vendor", ".cargo", "coverage", ".coverage",
+        "node_modules",
+        ".git",
+        ".svn",
+        ".hg",
+        "__pycache__",
+        ".pytest_cache",
+        ".mypy_cache",
+        ".tox",
+        ".venv",
+        "venv",
+        "env",
+        ".env",
+        "dist",
+        "build",
+        ".next",
+        ".nuxt",
+        "target",
+        "vendor",
+        ".cargo",
+        "coverage",
+        ".coverage",
     }
 
-    def __init__(self, working_directory: str, session_flags=None, max_results: int = 50):
+    def __init__(
+        self, working_directory: str, session_flags=None, max_results: int = 50
+    ):
         super().__init__(working_directory, session_flags)
         self.max_results = max_results
 
@@ -67,7 +88,7 @@ Examples:
         file_type: Optional[str] = None,
         include_hidden: bool = False,
         max_results: Optional[int] = None,
-        **kwargs
+        **kwargs,
     ) -> ToolResult:
         """Execute a search operation.
 
@@ -92,8 +113,13 @@ Examples:
 
         if mode == "text_search":
             return await self._text_search(
-                pattern, search_path, case_sensitive, whole_word,
-                file_type, include_hidden, effective_max
+                pattern,
+                search_path,
+                case_sensitive,
+                whole_word,
+                file_type,
+                include_hidden,
+                effective_max,
             )
         elif mode == "file_search":
             return await self._file_search(
@@ -119,14 +145,26 @@ Examples:
         """Search for text in files using ripgrep or fallback."""
         # Try ripgrep first (fastest)
         rg_result = await self._ripgrep_search(
-            pattern, path, case_sensitive, whole_word, file_type, include_hidden, max_results
+            pattern,
+            path,
+            case_sensitive,
+            whole_word,
+            file_type,
+            include_hidden,
+            max_results,
         )
         if rg_result is not None:
             return rg_result
 
         # Fallback to Python-based search
         return await self._python_text_search(
-            pattern, path, case_sensitive, whole_word, file_type, include_hidden, max_results
+            pattern,
+            path,
+            case_sensitive,
+            whole_word,
+            file_type,
+            include_hidden,
+            max_results,
         )
 
     async def _ripgrep_search(
@@ -184,12 +222,14 @@ Examples:
                         if file_path.startswith(path):
                             file_path = os.path.relpath(file_path, path)
                         for submatch in match_data.get("submatches", []):
-                            matches.append(SearchMatch(
-                                file=file_path,
-                                line=match_data["line_number"],
-                                column=submatch.get("start", 0) + 1,
-                                text=match_data["lines"]["text"].rstrip(),
-                            ))
+                            matches.append(
+                                SearchMatch(
+                                    file=file_path,
+                                    line=match_data["line_number"],
+                                    column=submatch.get("start", 0) + 1,
+                                    text=match_data["lines"]["text"].rstrip(),
+                                )
+                            )
                 except json.JSONDecodeError:
                     continue
 
@@ -256,12 +296,14 @@ Examples:
                     with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
                         for line_num, line in enumerate(f, 1):
                             for match in regex.finditer(line):
-                                matches.append(SearchMatch(
-                                    file=rel_path,
-                                    line=line_num,
-                                    column=match.start() + 1,
-                                    text=line.rstrip(),
-                                ))
+                                matches.append(
+                                    SearchMatch(
+                                        file=rel_path,
+                                        line=line_num,
+                                        column=match.start() + 1,
+                                        text=line.rstrip(),
+                                    )
+                                )
                                 if len(matches) >= max_results:
                                     break
                         if len(matches) >= max_results:
@@ -279,10 +321,7 @@ Examples:
         return self._format_text_results(matches, pattern, max_results)
 
     def _format_text_results(
-        self,
-        matches: List[SearchMatch],
-        pattern: str,
-        max_results: int
+        self, matches: List[SearchMatch], pattern: str, max_results: int
     ) -> ToolResult:
         """Format text search results."""
         if not matches:
@@ -337,7 +376,7 @@ Examples:
 
         for root, dirs, files in os.walk(path):
             # Limit depth
-            depth = root[len(path):].count(os.sep)
+            depth = root[len(path) :].count(os.sep)
             if depth > 10:
                 dirs[:] = []
                 continue
@@ -352,7 +391,9 @@ Examples:
                 filepath = os.path.join(root, filename)
                 rel_path = os.path.relpath(filepath, path)
 
-                score, reason = self._score_file_match(filename, rel_path, pattern, is_glob)
+                score, reason = self._score_file_match(
+                    filename, rel_path, pattern, is_glob
+                )
                 if score > 0:
                     matches.append(FileMatch(path=rel_path, score=score, reason=reason))
 
@@ -366,11 +407,7 @@ Examples:
         return self._format_file_results(matches, pattern)
 
     def _score_file_match(
-        self,
-        filename: str,
-        rel_path: str,
-        pattern: str,
-        is_glob: bool
+        self, filename: str, rel_path: str, pattern: str, is_glob: bool
     ) -> Tuple[int, str]:
         """Score a file match against the pattern."""
         if is_glob:
@@ -417,7 +454,9 @@ Examples:
                 pattern_idx += 1
         return pattern_idx == len(pattern)
 
-    def _format_file_results(self, matches: List[FileMatch], pattern: str) -> ToolResult:
+    def _format_file_results(
+        self, matches: List[FileMatch], pattern: str
+    ) -> ToolResult:
         """Format file search results."""
         if not matches:
             return ToolResult(

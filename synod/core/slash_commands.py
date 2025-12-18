@@ -7,23 +7,16 @@ Provides a command palette similar to Claude Code with:
 """
 
 from dataclasses import dataclass, field
-from typing import Callable, Optional, List, Dict, Any, Awaitable, Union, Tuple
-from enum import Enum
-import asyncio
+from typing import Callable, Optional, List, Dict, Awaitable, Union, Tuple
 
-from prompt_toolkit import PromptSession
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.keys import Keys
 from prompt_toolkit.application import Application
-from prompt_toolkit.layout import Layout, HSplit, VSplit, Window, FormattedTextControl
-from prompt_toolkit.widgets import Frame
-from prompt_toolkit.formatted_text import HTML, FormattedText
+from prompt_toolkit.layout import Layout, Window, FormattedTextControl
 from prompt_toolkit.styles import Style
 from rich.console import Console
-from rich.panel import Panel
-from rich.text import Text
 
-from .theme import PRIMARY, SECONDARY, CYAN, GOLD, GREEN, GRAY, ACCENT
+from .theme import PRIMARY, CYAN, GRAY
 
 
 # Type alias for command handlers
@@ -33,6 +26,7 @@ CommandHandler = Union[Callable[..., None], Callable[..., Awaitable[None]]]
 @dataclass
 class SlashCommand:
     """Definition of a slash command."""
+
     name: str  # Command name without slash (e.g., "exit")
     description: str  # Short description shown in menu
     handler: Optional[CommandHandler] = None  # Function to call when selected
@@ -62,7 +56,7 @@ class SlashCommandRegistry:
         handler: Optional[CommandHandler] = None,
         aliases: Optional[List[str]] = None,
         category: str = "general",
-        hidden: bool = False
+        hidden: bool = False,
     ) -> SlashCommand:
         """Register a new slash command.
 
@@ -83,7 +77,7 @@ class SlashCommandRegistry:
             handler=handler,
             aliases=aliases or [],
             category=category,
-            hidden=hidden
+            hidden=hidden,
         )
 
         self._commands[name] = cmd
@@ -125,9 +119,11 @@ class SlashCommandRegistry:
         query = query.lower()
         results = []
         for cmd in self.get_all():
-            if (query in cmd.name.lower() or
-                query in cmd.description.lower() or
-                any(query in alias.lower() for alias in cmd.aliases)):
+            if (
+                query in cmd.name.lower()
+                or query in cmd.description.lower()
+                or any(query in alias.lower() for alias in cmd.aliases)
+            ):
                 results.append(cmd)
         return results
 
@@ -142,7 +138,7 @@ def register_command(
     handler: Optional[CommandHandler] = None,
     aliases: Optional[List[str]] = None,
     category: str = "general",
-    hidden: bool = False
+    hidden: bool = False,
 ) -> SlashCommand:
     """Register a slash command (convenience function)."""
     return _registry.register(name, description, handler, aliases, category, hidden)
@@ -193,29 +189,29 @@ class SlashCommandSelector:
         kb = KeyBindings()
         result = [None]  # Use list to allow mutation in closure
 
-        @kb.add('up')
+        @kb.add("up")
         def _(event):
             if self.selected_index > 0:
                 self.selected_index -= 1
 
-        @kb.add('down')
+        @kb.add("down")
         def _(event):
             if self.selected_index < len(self.commands) - 1:
                 self.selected_index += 1
 
-        @kb.add('enter')
+        @kb.add("enter")
         def _(event):
             if self.commands:
                 result[0] = self.commands[self.selected_index]
             event.app.exit()
 
-        @kb.add('escape')
-        @kb.add('c-c')
+        @kb.add("escape")
+        @kb.add("c-c")
         def _(event):
             result[0] = None
             event.app.exit()
 
-        @kb.add('backspace')
+        @kb.add("backspace")
         def _(event):
             if self.filter_text:
                 self.filter_text = self.filter_text[:-1]
@@ -227,7 +223,7 @@ class SlashCommandSelector:
         @kb.add(Keys.Any)
         def _(event):
             char = event.data
-            if char.isprintable() and char != '/':
+            if char.isprintable() and char != "/":
                 self.filter_text += char
                 self._update_commands()
                 self.selected_index = 0
@@ -237,44 +233,52 @@ class SlashCommandSelector:
             lines = []
 
             # Header
-            lines.append(('class:header', '  Slash Commands\n'))
-            lines.append(('class:dim', '  ─────────────────────────────────────────────────\n'))
+            lines.append(("class:header", "  Slash Commands\n"))
+            lines.append(
+                ("class:dim", "  ─────────────────────────────────────────────────\n")
+            )
 
             if not self.commands:
-                lines.append(('class:dim', f'  No commands matching "/{self.filter_text}"\n'))
+                lines.append(
+                    ("class:dim", f'  No commands matching "/{self.filter_text}"\n')
+                )
             else:
                 for i, cmd in enumerate(self.commands):
                     if i == self.selected_index:
                         # Selected item
-                        lines.append(('class:selected', f'  ❯ '))
-                        lines.append(('class:selected-name', f'{cmd.display_name:<25}'))
-                        lines.append(('class:selected-desc', f' {cmd.description}\n'))
+                        lines.append(("class:selected", "  ❯ "))
+                        lines.append(("class:selected-name", f"{cmd.display_name:<25}"))
+                        lines.append(("class:selected-desc", f" {cmd.description}\n"))
                     else:
                         # Normal item
-                        lines.append(('class:normal', f'    '))
-                        lines.append(('class:name', f'{cmd.display_name:<25}'))
-                        lines.append(('class:desc', f' {cmd.description}\n'))
+                        lines.append(("class:normal", "    "))
+                        lines.append(("class:name", f"{cmd.display_name:<25}"))
+                        lines.append(("class:desc", f" {cmd.description}\n"))
 
             # Footer with instructions
-            lines.append(('class:dim', '  ─────────────────────────────────────────────────\n'))
-            lines.append(('class:hint', '  ↑↓ navigate  '))
-            lines.append(('class:hint', '⏎ select  '))
-            lines.append(('class:hint', 'esc cancel'))
+            lines.append(
+                ("class:dim", "  ─────────────────────────────────────────────────\n")
+            )
+            lines.append(("class:hint", "  ↑↓ navigate  "))
+            lines.append(("class:hint", "⏎ select  "))
+            lines.append(("class:hint", "esc cancel"))
 
             return lines
 
         # Style for the menu
-        style = Style.from_dict({
-            'header': f'bold {CYAN}',
-            'dim': GRAY,
-            'selected': f'bold {PRIMARY}',
-            'selected-name': f'bold {PRIMARY}',
-            'selected-desc': PRIMARY,
-            'normal': '',
-            'name': CYAN,
-            'desc': GRAY,
-            'hint': f'{GRAY} italic',
-        })
+        style = Style.from_dict(
+            {
+                "header": f"bold {CYAN}",
+                "dim": GRAY,
+                "selected": f"bold {PRIMARY}",
+                "selected-name": f"bold {PRIMARY}",
+                "selected-desc": PRIMARY,
+                "normal": "",
+                "name": CYAN,
+                "desc": GRAY,
+                "hint": f"{GRAY} italic",
+            }
+        )
 
         # Create application
         layout = Layout(
@@ -328,7 +332,7 @@ def parse_slash_command(text: str) -> Tuple[Optional[str], str]:
         Tuple of (command_name, remaining_args) or (None, original_text)
     """
     text = text.strip()
-    if not text.startswith('/'):
+    if not text.startswith("/"):
         return None, text
 
     # Split command from args
@@ -348,92 +352,59 @@ def _register_default_commands():
 
     # ========== SESSION COMMANDS ==========
     register_command(
-        "exit",
-        "Exit the Synod session",
-        aliases=["quit", "q"],
-        category="session"
+        "exit", "Exit the Synod session", aliases=["quit", "q"], category="session"
     )
 
-    register_command(
-        "logout",
-        "Logout from Synod Cloud and exit",
-        category="session"
-    )
+    register_command("logout", "Logout from Synod Cloud and exit", category="session")
 
     register_command(
         "clear",
         "Clear conversation history and free up context",
         aliases=["reset", "new"],
-        category="session"
+        category="session",
     )
 
-    register_command(
-        "resume",
-        "Continue a previous session",
-        category="session"
-    )
+    register_command("resume", "Continue a previous session", category="session")
 
     register_command(
-        "cost",
-        "Show the total cost and tokens for this session",
-        category="session"
+        "cost", "Show the total cost and tokens for this session", category="session"
     )
 
-    register_command(
-        "history",
-        "View recent session history",
-        category="session"
-    )
+    register_command("history", "View recent session history", category="session")
+
+    register_command("stats", "Show detailed usage statistics", category="session")
 
     register_command(
-        "stats",
-        "Show detailed usage statistics",
-        category="session"
-    )
-
-    register_command(
-        "compact",
-        "Compact conversation history to save context",
-        category="session"
+        "compact", "Compact conversation history to save context", category="session"
     )
 
     register_command(
         "rewind",
         "Undo recent changes and restore checkpoint",
         aliases=["undo"],
-        category="session"
+        category="session",
     )
 
     # ========== GIT COMMANDS ==========
     register_command(
-        "commit",
-        "Create a commit with AI-generated message",
-        category="git"
+        "commit", "Create a commit with AI-generated message", category="git"
     )
 
     register_command(
         "pr",
         "Create a pull request with debate-synthesized description",
-        category="git"
+        category="git",
     )
 
-    register_command(
-        "diff",
-        "Show and analyze current git changes",
-        category="git"
-    )
+    register_command("diff", "Show and analyze current git changes", category="git")
 
     # ========== REVIEW COMMANDS ==========
     register_command(
-        "review",
-        "Code review mode - critique without changes",
-        category="review"
+        "review", "Code review mode - critique without changes", category="review"
     )
 
     register_command(
-        "critique",
-        "Run adversarial critique on specific files",
-        category="review"
+        "critique", "Run adversarial critique on specific files", category="review"
     )
 
     # ========== CONFIGURATION COMMANDS ==========
@@ -441,85 +412,64 @@ def _register_default_commands():
         "config",
         "Open dashboard to manage your account",
         aliases=["settings"],
-        category="configuration"
+        category="configuration",
     )
 
     register_command(
-        "bishops",
-        "Open API keys page to configure models",
-        category="configuration"
+        "bishops", "Open API keys page to configure models", category="configuration"
     )
 
     register_command(
-        "pope",
-        "Open API keys page to configure models",
-        category="configuration"
+        "pope", "Open API keys page to configure models", category="configuration"
     )
 
     register_command(
         "memory",
         "View adversarial memory dashboard and stats",
-        category="configuration"
+        category="configuration",
     )
 
-    register_command(
-        "hooks",
-        "Configure automation hooks",
-        category="configuration"
-    )
+    register_command("hooks", "Configure automation hooks", category="configuration")
 
     # ========== WORKSPACE COMMANDS ==========
     register_command(
         "search",
         "Intelligent code search with parallel strategies",
         aliases=["find", "grep"],
-        category="workspace"
+        category="workspace",
     )
 
     register_command(
-        "context",
-        "View current context usage across all bishops",
-        category="workspace"
+        "context", "View current context usage across all bishops", category="workspace"
     )
 
     register_command(
         "index",
         "Re-index the current workspace",
         aliases=["reindex"],
-        category="workspace"
+        category="workspace",
     )
 
     register_command(
-        "files",
-        "List indexed files in the workspace",
-        category="workspace"
+        "files", "List indexed files in the workspace", category="workspace"
     )
 
-    register_command(
-        "add",
-        "Add files to the current context",
-        category="workspace"
-    )
+    register_command("add", "Add files to the current context", category="workspace")
 
     # ========== GENERAL COMMANDS ==========
     register_command(
         "help",
         "Show available commands and keyboard shortcuts",
         aliases=["?"],
-        category="general"
+        category="general",
     )
 
     register_command(
-        "version",
-        "Show Synod version information",
-        aliases=["v"],
-        category="general"
+        "version", "Show Synod version information", aliases=["v"], category="general"
     )
 
     register_command(
-        "init",
-        "Initialize .synod/SYNOD.md for this project",
-        category="general"
+        "init", "Initialize .synod/SYNOD.md for this project", category="general"
     )
 
 
