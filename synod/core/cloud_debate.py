@@ -1727,6 +1727,7 @@ async def process_events(
     api_url: str,
     api_key: str,
     work_dir: str,
+    auto_approve: bool = False,
 ) -> bool:
     """Process SSE events and handle tool calls.
 

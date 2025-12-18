@@ -256,7 +256,7 @@ def show_onboarding_required() -> None:
     console.print()
     console.print(f"[{GOLD}]Authentication required[/{GOLD}]")
     console.print()
-    console.print(f"[dim]Run [/{dim}][{GREEN}]synod login[/{GREEN}][dim] to authenticate, or just run [/{dim}][{GREEN}]synod[/{GREEN}][dim] to get started.[/{dim}]")
+    console.print(f"[dim]Run [/dim][{GREEN}]synod login[/{GREEN}][dim] to authenticate, or just run [/dim][{GREEN}]synod[/{GREEN}][dim] to get started.[/dim]")
     console.print()
 
 # Version (dynamic from package metadata)
