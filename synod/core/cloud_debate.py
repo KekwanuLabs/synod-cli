@@ -1557,8 +1557,8 @@ def build_status_bar(state: DebateState) -> Text:
 def build_display(state: DebateState) -> Group:
     """Build full display from current state.
 
-    Shows all stages. With vertical_overflow="crop" on Live display,
-    content is replaced in-place without accumulating.
+    Shows all stages. With vertical_overflow="visible" on Live display,
+    content scrolls naturally as new stages are added.
     """
     panels = []
 
@@ -2273,7 +2273,8 @@ async def run_cloud_debate(
         return not need_tool_execution
 
     # Phase 1: Pre-flight classification + smart context gathering
-    live = Live(console=console, auto_refresh=False, vertical_overflow="crop")
+    # Use vertical_overflow="visible" to allow content to scroll naturally
+    live = Live(console=console, auto_refresh=False, vertical_overflow="visible")
     live.start()
     live.update(build_display(state), refresh=True)
 
@@ -2393,7 +2394,7 @@ async def run_cloud_debate(
             pending_tool_results.clear()
 
             # Start new Live display for continued streaming
-            live = Live(console=console, auto_refresh=False, vertical_overflow="crop")
+            live = Live(console=console, auto_refresh=False, vertical_overflow="visible")
             live.start()
             live.update(build_display(state), refresh=True)
 
