@@ -1599,6 +1599,58 @@ def build_display(state: DebateState) -> Group:
     return Group(*panels)
 
 
+def build_current_stage_display(state: DebateState) -> Group:
+    """Build display showing only the current active stage.
+
+    Used with stage-by-stage printing where completed stages are printed
+    permanently and only the current stage uses Live updates.
+    """
+    panels = []
+
+    # Error takes precedence
+    if state.error:
+        panels.append(build_error_panel(state))
+        return Group(*panels)
+
+    # Only show the current stage panel
+    if state.stage == 0:
+        panels.append(build_analysis_panel(state))
+    elif state.stage == 1:
+        panels.append(build_proposals_panel(state))
+    elif state.stage == 2:
+        panels.append(build_critiques_panel(state))
+    elif state.stage == 3:
+        panels.append(build_synthesis_panel(state))
+
+    # Tool execution (if any) - show alongside current stage
+    tool_panel = build_tool_panel(state)
+    if tool_panel:
+        panels.append(tool_panel)
+
+    # Status bar at bottom (only while in progress)
+    if not state.complete and not state.error:
+        panels.append(Text(""))  # Spacing
+        panels.append(build_status_bar(state))
+
+    return Group(*panels)
+
+
+def get_completed_stage_panel(state: DebateState, stage: int) -> Optional[Panel]:
+    """Get the panel for a completed stage to print permanently.
+
+    Returns the appropriate panel builder for the given stage number.
+    """
+    if stage == 0:
+        return build_analysis_panel(state)
+    elif stage == 1:
+        return build_proposals_panel(state)
+    elif stage == 2:
+        return build_critiques_panel(state)
+    elif stage == 3:
+        return build_synthesis_panel(state)
+    return None
+
+
 # ============================================================
 # SSE Client
 # ============================================================
@@ -2035,108 +2087,6 @@ async def send_tool_results(
 # ============================================================
 
 
-async def process_events(
-    event_stream: AsyncIterator[dict],
-    state: DebateState,
-    live: Live,
-    api_url: str,
-    api_key: str,
-    work_dir: str,
-    auto_approve: bool = False,
-) -> bool:
-    """Process SSE events and handle tool calls.
-
-    Returns:
-        True if we have pending tool calls that need to be sent back
-    """
-    pending_tool_results: List[Dict[str, Any]] = []
-
-    async for event in event_stream:
-        event_type = event.get("type")
-
-        # Handle tool calls specially
-        if event_type == "tool_call":
-            handle_event(state, event)
-            live.update(build_display(state), refresh=True)
-
-            # Execute the tool locally
-            if state.current_tool:
-                # Execute tool outside of live context for interactive prompts
-                live.stop()
-
-                result = await execute_tool_call(
-                    state.current_tool, work_dir, auto_approve
-                )
-
-                live.start()
-                live.update(build_display(state), refresh=True)
-
-                # Store result for batch sending
-                pending_tool_results.append(result)
-
-        elif event_type == "complete":
-            handle_event(state, event)
-            live.update(build_display(state), refresh=True)
-            # Debate is complete, no more tool calls
-            return False
-
-        elif event_type == "error":
-            handle_event(state, event)
-            live.update(build_display(state), refresh=True)
-            return False
-
-        else:
-            handle_event(state, event)
-            live.update(build_display(state), refresh=True)
-
-        # Small delay for smoother animation
-        await asyncio.sleep(0.05)
-
-    # If we have pending tool results and a debate_id, we need to send them back
-    if pending_tool_results and state.debate_id:
-        # Send all tool results back to the cloud
-        async for event in send_tool_results(
-            api_url, api_key, state.debate_id, pending_tool_results
-        ):
-            event_type = event.get("type")
-
-            if event_type == "tool_call":
-                handle_event(state, event)
-                live.update(build_display(state), refresh=True)
-
-                # Execute the new tool
-                if state.current_tool:
-                    live.stop()
-                    result = await execute_tool_call(
-                        state.current_tool, work_dir, auto_approve
-                    )
-                    live.start()
-                    live.update(build_display(state), refresh=True)
-                    pending_tool_results.append(result)
-
-            elif event_type == "complete":
-                handle_event(state, event)
-                live.update(build_display(state), refresh=True)
-                return False
-
-            elif event_type == "error":
-                handle_event(state, event)
-                live.update(build_display(state), refresh=True)
-                return False
-
-            else:
-                handle_event(state, event)
-                live.update(build_display(state), refresh=True)
-
-            await asyncio.sleep(0.05)
-
-        # If we still have pending results after this round, recurse
-        if pending_tool_results:
-            return True
-
-    return False
-
-
 async def run_cloud_debate(
     api_key: str,
     query: str,
@@ -2172,19 +2122,55 @@ async def run_cloud_debate(
     pending_tool_results: List[Dict[str, Any]] = []
     live: Optional[Live] = None
 
+    # Track which stages have been printed permanently
+    printed_stages: set = set()
+
     async def process_stream(event_stream, collect_tools: bool = True):
         """Process an SSE stream with Live display.
 
         Returns True if stream completed normally, False if interrupted for tools.
         When tools are requested, we wait for stream to end to collect ALL tool calls.
+
+        Stage-by-stage display: When a stage completes and we move to the next,
+        we print the completed stage permanently and restart Live for only the
+        current stage. This allows natural terminal scrolling.
         """
-        nonlocal live, pending_tool_results
+        nonlocal live, pending_tool_results, printed_stages
 
         event_iter = event_stream.__aiter__()
         pending_task: Optional[asyncio.Task] = None
         stream_done = False
         need_tool_execution = False
         collected_tools: List[ToolCall] = []  # Collect all tool calls from this batch
+
+        def handle_stage_transition(event):
+            """Handle stage transition: print completed stage, restart Live."""
+            nonlocal live, printed_stages
+
+            new_stage = event.get("stage", 0)
+            old_stage = state.stage
+
+            # If moving to a new stage, print the completed stage permanently
+            if new_stage > old_stage and old_stage not in printed_stages:
+                if live:
+                    live.stop()
+
+                # Print the completed stage panel permanently
+                completed_panel = get_completed_stage_panel(state, old_stage)
+                if completed_panel:
+                    console.print(completed_panel)
+                printed_stages.add(old_stage)
+
+                # Now update state with the new stage
+                handle_event(state, event)
+
+                # Start new Live for the current stage only
+                live = Live(console=console, auto_refresh=False, transient=False)
+                live.start()
+                live.update(build_current_stage_display(state), refresh=True)
+                return True  # Handled
+
+            return False  # Not a stage transition, handle normally
 
         try:
             while not stream_done:
@@ -2204,10 +2190,15 @@ async def run_cloud_debate(
 
                         event_type = event.get("type")
 
+                        # Handle stage transitions specially
+                        if event_type == "stage":
+                            if handle_stage_transition(event):
+                                continue  # Already handled
+
                         if event_type == "tool_call":
                             handle_event(state, event)
                             if live:
-                                live.update(build_display(state), refresh=True)
+                                live.update(build_current_stage_display(state), refresh=True)
                             # Collect tool for later execution - don't break yet
                             if state.current_tool and collect_tools:
                                 collected_tools.append(state.current_tool)
@@ -2216,29 +2207,38 @@ async def run_cloud_debate(
 
                         elif event_type == "complete":
                             handle_event(state, event)
-                            if live:
-                                live.update(build_display(state), refresh=True)
+                            # Print final stage before showing complete
+                            if state.stage not in printed_stages:
+                                if live:
+                                    live.stop()
+                                completed_panel = get_completed_stage_panel(state, state.stage)
+                                if completed_panel:
+                                    console.print(completed_panel)
+                                printed_stages.add(state.stage)
+                                live = None  # No more live updates needed
+                            elif live:
+                                live.update(build_current_stage_display(state), refresh=True)
                             stream_done = True
 
                         elif event_type == "error":
                             handle_event(state, event)
                             if live:
-                                live.update(build_display(state), refresh=True)
+                                live.update(build_current_stage_display(state), refresh=True)
                             stream_done = True
 
                         else:
                             handle_event(state, event)
                             if live:
-                                live.update(build_display(state), refresh=True)
+                                live.update(build_current_stage_display(state), refresh=True)
                     else:
                         advance_animation()
                         # During synthesis, only refresh every 5th frame to reduce flicker
                         if live:
                             if state.stage == 3 and state.pope_status == "running":
                                 if _frame_idx % 5 == 0:
-                                    live.update(build_display(state), refresh=True)
+                                    live.update(build_current_stage_display(state), refresh=True)
                             else:
-                                live.update(build_display(state), refresh=True)
+                                live.update(build_current_stage_display(state), refresh=True)
 
                 except StopAsyncIteration:
                     stream_done = True
@@ -2246,7 +2246,7 @@ async def run_cloud_debate(
         except httpx.ReadError as e:
             state.error = f"Network error: {str(e)}"
             if live:
-                live.update(build_display(state), refresh=True)
+                live.update(build_current_stage_display(state), refresh=True)
 
         except GeneratorExit:
             pass
@@ -2255,7 +2255,7 @@ async def run_cloud_debate(
             if not state.error:
                 state.error = f"Unexpected error: {str(e)}"
                 if live:
-                    live.update(build_display(state), refresh=True)
+                    live.update(build_current_stage_display(state), refresh=True)
 
         finally:
             if pending_task is not None and not pending_task.done():
@@ -2276,10 +2276,10 @@ async def run_cloud_debate(
         return not need_tool_execution
 
     # Phase 1: Pre-flight classification + smart context gathering
-    # transient=False keeps final display visible after live.stop()
+    # Stage 0 uses its own Live display, will be printed when moving to Stage 1
     live = Live(console=console, auto_refresh=False, transient=False)
     live.start()
-    live.update(build_display(state), refresh=True)
+    live.update(build_current_stage_display(state), refresh=True)
 
     # Step 1: Call /classify to get context_plan
     classify_task = asyncio.create_task(
@@ -2297,7 +2297,7 @@ async def run_cloud_debate(
             await asyncio.wait_for(asyncio.shield(classify_task), timeout=0.1)
         except asyncio.TimeoutError:
             advance_animation()
-            live.update(build_display(state), refresh=True)
+            live.update(build_current_stage_display(state), refresh=True)
 
     classification = classify_task.result()
 
@@ -2323,7 +2323,7 @@ async def run_cloud_debate(
                 await asyncio.wait_for(asyncio.shield(gather_task), timeout=0.1)
             except asyncio.TimeoutError:
                 advance_animation()
-                live.update(build_display(state), refresh=True)
+                live.update(build_current_stage_display(state), refresh=True)
 
         auto_files, auto_file_paths = gather_task.result()
 
@@ -2346,13 +2346,13 @@ async def run_cloud_debate(
                 await asyncio.wait_for(asyncio.shield(fallback_task), timeout=0.1)
             except asyncio.TimeoutError:
                 advance_animation()
-                live.update(build_display(state), refresh=True)
+                live.update(build_current_stage_display(state), refresh=True)
 
         auto_files, auto_file_paths = fallback_task.result()
 
     if auto_file_paths:
         state.auto_context_files = auto_file_paths
-        live.update(build_display(state), refresh=True)
+        live.update(build_current_stage_display(state), refresh=True)
 
     # Phase 2: Process initial debate stream
     event_stream = stream_sse(
@@ -2399,7 +2399,7 @@ async def run_cloud_debate(
             # Start new Live display for continued streaming
             live = Live(console=console, auto_refresh=False, transient=False)
             live.start()
-            live.update(build_display(state), refresh=True)
+            live.update(build_current_stage_display(state), refresh=True)
 
             tool_stream = send_tool_results(
                 api_url, api_key, state.debate_id, results_to_send
@@ -2417,11 +2417,11 @@ async def run_cloud_debate(
     if live:
         live.stop()
 
-    # With transient=False, the final Live display stays visible after stop()
+    # With stage-by-stage printing, completed stages are already printed
     # Only print error state separately if there was an error
     if state.error:
         console.print()
-        console.print(build_display(state))
+        console.print(build_error_panel(state))
 
     return state
 
