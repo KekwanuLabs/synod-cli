@@ -276,11 +276,20 @@ class ToolExecutor:
         """
         console.print()
 
-        # Build confirmation panel
+        # Build confirmation panel with clear command display
         content = Text()
-        content.append("Operation: ", style="bold")
-        content.append(f"{info.operation}\n", style="cyan")
-        content.append(f"\n{info.description}\n", style="white")
+        content.append("🔧 ", style="bold")
+        content.append(f"{info.operation}\n\n", style="bold yellow")
+
+        # Make the command/description stand out
+        if info.description.startswith("Run: "):
+            # This is a bash command - make it very visible
+            cmd = info.description[5:]  # Remove "Run: " prefix
+            content.append("Command to execute:\n", style="dim")
+            content.append("  $ ", style="cyan")
+            content.append(f"{cmd}\n", style="bold white")
+        else:
+            content.append(f"{info.description}\n", style="white")
 
         if info.details:
             content.append(f"\n{info.details}\n", style="dim")

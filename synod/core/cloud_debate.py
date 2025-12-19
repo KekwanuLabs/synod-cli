@@ -1375,7 +1375,7 @@ def build_tool_panel(state: DebateState) -> Optional[Panel]:
                 param_text.append(v_str, style="white")
                 elements.append(param_text)
 
-    # Show recent completed tools
+    # Show recent completed tools with details
     completed = [tc for tc in state.tool_calls if tc.status == "complete"]
     if completed:
         elements.append(Text(""))
@@ -1386,7 +1386,36 @@ def build_tool_panel(state: DebateState) -> Optional[Panel]:
                     + Text(tc.error[:80], style="dim")
                 )
             else:
-                elements.append(Text(f"  ✓ {tc.tool}", style=GREEN))
+                # Show tool with details based on type
+                if tc.tool == "bash" and "command" in tc.parameters:
+                    cmd = tc.parameters["command"]
+                    # Truncate long commands
+                    if len(cmd) > 60:
+                        cmd = cmd[:57] + "..."
+                    elements.append(
+                        Text("  ✓ ", style=GREEN)
+                        + Text("$ ", style="dim")
+                        + Text(cmd, style="white")
+                    )
+                elif tc.tool == "file_editor":
+                    op = tc.parameters.get("operation", "")
+                    path = tc.parameters.get("path", "")
+                    if len(path) > 50:
+                        path = "..." + path[-47:]
+                    elements.append(
+                        Text("  ✓ ", style=GREEN)
+                        + Text(f"{op}: ", style="dim")
+                        + Text(path, style="white")
+                    )
+                elif tc.tool == "search":
+                    query = tc.parameters.get("query", "")[:40]
+                    elements.append(
+                        Text("  ✓ ", style=GREEN)
+                        + Text("search: ", style="dim")
+                        + Text(query, style="white")
+                    )
+                else:
+                    elements.append(Text(f"  ✓ {tc.tool}", style=GREEN))
 
     if not elements:
         return None
