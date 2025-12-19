@@ -2276,8 +2276,8 @@ async def run_cloud_debate(
         return not need_tool_execution
 
     # Phase 1: Pre-flight classification + smart context gathering
-    # Use vertical_overflow="visible" to allow content to scroll naturally
-    live = Live(console=console, auto_refresh=False, vertical_overflow="visible")
+    # transient=False keeps final display visible after live.stop()
+    live = Live(console=console, auto_refresh=False, transient=False)
     live.start()
     live.update(build_display(state), refresh=True)
 
@@ -2397,7 +2397,7 @@ async def run_cloud_debate(
             pending_tool_results.clear()
 
             # Start new Live display for continued streaming
-            live = Live(console=console, auto_refresh=False, vertical_overflow="visible")
+            live = Live(console=console, auto_refresh=False, transient=False)
             live.start()
             live.update(build_display(state), refresh=True)
 
@@ -2417,8 +2417,8 @@ async def run_cloud_debate(
     if live:
         live.stop()
 
-    # With vertical_overflow="visible", content scrolls naturally and stays visible
-    # Only print error state if needed (success state is already visible from Live)
+    # With transient=False, the final Live display stays visible after stop()
+    # Only print error state separately if there was an error
     if state.error:
         console.print()
         console.print(build_display(state))
