@@ -1007,7 +1007,9 @@ def build_critiques_panel(state: DebateState) -> Panel:
             row_text.append(
                 f"[{crit.severity.upper()}] ", style=f"bold {severity_color}"
             )
-            row_text.append(crit.summary[:50], style="dim")
+            # Show more of the summary - truncate at 80 chars
+            summary_text = crit.summary[:80] + ("..." if len(crit.summary) > 80 else "")
+            row_text.append(summary_text, style="dim")
             elements.append(row_text)
         elements.append(Text(""))
 
@@ -1058,7 +1060,8 @@ def build_critiques_panel(state: DebateState) -> Panel:
                 row_text.append(
                     f"[{crit.severity.upper()}] ", style=f"bold {severity_color}"
                 )
-                row_text.append(crit.summary[:50], style="dim")
+                summary_text = crit.summary[:80] + ("..." if len(crit.summary) > 80 else "")
+                row_text.append(summary_text, style="dim")
                 elements.append(row_text)
 
     # Starting message if no rounds yet
@@ -2414,12 +2417,9 @@ async def run_cloud_debate(
     if live:
         live.stop()
 
-    # Print the final synthesis separately after Live display stops
-    # This ensures the full content is visible (Live's vertical_overflow="crop" truncates)
-    if state.complete and state.pope_content and not state.error:
-        console.print()
-        console.print(build_final_synthesis(state))
-    elif state.error:
+    # With vertical_overflow="visible", content scrolls naturally and stays visible
+    # Only print error state if needed (success state is already visible from Live)
+    if state.error:
         console.print()
         console.print(build_display(state))
 
