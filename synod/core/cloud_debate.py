@@ -2195,10 +2195,9 @@ async def run_cloud_debate(
                 handle_event(state, event)
 
                 # Start new Live for the current stage only
-                # For stages 0-2: transient=True so content clears, then we print permanently
-                # For stage 3 (synthesis): transient=False so content stays (no need to reprint)
-                is_synthesis = state.stage == 3
-                live = Live(console=console, auto_refresh=False, transient=not is_synthesis)
+                # All stages use transient=True - content clears on stop, then we print permanently
+                # This prevents duplication and ensures full content is visible
+                live = Live(console=console, auto_refresh=False, transient=True)
                 live.start()
                 live.update(build_current_stage_display(state), refresh=True)
                 return True  # Handled
@@ -2243,16 +2242,14 @@ async def run_cloud_debate(
                             # Handle final stage completion
                             if state.stage not in printed_stages:
                                 if live:
-                                    # Final update with complete state
-                                    live.update(build_current_stage_display(state), refresh=True)
+                                    # Stop Live first (content erased with transient=True)
                                     live.stop()
                                     live = None
-                                # For synthesis (stage 3), Live has transient=False so content stays
-                                # For other stages, print the final panel
-                                if state.stage != 3:
-                                    completed_panel = get_completed_stage_panel(state, state.stage)
-                                    if completed_panel:
-                                        console.print(completed_panel)
+                                # Print the final panel for ALL stages including synthesis
+                                # This ensures full content is displayed (Live may truncate long content)
+                                completed_panel = get_completed_stage_panel(state, state.stage)
+                                if completed_panel:
+                                    console.print(completed_panel)
                                 printed_stages.add(state.stage)
                             stream_done = True
 
