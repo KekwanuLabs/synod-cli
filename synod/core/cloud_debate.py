@@ -2165,7 +2165,8 @@ async def run_cloud_debate(
                 handle_event(state, event)
 
                 # Start new Live for the current stage only
-                live = Live(console=console, auto_refresh=False, transient=False)
+                # transient=True so content clears when we stop, then we print permanently
+                live = Live(console=console, auto_refresh=False, transient=True)
                 live.start()
                 live.update(build_current_stage_display(state), refresh=True)
                 return True  # Handled
@@ -2277,7 +2278,8 @@ async def run_cloud_debate(
 
     # Phase 1: Pre-flight classification + smart context gathering
     # Stage 0 uses its own Live display, will be printed when moving to Stage 1
-    live = Live(console=console, auto_refresh=False, transient=False)
+    # transient=True so content clears when we stop, then we print permanently
+    live = Live(console=console, auto_refresh=False, transient=True)
     live.start()
     live.update(build_current_stage_display(state), refresh=True)
 
@@ -2397,7 +2399,8 @@ async def run_cloud_debate(
             pending_tool_results.clear()
 
             # Start new Live display for continued streaming
-            live = Live(console=console, auto_refresh=False, transient=False)
+            # transient=True so content clears when we stop, then we print permanently
+            live = Live(console=console, auto_refresh=False, transient=True)
             live.start()
             live.update(build_current_stage_display(state), refresh=True)
 
