@@ -340,17 +340,19 @@ async def _arun_query(
 
     except UpgradeRequiredError as e:
         # CLI version is incompatible - prompt for upgrade
+        # Note: This is in an async context, so we need to handle it differently
         console.print()
-        upgraded = prompt_upgrade_interactive(
-            current_version=e.current_version,
-            required_version=e.min_version,
-            is_blocking=True,
-        )
-        if upgraded:
-            console.print(
-                f"[{GREEN}]✓ Upgrade complete! Please restart Synod.[/{GREEN}]\n"
+        console.print(
+            Panel(
+                f"[yellow]Your CLI version ({e.current_version}) is incompatible with Synod Cloud.[/yellow]\n"
+                f"[dim]Minimum required version: {e.min_version}[/dim]\n\n"
+                f"[white]Please upgrade: [cyan]pipx upgrade synod-cli[/cyan][/white]",
+                title="[bold red]Upgrade Required[/bold red]",
+                border_style="red",
+                width=60,
             )
-        # Session should exit after upgrade prompt
+        )
+        # Session should exit after showing upgrade message
         raise SystemExit(1)
 
     except Exception as e:
@@ -1247,7 +1249,7 @@ async def _interactive_session(auto_approve: bool = False):
         if not compat.get("compatible", True):
             # CLI is incompatible - must upgrade
             console.print()
-            upgraded = prompt_upgrade_interactive(
+            upgraded = await prompt_upgrade_interactive(
                 current_version=VERSION,
                 required_version=compat.get("min_cli_version", "unknown"),
                 is_blocking=True,
@@ -1263,7 +1265,7 @@ async def _interactive_session(auto_approve: bool = False):
         elif compat.get("update_available", False):
             # Update available but not required - offer optional upgrade
             latest = compat.get("latest_cli_version", VERSION)
-            upgraded = prompt_upgrade_interactive(
+            upgraded = await prompt_upgrade_interactive(
                 current_version=VERSION,
                 required_version=latest,
                 is_blocking=False,

@@ -69,7 +69,7 @@ def check_cloud_compatibility(cli_version: str) -> dict:
         return {}  # Fail silently
 
 
-def prompt_upgrade_interactive(
+async def prompt_upgrade_interactive(
     current_version: str,
     required_version: str,
     is_blocking: bool = False,
@@ -84,9 +84,7 @@ def prompt_upgrade_interactive(
     Returns:
         True if user chose to upgrade, False otherwise.
     """
-    from prompt_toolkit import prompt
     from prompt_toolkit.key_binding import KeyBindings
-    from prompt_toolkit.formatted_text import HTML
     from rich.panel import Panel
     import sys
 
@@ -122,15 +120,6 @@ def prompt_upgrade_interactive(
     # Selection state
     selected = [0]  # 0 = Upgrade, 1 = Skip (if allowed)
     options = ["Upgrade now", "Skip"] if not is_blocking else ["Upgrade now"]
-
-    def get_prompt_text():
-        lines = []
-        for i, opt in enumerate(options):
-            if i == selected[0]:
-                lines.append(f"  [bold cyan]› {opt}[/bold cyan]")
-            else:
-                lines.append(f"    [dim]{opt}[/dim]")
-        return "\n".join(lines)
 
     # Key bindings for arrow selection
     bindings = KeyBindings()
@@ -192,7 +181,8 @@ def prompt_upgrade_interactive(
     )
 
     try:
-        result = app.run()
+        # Use run_async() since we're already in an async context
+        result = await app.run_async()
         console.print()  # Add spacing after selection
 
         if result == 0:
