@@ -1622,10 +1622,11 @@ def build_current_stage_display(state: DebateState) -> Group:
     elif state.stage == 3:
         panels.append(build_synthesis_panel(state))
 
-    # Tool execution (if any) - show alongside current stage
-    tool_panel = build_tool_panel(state)
-    if tool_panel:
-        panels.append(tool_panel)
+    # Tool execution (if any) - show alongside current stage, but not after completion
+    if not state.complete:
+        tool_panel = build_tool_panel(state)
+        if tool_panel:
+            panels.append(tool_panel)
 
     # Status bar at bottom (only while in progress)
     if not state.complete and not state.error:
@@ -2165,8 +2166,10 @@ async def run_cloud_debate(
                 handle_event(state, event)
 
                 # Start new Live for the current stage only
-                # transient=True so content clears when we stop, then we print permanently
-                live = Live(console=console, auto_refresh=False, transient=True)
+                # For stages 0-2: transient=True so content clears, then we print permanently
+                # For stage 3 (synthesis): transient=False so content stays (no need to reprint)
+                is_synthesis = state.stage == 3
+                live = Live(console=console, auto_refresh=False, transient=not is_synthesis)
                 live.start()
                 live.update(build_current_stage_display(state), refresh=True)
                 return True  # Handled
@@ -2208,17 +2211,20 @@ async def run_cloud_debate(
 
                         elif event_type == "complete":
                             handle_event(state, event)
-                            # Print final stage before showing complete
+                            # Handle final stage completion
                             if state.stage not in printed_stages:
                                 if live:
+                                    # Final update with complete state
+                                    live.update(build_current_stage_display(state), refresh=True)
                                     live.stop()
-                                completed_panel = get_completed_stage_panel(state, state.stage)
-                                if completed_panel:
-                                    console.print(completed_panel)
+                                    live = None
+                                # For synthesis (stage 3), Live has transient=False so content stays
+                                # For other stages, print the final panel
+                                if state.stage != 3:
+                                    completed_panel = get_completed_stage_panel(state, state.stage)
+                                    if completed_panel:
+                                        console.print(completed_panel)
                                 printed_stages.add(state.stage)
-                                live = None  # No more live updates needed
-                            elif live:
-                                live.update(build_current_stage_display(state), refresh=True)
                             stream_done = True
 
                         elif event_type == "error":
