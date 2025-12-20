@@ -1033,9 +1033,11 @@ def build_critiques_panel(state: DebateState) -> Panel:
             row_text.append(
                 f"[{crit.severity.upper()}] ", style=f"bold {severity_color}"
             )
-            # Show more of the summary - truncate at 80 chars
-            summary_text = crit.summary[:80] + ("..." if len(crit.summary) > 80 else "")
+            # Show more of the summary - truncate at 110 chars
+            summary_text = crit.summary[:110] + ("..." if len(crit.summary) > 110 else "")
             row_text.append(summary_text, style="dim")
+            row_text.overflow = "ellipsis"  # Prevent wrap on narrow terminals
+            row_text.no_wrap = True
             elements.append(row_text)
         elements.append(Text(""))
 
@@ -1086,8 +1088,10 @@ def build_critiques_panel(state: DebateState) -> Panel:
                 row_text.append(
                     f"[{crit.severity.upper()}] ", style=f"bold {severity_color}"
                 )
-                summary_text = crit.summary[:80] + ("..." if len(crit.summary) > 80 else "")
+                summary_text = crit.summary[:110] + ("..." if len(crit.summary) > 110 else "")
                 row_text.append(summary_text, style="dim")
+                row_text.overflow = "ellipsis"  # Prevent wrap on narrow terminals
+                row_text.no_wrap = True
                 elements.append(row_text)
 
     # Starting message if no rounds yet
