@@ -576,7 +576,7 @@ def build_analysis_panel(state: DebateState) -> Panel:
         elements.append(Text("✓ Analysis complete", style=f"bold {GREEN}"))
         elements.append(Text(""))
 
-        # Complexity with color
+        # Complexity with color and max rounds explanation
         complexity_colors = {
             "trivial": GREEN,
             "simple": CYAN,
@@ -584,11 +584,24 @@ def build_analysis_panel(state: DebateState) -> Panel:
             "complex": PRIMARY,
             "expert": "red",
         }
+        # Max rounds by complexity (matches API logic)
+        max_rounds_by_complexity = {
+            "trivial": 0,
+            "simple": 1,
+            "moderate": 2,
+            "complex": 2,
+            "expert": 3,
+        }
         color = complexity_colors.get(state.complexity, CYAN)
-        elements.append(
-            Text("Complexity: ", style="dim")
-            + Text(state.complexity.upper(), style=f"bold {color}")
-        )
+        max_rounds = max_rounds_by_complexity.get(state.complexity, 2)
+
+        complexity_text = Text("Complexity: ", style="dim")
+        complexity_text.append(state.complexity.upper(), style=f"bold {color}")
+        if state.complexity == "trivial":
+            complexity_text.append(" → debate skipped", style="dim")
+        else:
+            complexity_text.append(f" → up to {max_rounds} debate round(s)", style="dim")
+        elements.append(complexity_text)
 
         # Domains
         if state.domains:
@@ -945,11 +958,24 @@ def build_critiques_panel(state: DebateState) -> Panel:
             padding=(0, 2),
         )
 
-    # Show debate explanation header
+    # Show debate explanation header with complexity context
     if state.max_rounds > 0 and state.stage == 2:
+        # Explain why this number of rounds based on complexity
+        complexity_reason = {
+            "simple": "simple query",
+            "moderate": "moderate complexity",
+            "complex": "complex query",
+            "expert": "expert-level query",
+        }.get(state.complexity, "query complexity")
         elements.append(
             Text(
-                f"📋 Debate plan: Up to {state.max_rounds} round(s), exit early at 80%+ consensus",
+                f"📋 Debate plan: Up to {state.max_rounds} round(s) ({complexity_reason})",
+                style="dim",
+            )
+        )
+        elements.append(
+            Text(
+                "   Early exit: ≥85% consensus + no critical issues, or only minor issues found",
                 style="dim",
             )
         )
