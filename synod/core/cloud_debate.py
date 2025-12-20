@@ -1256,6 +1256,53 @@ def build_synthesis_panel(state: DebateState) -> Panel:
     return Panel(Group(*elements), title=title, border_style=border, padding=(1, 2))
 
 
+def build_synthesis_status(state: DebateState) -> Panel:
+    """Build a compact synthesis status for Live display during streaming.
+
+    This shows just the progress/status without the full streaming content,
+    to avoid scroll/transient issues with Rich Live. The full panel is
+    printed when synthesis completes.
+    """
+    elements = []
+    spinner = get_spinner()
+
+    if state.pope_status == "running":
+        # Show progress during streaming
+        content_len = len(state.pope_content) if state.pope_content else 0
+        if content_len > 0:
+            # Show character count as progress indicator
+            elements.append(
+                Text(f"{spinner} {format_model_name(state.pope)} synthesizing...", style=f"bold {SECONDARY}")
+            )
+            elements.append(Text(""))
+            elements.append(Text(f"📝 {content_len:,} characters generated", style="dim"))
+        else:
+            elements.append(
+                Text(f"{spinner} {format_model_name(state.pope)} starting synthesis...", style=f"bold {SECONDARY}")
+            )
+    elif state.pope_status == "complete":
+        # Complete - will be replaced by full panel print
+        elements.append(
+            Text(f"✓ Synthesis complete", style=f"bold {GREEN}")
+        )
+    else:
+        # Waiting
+        if state.debate_skipped:
+            elements.append(
+                Text(f"{spinner} Preparing synthesis (debate skipped)...", style="dim")
+            )
+        else:
+            elements.append(
+                Text(f"{spinner} Awaiting debate conclusion...", style="dim")
+            )
+
+    stage_time = get_stage_time(state, 3)
+    time_suffix = f" [{stage_time}]" if stage_time else ""
+    title = f"[{SECONDARY}]Stage 3: Pope Synthesis{time_suffix}[/{SECONDARY}]"
+
+    return Panel(Group(*elements), title=title, border_style=SECONDARY, padding=(0, 2))
+
+
 def build_error_panel(state: DebateState) -> Panel:
     """Build error panel with user-friendly messages."""
     error_msg = state.error
@@ -1649,7 +1696,10 @@ def build_current_stage_display(state: DebateState) -> Group:
     elif state.stage == 2:
         panels.append(build_critiques_panel(state))
     elif state.stage == 3:
-        panels.append(build_synthesis_panel(state))
+        # For stage 3, show a compact "synthesizing" status during streaming
+        # to avoid scroll/transient issues with long content.
+        # Full synthesis panel is printed when complete.
+        panels.append(build_synthesis_status(state))
 
     # Tool execution (if any) - show alongside current stage, but not after completion
     if not state.complete:
@@ -2195,10 +2245,9 @@ async def run_cloud_debate(
                 handle_event(state, event)
 
                 # Start new Live for the current stage only
-                # Stages 0-2: transient=True (content clears on stop, then we print permanently)
-                # Stage 3 (synthesis): transient=False (content stays - may scroll, so erasure won't work)
-                is_synthesis = state.stage == 3
-                live = Live(console=console, auto_refresh=False, transient=not is_synthesis)
+                # All stages use transient=True - content clears on stop, then we print permanently
+                # This avoids Rich Live's cursor positioning bugs with transient=False
+                live = Live(console=console, auto_refresh=False, transient=True)
                 live.start()
                 live.update(build_current_stage_display(state), refresh=True)
                 return True  # Handled
@@ -2245,12 +2294,13 @@ async def run_cloud_debate(
                                 if live:
                                     live.stop()
                                     live = None
-                                # For stages 0-2: transient=True erased content, so print permanently
-                                # For stage 3 (synthesis): transient=False kept content visible, don't reprint
-                                if state.stage != 3:
-                                    completed_panel = get_completed_stage_panel(state, state.stage)
-                                    if completed_panel:
-                                        console.print(completed_panel)
+                                # Print the completed stage panel
+                                # For all stages: transient=True clears Live area, then we print permanently
+                                # Note: For long synthesis (stage 3), scrolled content may remain visible
+                                # above, but the printed panel below has the complete content
+                                completed_panel = get_completed_stage_panel(state, state.stage)
+                                if completed_panel:
+                                    console.print(completed_panel)
                                 printed_stages.add(state.stage)
                             stream_done = True
 
