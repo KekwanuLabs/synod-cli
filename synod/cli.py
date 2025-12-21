@@ -512,14 +512,31 @@ def _run_callback_server(port: int, timeout: int = 120) -> Optional[str]:
                             .check { color: #22c55e; font-size: 48px; margin-bottom: 16px; }
                             h1 { margin: 0 0 8px; }
                             p { color: #9ca3af; }
+                            #countdown { color: #d4a574; margin-top: 16px; }
                         </style>
                     </head>
                     <body>
                         <div class="container">
                             <div class="check">&#10003;</div>
                             <h1>CLI Authorized!</h1>
-                            <p>You can close this window and return to your terminal.</p>
+                            <p id="status">Closing in <span id="seconds">3</span>...</p>
                         </div>
+                        <script>
+                            let seconds = 3;
+                            const countdown = setInterval(() => {
+                                seconds--;
+                                if (seconds > 0) {
+                                    document.getElementById('seconds').textContent = seconds;
+                                } else {
+                                    clearInterval(countdown);
+                                    window.close();
+                                    // If window.close() didn't work (browser restriction), show manual message
+                                    setTimeout(() => {
+                                        document.getElementById('status').textContent = 'You can close this tab and return to your terminal.';
+                                    }, 100);
+                                }
+                            }, 1000);
+                        </script>
                     </body>
                     </html>
                     """)
