@@ -102,6 +102,41 @@ def is_onboarded() -> bool:
     return get_api_key() is not None
 
 
+def validate_session_with_server() -> tuple[bool, str | None]:
+    """Validate the stored API key with the server.
+
+    Returns:
+        (is_valid, error_message) tuple.
+        is_valid: True if key is valid, False if expired/revoked
+        error_message: None if valid, otherwise the reason for failure
+    """
+    import httpx
+
+    api_key = get_api_key()
+    if not api_key:
+        return False, "No API key found"
+
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            response = client.get(
+                "https://api.synod.run/me", headers={"Authorization": api_key}
+            )
+            if response.status_code == 200:
+                return True, None
+            elif response.status_code == 401:
+                return False, "Session expired or revoked"
+            elif response.status_code == 403:
+                return False, "Access denied"
+            else:
+                return False, f"Server error ({response.status_code})"
+    except httpx.TimeoutException:
+        # Network timeout - allow to proceed (fail on first query instead)
+        return True, None
+    except Exception:
+        # Network error - allow to proceed (fail on first query instead)
+        return True, None
+
+
 def _typewriter_centered(text: str, color: str = "", delay: float = 0.02) -> None:
     """Print text with typewriter effect, centered."""
     import time
@@ -1240,6 +1275,20 @@ async def _interactive_session(auto_approve: bool = False):
     # Safety check - main flow should have already ensured API key exists
     if not is_onboarded():
         console.print("\n[red]Not authenticated. Run 'synod login' first.[/red]\n")
+        return
+
+    # Validate the stored API key with the server before proceeding
+    # This catches revoked sessions before showing the full UI
+    is_valid, error_msg = validate_session_with_server()
+    if not is_valid:
+        # Clear the invalid key
+        cfg = load_config()
+        cfg.pop("api_key", None)
+        save_config(cfg)
+
+        console.print(f"\n[red]✗ {error_msg}[/red]")
+        console.print("[dim]Your session has been revoked or expired.[/dim]")
+        console.print(f"[dim]Run [/dim][{GOLD}]synod login[/{GOLD}][dim] to re-authenticate.[/dim]\n")
         return
 
     # Check version compatibility with Synod Cloud (silent unless action needed)
