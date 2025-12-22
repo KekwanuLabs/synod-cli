@@ -33,6 +33,44 @@ console = Console()
 
 
 # ============================================================
+# Terminal Compatibility
+# ============================================================
+
+
+def _is_problematic_terminal() -> bool:
+    """Detect terminals with poor Rich Live support.
+
+    Terminal.app on macOS has issues with ANSI cursor positioning escape
+    sequences that Rich's Live display uses. This causes duplicate panels
+    to stack instead of replacing each other.
+    """
+    term_program = os.environ.get("TERM_PROGRAM", "").lower()
+    # Apple Terminal has known issues with cursor positioning
+    return term_program in ("apple_terminal", "terminal")
+
+
+# Cache the result to avoid repeated env lookups
+_SLOW_TERMINAL = _is_problematic_terminal()
+
+# Throttle interval for problematic terminals (in seconds)
+# Terminal.app needs very slow updates to avoid cursor positioning glitches
+_SLOW_TERMINAL_INTERVAL = 0.5  # Update at most every 500ms
+_last_update_time = 0.0
+
+
+def _should_throttle_update() -> bool:
+    """Check if we should skip this update due to throttling."""
+    global _last_update_time
+    if not _SLOW_TERMINAL:
+        return False
+    now = time.time()
+    if now - _last_update_time < _SLOW_TERMINAL_INTERVAL:
+        return True
+    _last_update_time = now
+    return False
+
+
+# ============================================================
 # Exceptions
 # ============================================================
 
@@ -2346,6 +2384,9 @@ async def run_cloud_debate(
                                 live.update(build_current_stage_display(state), refresh=True)
                     else:
                         advance_animation()
+                        # Skip animation updates on slow terminals to avoid cursor glitches
+                        if _should_throttle_update():
+                            continue
                         # During synthesis, only refresh every 5th frame to reduce flicker
                         if live:
                             if state.stage == 3 and state.pope_status == "running":
@@ -2412,7 +2453,8 @@ async def run_cloud_debate(
             await asyncio.wait_for(asyncio.shield(classify_task), timeout=0.1)
         except asyncio.TimeoutError:
             advance_animation()
-            live.update(build_current_stage_display(state), refresh=True)
+            if not _should_throttle_update():
+                live.update(build_current_stage_display(state), refresh=True)
 
     classification = classify_task.result()
 
@@ -2438,7 +2480,8 @@ async def run_cloud_debate(
                 await asyncio.wait_for(asyncio.shield(gather_task), timeout=0.1)
             except asyncio.TimeoutError:
                 advance_animation()
-                live.update(build_current_stage_display(state), refresh=True)
+                if not _should_throttle_update():
+                    live.update(build_current_stage_display(state), refresh=True)
 
         auto_files, auto_file_paths = gather_task.result()
 
@@ -2461,7 +2504,8 @@ async def run_cloud_debate(
                 await asyncio.wait_for(asyncio.shield(fallback_task), timeout=0.1)
             except asyncio.TimeoutError:
                 advance_animation()
-                live.update(build_current_stage_display(state), refresh=True)
+                if not _should_throttle_update():
+                    live.update(build_current_stage_display(state), refresh=True)
 
         auto_files, auto_file_paths = fallback_task.result()
 
