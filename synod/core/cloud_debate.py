@@ -50,24 +50,22 @@ def _is_problematic_terminal() -> bool:
 
 
 # Cache the result to avoid repeated env lookups
-_SLOW_TERMINAL = _is_problematic_terminal()
+_SIMPLE_MODE = _is_problematic_terminal()
 
-# Throttle interval for problematic terminals (in seconds)
-# Terminal.app needs very slow updates to avoid cursor positioning glitches
-_SLOW_TERMINAL_INTERVAL = 0.5  # Update at most every 500ms
-_last_update_time = 0.0
+# Track last printed status to avoid duplicate prints in simple mode
+_last_simple_status = ""
 
 
-def _should_throttle_update() -> bool:
-    """Check if we should skip this update due to throttling."""
-    global _last_update_time
-    if not _SLOW_TERMINAL:
-        return False
-    now = time.time()
-    if now - _last_update_time < _SLOW_TERMINAL_INTERVAL:
-        return True
-    _last_update_time = now
-    return False
+def _print_simple_status(status: str, force: bool = False) -> None:
+    """Print a simple status line for terminals that don't support Live.
+
+    Only prints if the status has changed (or force=True).
+    """
+    global _last_simple_status
+    if not force and status == _last_simple_status:
+        return
+    _last_simple_status = status
+    console.print(f"[dim]{status}[/dim]")
 
 
 # ============================================================
@@ -251,6 +249,24 @@ class DebateState:
 def handle_event(state: DebateState, event: dict) -> None:
     """Update state based on SSE event."""
     event_type = event.get("type")
+
+    # Simple mode: print status for key events (no Live display)
+    if _SIMPLE_MODE:
+        if event_type == "analysis_complete":
+            bishops = event.get("bishops", [])
+            complexity = event.get("complexity", "")
+            _print_simple_status(f"Complexity: {complexity}, Bishops: {', '.join(format_model_name(b) for b in bishops)}")
+        elif event_type == "bishop_start":
+            _print_simple_status(f"  → {format_model_name(event.get('model', ''))} proposing...")
+        elif event_type == "bishop_complete":
+            tokens = event.get("tokens", 0)
+            _print_simple_status(f"  ✓ {format_model_name(event.get('model', ''))} complete ({tokens} tokens)")
+        elif event_type == "critique_round_start":
+            _print_simple_status(f"Critique round {event.get('round', 0)} of {event.get('maxRounds', 0)}...")
+        elif event_type == "pope_start":
+            _print_simple_status("Pope synthesizing final answer...")
+        elif event_type == "complete":
+            _print_simple_status("Complete!")
 
     if event_type == "stage":
         # End previous stage timing (if any)
@@ -2312,12 +2328,17 @@ async def run_cloud_debate(
                 # Now update state with the new stage
                 handle_event(state, event)
 
-                # Start new Live for the current stage only
-                # All stages use transient=True - content clears on stop, then we print permanently
-                # This avoids Rich Live's cursor positioning bugs with transient=False
-                live = Live(console=console, auto_refresh=False, transient=True)
-                live.start()
-                live.update(build_current_stage_display(state), refresh=True)
+                # Start new Live for the current stage only (skip for simple mode)
+                if not _SIMPLE_MODE:
+                    # All stages use transient=True - content clears on stop, then we print permanently
+                    # This avoids Rich Live's cursor positioning bugs with transient=False
+                    live = Live(console=console, auto_refresh=False, transient=True)
+                    live.start()
+                    live.update(build_current_stage_display(state), refresh=True)
+                else:
+                    # Simple mode: just print stage name
+                    stage_names = {0: "Analyzing", 1: "Bishops proposing", 2: "Debating", 3: "Synthesizing"}
+                    _print_simple_status(f"Stage {new_stage}: {stage_names.get(new_stage, 'Processing')}...")
                 return True  # Handled
 
             return False  # Not a stage transition, handle normally
@@ -2384,9 +2405,7 @@ async def run_cloud_debate(
                                 live.update(build_current_stage_display(state), refresh=True)
                     else:
                         advance_animation()
-                        # Skip animation updates on slow terminals to avoid cursor glitches
-                        if _should_throttle_update():
-                            continue
+                        # Animation updates only happen when Live is active (not in simple mode)
                         # During synthesis, only refresh every 5th frame to reduce flicker
                         if live:
                             if state.stage == 3 and state.pope_status == "running":
@@ -2432,10 +2451,13 @@ async def run_cloud_debate(
 
     # Phase 1: Pre-flight classification + smart context gathering
     # Stage 0 uses its own Live display, will be printed when moving to Stage 1
-    # transient=True so content clears when we stop, then we print permanently
-    live = Live(console=console, auto_refresh=False, transient=True)
-    live.start()
-    live.update(build_current_stage_display(state), refresh=True)
+    if not _SIMPLE_MODE:
+        # transient=True so content clears when we stop, then we print permanently
+        live = Live(console=console, auto_refresh=False, transient=True)
+        live.start()
+        live.update(build_current_stage_display(state), refresh=True)
+    else:
+        _print_simple_status("Stage 0: Analyzing query...")
 
     # Step 1: Call /classify to get context_plan
     classify_task = asyncio.create_task(
@@ -2453,7 +2475,7 @@ async def run_cloud_debate(
             await asyncio.wait_for(asyncio.shield(classify_task), timeout=0.1)
         except asyncio.TimeoutError:
             advance_animation()
-            if not _should_throttle_update():
+            if live:
                 live.update(build_current_stage_display(state), refresh=True)
 
     classification = classify_task.result()
@@ -2480,7 +2502,7 @@ async def run_cloud_debate(
                 await asyncio.wait_for(asyncio.shield(gather_task), timeout=0.1)
             except asyncio.TimeoutError:
                 advance_animation()
-                if not _should_throttle_update():
+                if live:
                     live.update(build_current_stage_display(state), refresh=True)
 
         auto_files, auto_file_paths = gather_task.result()
@@ -2504,14 +2526,17 @@ async def run_cloud_debate(
                 await asyncio.wait_for(asyncio.shield(fallback_task), timeout=0.1)
             except asyncio.TimeoutError:
                 advance_animation()
-                if not _should_throttle_update():
+                if live:
                     live.update(build_current_stage_display(state), refresh=True)
 
         auto_files, auto_file_paths = fallback_task.result()
 
     if auto_file_paths:
         state.auto_context_files = auto_file_paths
-        live.update(build_current_stage_display(state), refresh=True)
+        if live:
+            live.update(build_current_stage_display(state), refresh=True)
+        else:
+            _print_simple_status(f"Found {len(auto_file_paths)} relevant files")
 
     # Phase 2: Process initial debate stream
     event_stream = stream_sse(
@@ -2555,11 +2580,14 @@ async def run_cloud_debate(
             results_to_send = pending_tool_results[:]
             pending_tool_results.clear()
 
-            # Start new Live display for continued streaming
-            # transient=True so content clears when we stop, then we print permanently
-            live = Live(console=console, auto_refresh=False, transient=True)
-            live.start()
-            live.update(build_current_stage_display(state), refresh=True)
+            # Start new Live display for continued streaming (skip for simple mode)
+            if not _SIMPLE_MODE:
+                # transient=True so content clears when we stop, then we print permanently
+                live = Live(console=console, auto_refresh=False, transient=True)
+                live.start()
+                live.update(build_current_stage_display(state), refresh=True)
+            else:
+                _print_simple_status("Processing tool results...")
 
             tool_stream = send_tool_results(
                 api_url, api_key, state.debate_id, results_to_send
