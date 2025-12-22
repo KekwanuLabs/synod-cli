@@ -52,8 +52,35 @@ def _is_problematic_terminal() -> bool:
 # Cache the result to avoid repeated env lookups
 _SIMPLE_MODE = _is_problematic_terminal()
 
-# Track last printed status to avoid duplicate prints in simple mode
+# Simple mode spinner state
+_simple_spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+_simple_spinner_idx = 0
+_simple_spinner_active = False
 _last_simple_status = ""
+
+
+def _print_simple_spinner(message: str) -> None:
+    """Print a spinner that updates in place using carriage return.
+
+    This works on Terminal.app because \r is basic and widely supported.
+    """
+    global _simple_spinner_idx, _simple_spinner_active
+    _simple_spinner_active = True
+    frame = _simple_spinner_frames[_simple_spinner_idx % len(_simple_spinner_frames)]
+    _simple_spinner_idx += 1
+    # Use \r to return to start of line, print without newline
+    # Pad with spaces to clear any previous longer text
+    text = f"\r  {frame} {message}".ljust(60)
+    print(text, end="", flush=True)
+
+
+def _clear_simple_spinner() -> None:
+    """Clear the spinner line before printing a new status."""
+    global _simple_spinner_active
+    if _simple_spinner_active:
+        # Clear the line with spaces and return to start
+        print("\r" + " " * 60 + "\r", end="", flush=True)
+        _simple_spinner_active = False
 
 
 def _print_simple_status(status: str, force: bool = False) -> None:
@@ -64,6 +91,7 @@ def _print_simple_status(status: str, force: bool = False) -> None:
     global _last_simple_status
     if not force and status == _last_simple_status:
         return
+    _clear_simple_spinner()  # Clear any active spinner first
     _last_simple_status = status
     console.print(f"[dim]{status}[/dim]")
 
@@ -2318,6 +2346,8 @@ async def run_cloud_debate(
             if new_stage > old_stage and old_stage not in printed_stages:
                 if live:
                     live.stop()
+                elif _SIMPLE_MODE:
+                    _clear_simple_spinner()
 
                 # Print the completed stage panel permanently
                 completed_panel = get_completed_stage_panel(state, old_stage)
@@ -2383,6 +2413,8 @@ async def run_cloud_debate(
                                 if live:
                                     live.stop()
                                     live = None
+                                elif _SIMPLE_MODE:
+                                    _clear_simple_spinner()
                                 # Print the completed stage panel
                                 # For all stages: transient=True clears Live area, then we print permanently
                                 # Note: For long synthesis (stage 3), scrolled content may remain visible
@@ -2413,6 +2445,20 @@ async def run_cloud_debate(
                                     live.update(build_current_stage_display(state), refresh=True)
                             else:
                                 live.update(build_current_stage_display(state), refresh=True)
+                        elif _SIMPLE_MODE:
+                            # Show spinner with context-aware message
+                            if state.stage == 1:
+                                running = [b for b, s in state.bishop_status.items() if s == "running"]
+                                if running:
+                                    _print_simple_spinner(f"{format_model_name(running[0])} thinking...")
+                                else:
+                                    _print_simple_spinner("Waiting for proposals...")
+                            elif state.stage == 2:
+                                _print_simple_spinner("Bishops debating...")
+                            elif state.stage == 3:
+                                _print_simple_spinner("Pope synthesizing...")
+                            else:
+                                _print_simple_spinner("Processing...")
 
                 except StopAsyncIteration:
                     stream_done = True
@@ -2477,7 +2523,11 @@ async def run_cloud_debate(
             advance_animation()
             if live:
                 live.update(build_current_stage_display(state), refresh=True)
+            elif _SIMPLE_MODE:
+                _print_simple_spinner("Classifying query...")
 
+    if _SIMPLE_MODE:
+        _clear_simple_spinner()
     classification = classify_task.result()
 
     # Step 2: Gather context based on context_plan (or fall back to old method)
@@ -2504,7 +2554,11 @@ async def run_cloud_debate(
                 advance_animation()
                 if live:
                     live.update(build_current_stage_display(state), refresh=True)
+                elif _SIMPLE_MODE:
+                    _print_simple_spinner("Gathering context files...")
 
+        if _SIMPLE_MODE:
+            _clear_simple_spinner()
         auto_files, auto_file_paths = gather_task.result()
 
         # Store context plan in state for display
@@ -2528,7 +2582,11 @@ async def run_cloud_debate(
                 advance_animation()
                 if live:
                     live.update(build_current_stage_display(state), refresh=True)
+                elif _SIMPLE_MODE:
+                    _print_simple_spinner("Gathering context files...")
 
+        if _SIMPLE_MODE:
+            _clear_simple_spinner()
         auto_files, auto_file_paths = fallback_task.result()
 
     if auto_file_paths:
