@@ -480,7 +480,12 @@ def handle_event(state: DebateState, event: dict) -> None:
 
     elif event_type == "pope_complete":
         state.pope_status = "complete"
-        state.pope_content = event["content"]
+        # Only update content if the event has content AND it's longer than what we streamed
+        # This prevents truncation if the complete event has less content than the stream
+        event_content = event.get("content", "")
+        if event_content and len(event_content) >= len(state.pope_content):
+            state.pope_content = event_content
+        # If no content in event but we have streamed content, keep the streamed version
         state.pope_tokens = event["tokens"]
 
     elif event_type == "complete":
@@ -707,7 +712,13 @@ def build_analysis_panel(state: DebateState) -> Panel:
                 mem_content = mem.get("content", "")
                 mem_score = mem.get("score", 0)
                 mem_scope = mem.get("scope", "user")
-                score_pct = int(mem_score * 100)
+                # Handle scores that may already be in percentage form (0-100) vs decimal (0-1)
+                if mem_score > 1:
+                    # Score is already in percentage form (e.g., 47 means 47%)
+                    score_pct = int(mem_score)
+                else:
+                    # Score is in decimal form (e.g., 0.47 means 47%)
+                    score_pct = int(mem_score * 100)
 
                 # Color by type
                 type_colors = {
@@ -886,7 +897,12 @@ def build_proposals_panel(state: DebateState) -> Panel:
             status = state.bishop_status.get(bishop, "pending")
             if status == "complete":
                 tokens = state.bishop_tokens.get(bishop, 0)
-                status_cells.append(Text(f"✓ {tokens} tokens", style=GREEN))
+                content = state.bishop_content.get(bishop, "")
+                if tokens == 0 or not content:
+                    # Bishop failed - show error in red
+                    status_cells.append(Text(f"✗ {tokens} tokens", style="bold red"))
+                else:
+                    status_cells.append(Text(f"✓ {tokens} tokens", style=GREEN))
             elif status == "running":
                 # More expressive running animation
                 bar = get_streaming_bar()
@@ -920,14 +936,14 @@ def build_proposals_panel(state: DebateState) -> Panel:
         if state.bishops
         else False
     )
-    if all_complete and state.bishop_content:
+    if all_complete and state.bishops:
         elements.append(Text(""))
         elements.append(Text("📜 Bishop Proposals:", style=f"bold {PRIMARY}"))
         for bishop in state.bishops:
             content = state.bishop_content.get(bishop, "")
+            tokens = state.bishop_tokens.get(bishop, 0)
             if content:
                 # Show first 200 chars with expand indicator
-                tokens = state.bishop_tokens.get(bishop, 0)
                 preview = content[:300].replace("\n", " ")
                 if len(content) > 300:
                     preview += "..."
@@ -937,61 +953,107 @@ def build_proposals_panel(state: DebateState) -> Panel:
                     + Text(f"({tokens} tokens)", style="dim")
                 )
                 elements.append(Text(f"  {preview}", style="dim"))
+            else:
+                # Bishop failed - show error in red
+                elements.append(Text(""))
+                elements.append(
+                    Text(f"  {format_model_name(bishop)} ", style=f"bold {CYAN}")
+                    + Text(f"({tokens} tokens)", style="dim")
+                )
+                elements.append(Text("  [Error: Model returned empty response]", style="bold red"))
+
+    # Count available (non-failed) bishops
+    available_bishops = [b for b in state.bishops if state.bishop_content.get(b)]
+    failed_bishops = [b for b in state.bishops if not state.bishop_content.get(b) and state.bishop_status.get(b) == "complete"]
+    num_available = len(available_bishops)
+    num_failed = len(failed_bishops)
 
     # Consensus score
     if state.consensus_score is not None:
         elements.append(Text(""))
-        score_pct = int(state.consensus_score * 100)
-        if score_pct >= 80:
-            style = GREEN
-            label = "HIGH"
-        elif score_pct >= 50:
-            style = GOLD
-            label = "MODERATE"
+        if num_available <= 1:
+            # Only one bishop available - consensus is not meaningful
+            elements.append(
+                Text("📊 Consensus: ", style="dim")
+                + Text("N/A", style="bold yellow")
+                + Text(" (only 1 proposal available)", style="dim")
+            )
         else:
-            style = "red"
-            label = "LOW"
-        elements.append(
-            Text("📊 Consensus: ", style="dim")
-            + Text(f"{score_pct}% ({label})", style=f"bold {style}")
-        )
+            score_pct = int(state.consensus_score * 100)
+            if score_pct >= 80:
+                style = GREEN
+                label = "HIGH"
+            elif score_pct >= 50:
+                style = GOLD
+                label = "MODERATE"
+            else:
+                style = "red"
+                label = "LOW"
+            elements.append(
+                Text("📊 Consensus: ", style="dim")
+                + Text(f"{score_pct}% ({label})", style=f"bold {style}")
+            )
 
     # Pope assessment result - shows consensus level with detailed pairwise breakdown
     if state.pope_assessment_done:
         elements.append(Text(""))
-        sim_pct = int(state.overall_similarity * 100)
 
-        # Overall consensus assessment
-        if sim_pct >= 80:
-            consensus_label = "HIGH AGREEMENT"
-            consensus_style = GREEN
-        elif sim_pct >= 50:
-            consensus_label = "MODERATE AGREEMENT"
-            consensus_style = GOLD
-        else:
-            consensus_label = "LOW AGREEMENT"
-            consensus_style = "red"
-
-        elements.append(
-            Text("⚖️ Pope Assessment: ", style="dim")
-            + Text(f"{sim_pct}% consensus ", style=f"bold {consensus_style}")
-            + Text(f"({consensus_label})", style=consensus_style)
-        )
-
-        # Show the reasoning from the server
-        if state.assessment_reasoning:
+        if num_available <= 1:
+            # Only one bishop available - no consensus to assess
             elements.append(
-                Text(f"   → {state.assessment_reasoning}", style="dim italic")
+                Text("⚖️ Pope Assessment: ", style="dim")
+                + Text("Single proposal mode", style=f"bold {GOLD}")
             )
-
-        # Explain why debate happens even with high consensus
-        if sim_pct >= 80 and not state.debate_skipped:
-            elements.append(
-                Text(
-                    "   ⚠️ High consensus ≠ correct answer. Debate verifies no shared blind spots.",
-                    style=f"dim {GOLD}",
+            if num_failed > 0:
+                failed_names = ", ".join(format_model_name(b) for b in failed_bishops)
+                elements.append(
+                    Text(f"   → {failed_names} unavailable. Proceeding with single proposal.", style="dim italic")
                 )
+            else:
+                elements.append(
+                    Text("   → Only one bishop assigned. Proceeding with single proposal.", style="dim italic")
+                )
+        else:
+            sim_pct = int(state.overall_similarity * 100)
+
+            # Overall consensus assessment
+            if sim_pct >= 80:
+                consensus_label = "HIGH AGREEMENT"
+                consensus_style = GREEN
+            elif sim_pct >= 50:
+                consensus_label = "MODERATE AGREEMENT"
+                consensus_style = GOLD
+            else:
+                consensus_label = "LOW AGREEMENT"
+                consensus_style = "red"
+
+            elements.append(
+                Text("⚖️ Pope Assessment: ", style="dim")
+                + Text(f"{sim_pct}% consensus ", style=f"bold {consensus_style}")
+                + Text(f"({consensus_label})", style=consensus_style)
             )
+
+            # Note if some bishops failed
+            if num_failed > 0:
+                failed_names = ", ".join(format_model_name(b) for b in failed_bishops)
+                elements.append(
+                    Text(f"   ⚠️ {failed_names} unavailable. Consensus based on {num_available} proposals.", style=f"dim {GOLD}")
+                )
+
+            # Show the reasoning from the server
+            if state.assessment_reasoning:
+                elements.append(
+                    Text(f"   → {state.assessment_reasoning}", style="dim italic")
+                )
+
+            # Explain why debate happens even with high consensus
+            if sim_pct >= 80 and not state.debate_skipped:
+                elements.append(
+                    Text(
+                        "   ⚠️ High consensus ≠ correct answer. Debate verifies no shared blind spots.",
+                        style=f"dim {GOLD}",
+                    )
+                )
 
         # Show pairwise similarities if available
         if state.disagreement_pairs:
@@ -1027,6 +1089,38 @@ def build_critiques_panel(state: DebateState) -> Panel:
     # Build title with timing
     stage_time = get_stage_time(state, 2)
     time_suffix = f" [{stage_time}]" if stage_time else ""
+
+    # Count available bishops (those with actual content)
+    available_bishops = [b for b in state.bishops if state.bishop_content.get(b)]
+    failed_bishops = [b for b in state.bishops if not state.bishop_content.get(b) and state.bishop_status.get(b) == "complete"]
+    num_available = len(available_bishops)
+    num_failed = len(failed_bishops)
+
+    # Check if only one bishop available - no debate possible
+    if num_available <= 1 and state.bishops:
+        elements.append(
+            Text("👑 Pope ", style="grey50")
+            + Text(format_model_name(state.pope), style="grey50")
+            + Text(" proceeding to synthesis", style="grey50")
+        )
+        elements.append(Text(""))
+        if num_failed > 0:
+            failed_names = ", ".join(format_model_name(b) for b in failed_bishops)
+            elements.append(
+                Text(f"⚠️ {failed_names} unavailable. ", style=f"bold {GOLD}")
+                + Text("Skipping debate with single proposal.", style="dim")
+            )
+        else:
+            elements.append(
+                Text("ℹ️ Only one proposal available. ", style=f"bold {GOLD}")
+                + Text("Proceeding directly to synthesis.", style="dim")
+            )
+        return Panel(
+            Group(*elements),
+            title=f"[{GOLD}]Stage 2: Single Proposal Mode{time_suffix}[/{GOLD}]",
+            border_style=GOLD,
+            padding=(0, 2),
+        )
 
     # Check if debate was skipped
     if state.debate_skipped:
