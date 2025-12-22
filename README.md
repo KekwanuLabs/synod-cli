@@ -4,9 +4,11 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 
-**Ancient Councils. Modern Intelligence. Adversarial Memory.**
+**Ancient Councils. Modern Intelligence.**
 
-> *An AI coding agent where mistakes don't survive peer review.*
+> *The coding agent where models argue and one learns to rule.*
+
+**Collective intelligence for code. Not consensus — synthesis.**
 
 [Website](https://synod.run) | [Dashboard](https://synod.run/dashboard) | [PyPI](https://pypi.org/project/synod-cli/)
 
@@ -15,6 +17,8 @@
 <div align="center">
 
 ### Why Synod?
+
+**Single-model agents hallucinate. Synod debates until the wrong idea dies.**
 
 | Problem | Synod Solution |
 |---------|----------------|
@@ -27,48 +31,129 @@
 
 ---
 
-*In ancient councils, bishops gathered to debate truth through rigorous discourse.*
+## The Philosophy
 
-*Now, AI models convene to do the same for your code.*
+*The future isn't bigger models — it's collective reasoning.*
 
----
+Why pick a model when you can orchestrate all of them?
 
-## The Story
+For centuries, the most important decisions weren't made by a single authority. They were forged through **structured debate**. In ecclesiastical councils (called *synods*), bishops would gather, propose, critique, and challenge each other. Only after rigorous discourse would the presiding authority synthesize a final judgment.
 
-For centuries, the most important decisions weren't made by a single authority. They were forged through **structured debate**.
-
-In ecclesiastical councils (called *synods*), bishops from different regions would gather, each bringing their own perspective. They'd propose, critique, and challenge each other's positions. Only after rigorous discourse would the presiding authority synthesize a final judgment, drawing from the best arguments presented.
-
-This model of collective intelligence solved a fundamental problem: **no single perspective, however wise, captures the whole truth.**
-
-We built Synod on the same principle.
+We built Synod on the same principle. Models converge. Orchestration compounds.
 
 ## What is Synod?
 
-Synod is a CLI coding agent that orchestrates **adversarial debates** among multiple AI models to solve your coding problems.
+Synod is a CLI coding agent that orchestrates **adversarial debates** among multiple AI models.
 
 Instead of asking one AI and hoping it doesn't hallucinate, Synod convenes a council:
 
-- **Bishops** (Claude, GPT-4, Gemini, Grok, DeepSeek, and more) independently propose solutions
+- **Bishops** (Claude, GPT-4, Gemini, Grok, DeepSeek, GLM) independently propose solutions
 - Each Bishop **critiques the others**, hunting for bugs, edge cases, and flaws
-- The **Pope** (the most capable model) observes silently, then synthesizes the best answer
+- The **Pope** observes silently, learns from the debate, then synthesizes the answer
 
-The result: battle-tested solutions that survive adversarial review.
+The Pope doesn't pick a winner. It distills the best concepts into something better than any single proposal. **Not consensus — synthesis.**
+
+## Quick Start
+
+```bash
+# Install (recommended)
+pipx install synod-cli
+
+# Or with pip
+pip install synod-cli
+
+# Login (opens browser)
+synod login
+
+# Start coding
+synod
+```
+
+That's it. No API keys to copy, no configuration files.
+
+> **Tip:** Use `pipx` for CLI tools — it installs in isolated environments and makes upgrades easy with `pipx upgrade synod-cli`
+
+## How It Works
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                                                             │
+│   You: "How do I implement rate limiting?"                  │
+│                                                             │
+│                         ↓                                   │
+│                                                             │
+│   ┌─────────┐  ┌─────────┐  ┌─────────┐                     │
+│   │ Bishop  │  │ Bishop  │  │ Bishop  │   Stage 1:          │
+│   │ Claude  │  │  GPT-4  │  │ Gemini  │   Proposals         │
+│   └────┬────┘  └────┬────┘  └────┬────┘                     │
+│        │            │            │                          │
+│        └────────────┼────────────┘                          │
+│                     ↓                                       │
+│        ┌────────────────────────┐                           │
+│        │   Adversarial Debate   │   Stage 2:                │
+│        │   Models critique      │   Critiques               │
+│        │   each other's code    │                           │
+│        └───────────┬────────────┘                           │
+│                    ↓                                        │
+│        ┌────────────────────────┐                           │
+│        │    Pope Synthesis      │   Stage 3:                │
+│        │   Observes, learns,    │   Informed Synthesis      │
+│        │   distills the answer  │                           │
+│        └────────────────────────┘                           │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### The Debate Process
+
+**Stage 0: Classification**
+Before convening the council, Synod analyzes your query. Trivial questions get fast answers. Complex problems get full debates.
+
+**Stage 1: Bishop Proposals**
+Multiple AI models independently propose solutions in parallel. Each brings different strengths: Claude for reasoning, GPT for breadth, DeepSeek for algorithms.
+
+**Stage 2: Adversarial Critiques**
+Each Bishop acts as a Staff Engineer conducting an *adversarial* code review:
+- **Security**: Injection, auth bypass, data exposure
+- **Correctness**: Bugs, edge cases, race conditions
+- **Performance**: O(n²) traps, memory leaks, unbounded growth
+- **Production-readiness**: Error handling, logging, observability
+
+**Smart Dynamic Rounds**: Synod uses intelligent exit conditions:
+
+| Complexity | Max Rounds | Early Exit Conditions |
+|------------|-----------|----------------------|
+| trivial | 0 (skip) | — |
+| simple | 1 | — |
+| moderate | 2 | High consensus + no critical issues |
+| complex | 2 | Only minor issues found |
+| expert | 3 | Issues resolved/decreasing |
+
+The CLI shows exactly why debate concluded:
+```
+✓ Debate concluded early (round 1/2)
+   → High consensus (87%) with no critical issues.
+   Issues: 🔴 0 critical  🟡 2 moderate  🟢 3 minor
+```
+
+**Stage 3: Pope Synthesis**
+The Pope is a neutral observer. It hardly participates during debate, staying unbiased. After models argue, it synthesizes — not by picking a winner, but by distilling the best concepts into something new.
+
+The Pope catches when all models agreed on the wrong approach. Consensus can be collective blindness. That's why there's a Pope.
 
 ## Adversarial Memory
 
-Synod memories are **verified by multiple AI models before storage**. Every insight is battle-tested through debate.
+Synod memories are **verified by multiple AI models before storage**. Every insight survives debate before it's remembered.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  Synod Adversarial Memory:                                  │
 │                                                             │
 │    Claude ──┐                                               │
-│    GPT ─────┼→ Critique each other → Pope verifies → Store │
-│    Gemini ──┘                           ↑                   │
-│                                   (Battle-tested)           │
+│    GPT ─────┼→ Critique each other → Pope verifies → Store  │
+│    Gemini ──┘                                               │
 │                                                             │
-│  Confidence = f(consensus, critique_survival, rounds)       │
+│  Context never dies. Infinite memory. Infinite context.     │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -107,134 +192,16 @@ synod> /memory graph     # Visualize memory connections (Pro)
 synod> /memory timeline  # Show memory activity over time
 ```
 
-## Quick Start
-
-```bash
-# Install (recommended)
-pipx install synod-cli
-
-# Or with pip
-pip install synod-cli
-
-# Login (opens browser)
-synod login
-
-# Start coding
-synod
-```
-
-That's it. No API keys to copy, no configuration files.
-
-> **Tip:** Use `pipx` for CLI tools - it installs in isolated environments and makes upgrades easy with `pipx upgrade synod-cli`
-
-## How It Works
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                                                             │
-│   You: "How do I implement rate limiting?"                  │
-│                                                             │
-│                         ↓                                   │
-│                                                             │
-│   ┌─────────┐  ┌─────────┐  ┌─────────┐                    │
-│   │ Bishop  │  │ Bishop  │  │ Bishop  │   Stage 1:         │
-│   │ Claude  │  │  GPT-4  │  │ Gemini  │   Proposals        │
-│   └────┬────┘  └────┬────┘  └────┬────┘                    │
-│        │            │            │                          │
-│        └────────────┼────────────┘                          │
-│                     ↓                                       │
-│        ┌────────────────────────┐                          │
-│        │   Adversarial Debate   │   Stage 2:               │
-│        │   "Your solution has   │   Critiques              │
-│        │    a race condition"   │                          │
-│        └───────────┬────────────┘                          │
-│                    ↓                                        │
-│        ┌────────────────────────┐                          │
-│        │      Pope Synthesis    │   Stage 3:               │
-│        │   Best of all worlds   │   Final Answer           │
-│        └────────────────────────┘                          │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### The Debate Process
-
-**Stage 0: Classification**
-Before convening the council, Synod analyzes your query. Trivial questions get fast answers. Complex problems get full debates.
-
-**Stage 1: Bishop Proposals**
-Multiple AI models independently propose solutions in parallel. Each brings different strengths: Claude for reasoning, GPT for breadth, DeepSeek for algorithms.
-
-**Stage 2: Adversarial Critiques**
-Here's where the magic happens. Each Bishop acts as a Staff Engineer conducting an *adversarial* code review:
-- **Security**: Injection, auth bypass, data exposure
-- **Correctness**: Bugs, edge cases, race conditions
-- **Performance**: O(n²) traps, memory leaks, unbounded growth
-- **Production-readiness**: Error handling, logging, observability
-
-**Smart Dynamic Rounds**: Synod uses intelligent exit conditions:
-
-| Complexity | Max Rounds | Early Exit Conditions |
-|------------|-----------|----------------------|
-| trivial | 0 (skip) | — |
-| simple | 1 | — |
-| moderate | 2 | High consensus + no critical issues |
-| complex | 2 | Only minor issues found |
-| expert | 3 | Issues resolved/decreasing |
-
-The CLI shows exactly why debate concluded:
-```
-✓ Debate concluded early (round 1/2)
-   → High consensus (87%) with no critical issues.
-   Issues: 🔴 0 critical  🟡 2 moderate  🟢 3 minor
-```
-
-**Stage 3: Pope Synthesis**
-The Pope is the supreme arbiter with a critical mission: synthesize the best answer AND catch when Bishops agreed on the wrong approach.
-
-> ⚠️ **Consensus ≠ Correctness**: High consensus can mean Bishops ALL made the same mistake.
-
-Before accepting any proposal, the Pope verifies:
-1. Does it actually solve the stated problem?
-2. Are there security vulnerabilities?
-3. Are there correctness bugs?
-4. Are there performance traps?
-5. Will it work in production?
-
-The Pope can override consensus if it spots a flaw everyone missed.
-
-## Why This Works
-
-### Single Model Problems
-
-Ask one AI to write code. It might:
-- Hallucinate an API that doesn't exist
-- Miss an edge case
-- Use a deprecated pattern
-- Have a subtle security flaw
-
-You won't know until runtime. Or production.
-
-### Adversarial Debate Solution
-
-With Synod:
-- Bishop A proposes a solution
-- Bishop B says "that has a race condition"
-- Bishop C says "also, you're not handling the empty case"
-- The Pope synthesizes a solution that addresses all critiques
-
-**Mistakes don't survive peer review from multiple SOTA models.**
-
 ## Features
 
 ### Multi-Model Debate
 - **6 AI providers**: Anthropic, OpenAI, Google, xAI, DeepSeek, Zhipu
 - **Adversarial critiques** catch errors single models miss
-- **Pope synthesis** combines the best ideas from each model
-- **Battle-tested answers** that survive hostile code review
+- **Pope synthesis** — not consensus, synthesis
+- **Answers that survive hostile code review**
 
 ### Infinite Memory & Context
-- **Never runs out**: Semantic memory that grows with you
+- **Context never dies**: Semantic memory that grows with you
 - **Cross-project learning**: Patterns from one project help another
 - **Verified memories**: Only insights that survived debate get stored
 - **Confidence scoring**: High-consensus memories ranked higher
@@ -391,8 +358,8 @@ echo '{"allow": false, "message": "Cannot edit .env files"}'
 
 ```bash
 synod> /hooks                  # List configured hooks
-synod> /hooks add <name> <event> <command>
-synod> /hooks remove <name>
+synod> /hooks add <n> <event> <command>
+synod> /hooks remove <n>
 ```
 
 Hooks are loaded from both `~/.synod/hooks.json` (user-level) and `.synod/hooks.json` (project-level).
@@ -565,11 +532,11 @@ The CLI is a thin client. All debate orchestration happens in Synod Cloud.
 
 ## The Name
 
-A **synod** (from Greek *σύνοδος*, "assembly") is a council of church officials convened to decide on matters of doctrine. The most famous, the Council of Nicaea in 325 AD, brought together bishops from across the Roman Empire to debate and establish foundational Christian doctrine.
+A **synod** (from Greek *σύνοδος*, "assembly") is a council convened to decide matters through structured debate. The Council of Nicaea in 325 AD brought together bishops from across the Roman Empire to debate and establish foundational doctrine.
 
 We borrowed the model, not the religion:
 - **Bishops**: Independent experts who propose and critique
-- **Pope**: The synthesizing authority who renders final judgment
+- **Pope**: The neutral observer who synthesizes final judgment
 - **Debate**: Adversarial discourse that stress-tests ideas
 
 Ancient wisdom. Modern implementation.
@@ -606,6 +573,10 @@ Copyright (c) 2025 [KekwanuLabs](https://kekwanu.com)
 ---
 
 <div align="center">
+
+*Why pick a model when you can orchestrate all of them?*
+
+**The future isn't bigger models — it's collective reasoning.**
 
 *The council is always in session.*
 
