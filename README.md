@@ -380,8 +380,8 @@ Checkpoints are stored in `.synod/checkpoints/` (auto-gitignored) and retain the
 | Tier | Price | Debates/Day | Bishops | Memory |
 |------|-------|-------------|---------|--------|
 | Free | $0 | 10 | 3 | 1,000 memories (30-day retention) |
-| Pro | $12/mo | Unlimited | 7 | Unlimited (forever) |
-| Team | $29/mo | Unlimited | 7 + shared | Unlimited + shared team memory |
+| Pro | $19/mo | Unlimited | 7 | Unlimited (forever) |
+| Team | $49/mo | Unlimited | 7 + shared | Unlimited + shared team memory |
 
 **BYOK Mode**: Bring your own API keys. You pay the providers directly, Synod just orchestrates.
 
