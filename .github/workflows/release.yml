@@ -7,11 +7,12 @@ on:
   workflow_dispatch:
     inputs:
       bump_type:
-        description: 'Version bump type (leave empty for auto-detect from commits)'
+        description: 'Version bump type (auto = detect from commits)'
         required: false
+        default: 'auto'
         type: choice
         options:
-          - ''
+          - auto
           - patch
           - minor
           - major
@@ -53,8 +54,8 @@ jobs:
             COMMITS=$(git log ${LAST_TAG}..HEAD --oneline --format="%s")
           fi
 
-          # Check for manual override
-          if [ -n "${{ github.event.inputs.bump_type }}" ]; then
+          # Check for manual override (not 'auto')
+          if [ -n "${{ github.event.inputs.bump_type }}" ] && [ "${{ github.event.inputs.bump_type }}" != "auto" ]; then
             echo "Manual bump type: ${{ github.event.inputs.bump_type }}"
             echo "bump_type=${{ github.event.inputs.bump_type }}" >> $GITHUB_OUTPUT
             exit 0
