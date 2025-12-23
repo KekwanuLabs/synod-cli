@@ -1,0 +1,230 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      bump_type:
+        description: 'Version bump type (leave empty for auto-detect from commits)'
+        required: false
+        type: choice
+        options:
+          - ''
+          - patch
+          - minor
+          - major
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write  # Required for PyPI trusted publishing
+    outputs:
+      released: ${{ steps.check_release.outputs.released }}
+      new_version: ${{ steps.check_release.outputs.new_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get current version
+        id: current_version
+        run: |
+          CURRENT=$(grep -m1 'version = ' pyproject.toml | cut -d'"' -f2)
+          echo "version=$CURRENT" >> $GITHUB_OUTPUT
+          echo "Current version: $CURRENT"
+
+      - name: Analyze commits for version bump
+        id: analyze
+        run: |
+          # Get commits since last release tag (or all if no tags)
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+
+          if [ -z "$LAST_TAG" ]; then
+            echo "No previous tags found, analyzing all commits"
+            COMMITS=$(git log --oneline --format="%s")
+          else
+            echo "Last tag: $LAST_TAG"
+            COMMITS=$(git log ${LAST_TAG}..HEAD --oneline --format="%s")
+          fi
+
+          # Check for manual override
+          if [ -n "${{ github.event.inputs.bump_type }}" ]; then
+            echo "Manual bump type: ${{ github.event.inputs.bump_type }}"
+            echo "bump_type=${{ github.event.inputs.bump_type }}" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Skip if commit is a version bump (avoid infinite loop)
+          LAST_COMMIT=$(git log -1 --format="%s")
+          if echo "$LAST_COMMIT" | grep -qE '^\[skip ci\]|^chore: bump version'; then
+            echo "Skipping - last commit is version bump"
+            echo "bump_type=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Analyze commit types
+          HAS_BREAKING=$(echo "$COMMITS" | grep -E '^(feat|fix|refactor|perf)(\(.+\))?!:|BREAKING CHANGE:' || true)
+          HAS_FEAT=$(echo "$COMMITS" | grep -E '^feat(\(.+\))?:' || true)
+          HAS_FIX=$(echo "$COMMITS" | grep -E '^(fix|perf)(\(.+\))?:' || true)
+
+          if [ -n "$HAS_BREAKING" ]; then
+            echo "bump_type=major" >> $GITHUB_OUTPUT
+            echo "Detected breaking changes -> major bump"
+          elif [ -n "$HAS_FEAT" ]; then
+            echo "bump_type=minor" >> $GITHUB_OUTPUT
+            echo "Detected new features -> minor bump"
+          elif [ -n "$HAS_FIX" ]; then
+            echo "bump_type=patch" >> $GITHUB_OUTPUT
+            echo "Detected fixes -> patch bump"
+          else
+            echo "bump_type=" >> $GITHUB_OUTPUT
+            echo "No version-bumping commits found"
+          fi
+
+      - name: Check if release needed
+        id: check_release
+        run: |
+          BUMP_TYPE="${{ steps.analyze.outputs.bump_type }}"
+
+          if [ -z "$BUMP_TYPE" ]; then
+            echo "No version bump needed"
+            echo "released=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Calculate new version
+          CURRENT="${{ steps.current_version.outputs.version }}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+
+          case "$BUMP_TYPE" in
+            major)
+              MAJOR=$((MAJOR + 1))
+              MINOR=0
+              PATCH=0
+              ;;
+            minor)
+              MINOR=$((MINOR + 1))
+              PATCH=0
+              ;;
+            patch)
+              PATCH=$((PATCH + 1))
+              ;;
+          esac
+
+          NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "released=true" >> $GITHUB_OUTPUT
+          echo "Will bump: $CURRENT -> $NEW_VERSION ($BUMP_TYPE)"
+
+      - name: Update pyproject.toml version
+        if: steps.check_release.outputs.released == 'true'
+        run: |
+          NEW_VERSION="${{ steps.check_release.outputs.new_version }}"
+          sed -i "s/^version = \"[^\"]*\"/version = \"$NEW_VERSION\"/" pyproject.toml
+          echo "Updated pyproject.toml to $NEW_VERSION"
+          grep 'version = ' pyproject.toml
+
+      - name: Generate changelog
+        if: steps.check_release.outputs.released == 'true'
+        run: |
+          NEW_VERSION="${{ steps.check_release.outputs.new_version }}"
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+
+          echo "## Synod CLI v$NEW_VERSION" > RELEASE_NOTES.md
+          echo "" >> RELEASE_NOTES.md
+          echo "Install or upgrade:" >> RELEASE_NOTES.md
+          echo '```bash' >> RELEASE_NOTES.md
+          echo "pipx upgrade synod-cli" >> RELEASE_NOTES.md
+          echo "# or" >> RELEASE_NOTES.md
+          echo "pip install synod-cli==$NEW_VERSION" >> RELEASE_NOTES.md
+          echo '```' >> RELEASE_NOTES.md
+          echo "" >> RELEASE_NOTES.md
+
+          if [ -z "$LAST_TAG" ]; then
+            COMMITS=$(git log --oneline --format="- %s")
+          else
+            COMMITS=$(git log ${LAST_TAG}..HEAD --oneline --format="- %s")
+          fi
+
+          # Group by type
+          FEATURES=$(echo "$COMMITS" | grep -E '^- feat(\(.+\))?:' | sed 's/^- feat[^:]*: /- /' || true)
+          FIXES=$(echo "$COMMITS" | grep -E '^- fix(\(.+\))?:' | sed 's/^- fix[^:]*: /- /' || true)
+          PERF=$(echo "$COMMITS" | grep -E '^- perf(\(.+\))?:' | sed 's/^- perf[^:]*: /- /' || true)
+
+          if [ -n "$FEATURES" ]; then
+            echo "### Features" >> RELEASE_NOTES.md
+            echo "$FEATURES" >> RELEASE_NOTES.md
+            echo "" >> RELEASE_NOTES.md
+          fi
+
+          if [ -n "$FIXES" ]; then
+            echo "### Bug Fixes" >> RELEASE_NOTES.md
+            echo "$FIXES" >> RELEASE_NOTES.md
+            echo "" >> RELEASE_NOTES.md
+          fi
+
+          if [ -n "$PERF" ]; then
+            echo "### Performance" >> RELEASE_NOTES.md
+            echo "$PERF" >> RELEASE_NOTES.md
+            echo "" >> RELEASE_NOTES.md
+          fi
+
+          cat RELEASE_NOTES.md
+
+      - name: Commit version bump
+        if: steps.check_release.outputs.released == 'true'
+        run: |
+          NEW_VERSION="${{ steps.check_release.outputs.new_version }}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add pyproject.toml
+          git commit -m "chore: bump version to $NEW_VERSION [skip ci]"
+          git push
+
+      - name: Create release tag
+        if: steps.check_release.outputs.released == 'true'
+        run: |
+          NEW_VERSION="${{ steps.check_release.outputs.new_version }}"
+          git tag "v$NEW_VERSION"
+          git push origin "v$NEW_VERSION"
+
+      - name: Create GitHub Release
+        if: steps.check_release.outputs.released == 'true'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.check_release.outputs.new_version }}
+          name: v${{ steps.check_release.outputs.new_version }}
+          body_path: RELEASE_NOTES.md
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        if: steps.check_release.outputs.released == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install build dependencies
+        if: steps.check_release.outputs.released == 'true'
+        run: |
+          python -m pip install --upgrade pip
+          pip install build
+
+      - name: Build package
+        if: steps.check_release.outputs.released == 'true'
+        run: python -m build
+
+      - name: Publish to PyPI
+        if: steps.check_release.outputs.released == 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        # No password needed - uses OIDC trusted publishing
