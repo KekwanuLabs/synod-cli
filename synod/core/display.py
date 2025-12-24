@@ -197,14 +197,47 @@ async def prompt_upgrade_interactive(
         return False
 
 
+def is_editable_install() -> bool:
+    """Check if synod-cli is installed in editable/development mode.
+
+    Returns True if running from a local checkout (pip install -e .).
+    """
+    try:
+        from importlib.metadata import distribution
+        dist = distribution("synod-cli")
+
+        # Check for direct_url.json which indicates editable install
+        if dist.read_text("direct_url.json"):
+            import json
+            direct_url = json.loads(dist.read_text("direct_url.json"))
+            # Editable installs have dir_info.editable = true
+            if direct_url.get("dir_info", {}).get("editable"):
+                return True
+
+        # Fallback: check if installed location is not in site-packages
+        if dist.files:
+            first_file = str(dist.files[0])
+            if "site-packages" not in first_file and "dist-packages" not in first_file:
+                return True
+    except Exception:
+        pass
+
+    return False
+
+
 def check_for_updates(current_version: str) -> Optional[str]:
     """Check PyPI for newer version. Returns new version string or None.
 
     This is non-blocking and fails silently to not disrupt the user experience.
+    Skips check for editable/development installs.
     """
     import threading
     import urllib.request
     import json
+
+    # Skip update check for editable installs (local development)
+    if is_editable_install():
+        return None
 
     result = {"new_version": None}
 
