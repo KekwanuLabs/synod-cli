@@ -16,6 +16,11 @@ on:
           - patch
           - minor
           - major
+      publish_only:
+        description: 'Skip version bump, just publish current version (for recovery)'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   release:
@@ -40,7 +45,18 @@ jobs:
           echo "version=$CURRENT" >> $GITHUB_OUTPUT
           echo "Current version: $CURRENT"
 
+      - name: Check publish-only mode
+        id: publish_only
+        run: |
+          if [ "${{ github.event.inputs.publish_only }}" == "true" ]; then
+            echo "mode=true" >> $GITHUB_OUTPUT
+            echo "Publish-only mode: will skip version bump and publish current version"
+          else
+            echo "mode=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Analyze commits for version bump
+        if: steps.publish_only.outputs.mode != 'true'
         id: analyze
         run: |
           # Get commits since last release tag (or all if no tags)
@@ -91,6 +107,16 @@ jobs:
       - name: Check if release needed
         id: check_release
         run: |
+          # Publish-only mode: use current version, skip bump
+          if [ "${{ steps.publish_only.outputs.mode }}" == "true" ]; then
+            CURRENT="${{ steps.current_version.outputs.version }}"
+            echo "new_version=$CURRENT" >> $GITHUB_OUTPUT
+            echo "released=true" >> $GITHUB_OUTPUT
+            echo "skip_bump=true" >> $GITHUB_OUTPUT
+            echo "Publish-only mode: publishing v$CURRENT"
+            exit 0
+          fi
+
           BUMP_TYPE="${{ steps.analyze.outputs.bump_type }}"
 
           if [ -z "$BUMP_TYPE" ]; then
@@ -121,10 +147,11 @@ jobs:
           NEW_VERSION="$MAJOR.$MINOR.$PATCH"
           echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "released=true" >> $GITHUB_OUTPUT
+          echo "skip_bump=false" >> $GITHUB_OUTPUT
           echo "Will bump: $CURRENT -> $NEW_VERSION ($BUMP_TYPE)"
 
       - name: Update pyproject.toml version
-        if: steps.check_release.outputs.released == 'true'
+        if: steps.check_release.outputs.released == 'true' && steps.check_release.outputs.skip_bump != 'true'
         run: |
           NEW_VERSION="${{ steps.check_release.outputs.new_version }}"
           sed -i "s/^version = \"[^\"]*\"/version = \"$NEW_VERSION\"/" pyproject.toml
@@ -132,7 +159,7 @@ jobs:
           grep 'version = ' pyproject.toml
 
       - name: Generate changelog
-        if: steps.check_release.outputs.released == 'true'
+        if: steps.check_release.outputs.released == 'true' && steps.check_release.outputs.skip_bump != 'true'
         run: |
           NEW_VERSION="${{ steps.check_release.outputs.new_version }}"
           LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
@@ -179,7 +206,7 @@ jobs:
           cat RELEASE_NOTES.md
 
       - name: Commit version bump
-        if: steps.check_release.outputs.released == 'true'
+        if: steps.check_release.outputs.released == 'true' && steps.check_release.outputs.skip_bump != 'true'
         run: |
           NEW_VERSION="${{ steps.check_release.outputs.new_version }}"
 
@@ -191,14 +218,14 @@ jobs:
           git push
 
       - name: Create release tag
-        if: steps.check_release.outputs.released == 'true'
+        if: steps.check_release.outputs.released == 'true' && steps.check_release.outputs.skip_bump != 'true'
         run: |
           NEW_VERSION="${{ steps.check_release.outputs.new_version }}"
           git tag "v$NEW_VERSION"
           git push origin "v$NEW_VERSION"
 
       - name: Create GitHub Release
-        if: steps.check_release.outputs.released == 'true'
+        if: steps.check_release.outputs.released == 'true' && steps.check_release.outputs.skip_bump != 'true'
         uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ steps.check_release.outputs.new_version }}
