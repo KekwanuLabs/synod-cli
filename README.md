@@ -488,12 +488,13 @@ brew install portaudio
 
 # Then use voice in interactive mode
 synod> /voice
+Downloading Whisper model (base.en)...  # First time only (~140MB)
 Recording... (speak now, pause to stop)
 You said: How do I implement rate limiting?
 # → Debate starts with your spoken query
 ```
 
-Voice input uses OpenAI Whisper API for transcription, so you need an OpenAI API key configured in your BYOK settings.
+Voice runs entirely locally using [faster-whisper](https://github.com/SYSTRAN/faster-whisper) - no API costs, works offline. Models are cached in `~/.cache/synod/whisper-models/`.
 
 ## Security
 

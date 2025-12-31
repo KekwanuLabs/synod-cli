@@ -2,7 +2,7 @@
 
 This module provides voice-to-text functionality using:
 - sounddevice for audio recording
-- OpenAI Whisper API for transcription
+- faster-whisper for local transcription (no API costs!)
 
 Usage:
     from synod.core.voice import record_and_transcribe, is_voice_available
@@ -11,9 +11,9 @@ Usage:
         text = record_and_transcribe()
 """
 
-import io
 import sys
 import time
+from pathlib import Path
 from typing import Optional, Tuple
 
 # Optional dependencies - graceful fallback if not installed
@@ -33,26 +33,27 @@ except ImportError:
     MISSING_DEPS.append("numpy")
 
 try:
-    from scipy.io import wavfile
+    from faster_whisper import WhisperModel
 except ImportError:
     VOICE_AVAILABLE = False
-    MISSING_DEPS.append("scipy")
+    MISSING_DEPS.append("faster-whisper")
 
-try:
-    import httpx
-except ImportError:
-    # httpx should always be available (synod dependency)
-    VOICE_AVAILABLE = False
-    MISSING_DEPS.append("httpx")
+
+# Model configuration
+DEFAULT_MODEL = "base.en"  # Good balance of speed and accuracy
+MODEL_CACHE_DIR = Path.home() / ".cache" / "synod" / "whisper-models"
+
+# Global model instance (lazy loaded)
+_whisper_model: Optional["WhisperModel"] = None
 
 
 def get_install_command() -> str:
-    """Get the pip install command for missing dependencies."""
+    """Get the pip install command for voice dependencies."""
     if sys.platform == "darwin":
         # macOS may need portaudio
-        return "brew install portaudio && pip install sounddevice numpy scipy"
+        return "brew install portaudio && pip install synod-cli[voice]"
     else:
-        return "pip install sounddevice numpy scipy"
+        return "pip install synod-cli[voice]"
 
 
 def is_voice_available() -> Tuple[bool, Optional[str]]:
@@ -67,15 +68,52 @@ def is_voice_available() -> Tuple[bool, Optional[str]]:
     return True, None
 
 
-def _get_openai_key() -> Optional[str]:
-    """Get OpenAI API key from Synod config (BYOK)."""
+def _get_model_path() -> Path:
+    """Get the path where models are cached."""
+    MODEL_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    return MODEL_CACHE_DIR
+
+
+def _load_whisper_model(model_name: str = DEFAULT_MODEL) -> "WhisperModel":
+    """Load or get cached Whisper model.
+
+    Downloads the model on first use (~140MB for base.en).
+    """
+    global _whisper_model
+
+    if _whisper_model is not None:
+        return _whisper_model
+
+    from synod.core.display import console
+
+    model_path = _get_model_path()
+
+    # Check if this is first download
+    model_dir = model_path / f"models--Systran--faster-whisper-{model_name}"
+    is_first_download = not model_dir.exists()
+
+    if is_first_download:
+        console.print(f"[dim]Downloading Whisper model ({model_name})...[/dim]")
+        console.print(f"[dim]This only happens once. Model cached at: {model_path}[/dim]")
+
     try:
-        from synod.core.config import load_config
-        config = load_config()
-        providers = config.get("providers", {})
-        return providers.get("openai", {}).get("key")
-    except Exception:
-        return None
+        # Use CPU with int8 quantization for best compatibility
+        # GPU users can set CUDA_VISIBLE_DEVICES
+        _whisper_model = WhisperModel(
+            model_name,
+            device="cpu",
+            compute_type="int8",
+            download_root=str(model_path),
+        )
+
+        if is_first_download:
+            console.print("[green]Model downloaded successfully![/green]")
+
+        return _whisper_model
+
+    except Exception as e:
+        console.print(f"[red]Failed to load Whisper model: {e}[/red]")
+        raise
 
 
 def _record_audio(
@@ -84,7 +122,7 @@ def _record_audio(
     silence_threshold: float = 0.01,
     silence_duration: float = 1.5,
     min_duration: float = 0.5,
-) -> Optional[np.ndarray]:
+) -> Optional["np.ndarray"]:
     """Record audio from microphone with voice activity detection.
 
     Args:
@@ -159,11 +197,11 @@ def _record_audio(
         return None
 
 
-def _transcribe_with_openai(audio: np.ndarray, sample_rate: int = 16000) -> Optional[str]:
-    """Transcribe audio using OpenAI Whisper API.
+def _transcribe_local(audio: "np.ndarray", sample_rate: int = 16000) -> Optional[str]:
+    """Transcribe audio using local Whisper model.
 
     Args:
-        audio: Audio data as numpy array
+        audio: Audio data as numpy array (float32, mono)
         sample_rate: Sample rate of the audio
 
     Returns:
@@ -171,42 +209,35 @@ def _transcribe_with_openai(audio: np.ndarray, sample_rate: int = 16000) -> Opti
     """
     from synod.core.display import console
 
-    api_key = _get_openai_key()
-    if not api_key:
-        console.print(
-            "[red]Voice input requires an OpenAI API key.[/red]\n"
-            "[dim]Add your OpenAI key at: synod.run/dashboard/keys[/dim]"
-        )
-        return None
-
-    # Convert to WAV bytes
-    audio_int16 = (audio * 32767).astype(np.int16)
-    wav_buffer = io.BytesIO()
-    wavfile.write(wav_buffer, sample_rate, audio_int16)
-    wav_buffer.seek(0)
-
     console.print("[dim]Transcribing...[/dim]")
 
     try:
-        with httpx.Client(timeout=30.0) as client:
-            response = client.post(
-                "https://api.openai.com/v1/audio/transcriptions",
-                headers={"Authorization": f"Bearer {api_key}"},
-                files={"file": ("audio.wav", wav_buffer, "audio/wav")},
-                data={"model": "whisper-1"},
-            )
+        model = _load_whisper_model()
 
-            if response.status_code != 200:
-                error = response.json().get("error", {}).get("message", "Unknown error")
-                console.print(f"[red]Transcription failed: {error}[/red]")
-                return None
+        # faster-whisper expects float32 audio
+        # Ensure audio is in correct format
+        if audio.dtype != np.float32:
+            audio = audio.astype(np.float32)
 
-            text = response.json().get("text", "").strip()
-            return text if text else None
+        # Flatten if needed (should be 1D)
+        audio = audio.flatten()
 
-    except httpx.TimeoutException:
-        console.print("[red]Transcription timed out[/red]")
-        return None
+        # Transcribe
+        segments, info = model.transcribe(
+            audio,
+            beam_size=5,
+            language="en",
+            vad_filter=True,  # Filter out silence
+        )
+
+        # Collect all segment texts
+        text_parts = []
+        for segment in segments:
+            text_parts.append(segment.text.strip())
+
+        text = " ".join(text_parts).strip()
+        return text if text else None
+
     except Exception as e:
         console.print(f"[red]Transcription error: {e}[/red]")
         return None
@@ -216,6 +247,7 @@ def record_and_transcribe(max_duration: float = 30.0) -> Optional[str]:
     """Record audio from microphone and transcribe to text.
 
     This is the main entry point for voice input.
+    Uses local Whisper model - no API costs!
 
     Args:
         max_duration: Maximum recording duration in seconds
@@ -236,8 +268,8 @@ def record_and_transcribe(max_duration: float = 30.0) -> Optional[str]:
     if audio is None or len(audio) == 0:
         return None
 
-    # Transcribe
-    text = _transcribe_with_openai(audio)
+    # Transcribe locally
+    text = _transcribe_local(audio)
 
     if text:
         console.print(f"[cyan]You said:[/cyan] {text}")
@@ -261,3 +293,20 @@ def check_microphone() -> bool:
         return device_info is not None
     except Exception:
         return False
+
+
+def get_model_info() -> dict:
+    """Get information about the Whisper model.
+
+    Returns:
+        Dict with model name, path, and download status
+    """
+    model_path = _get_model_path()
+    model_dir = model_path / f"models--Systran--faster-whisper-{DEFAULT_MODEL}"
+
+    return {
+        "model": DEFAULT_MODEL,
+        "cache_dir": str(model_path),
+        "downloaded": model_dir.exists(),
+        "loaded": _whisper_model is not None,
+    }
