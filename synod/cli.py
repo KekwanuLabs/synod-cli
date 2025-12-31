@@ -1327,6 +1327,26 @@ Identify:
         await handle_init_command(args)
         return False
 
+    elif command in ["voice", "mic"]:
+        # Voice input - record and transcribe
+        from synod.core.voice import record_and_transcribe, is_voice_available
+
+        available, error = is_voice_available()
+        if not available:
+            console.print(f"\n[red]{error}[/red]\n")
+            return False
+
+        console.print(f"\n[{CYAN}]Voice Input[/{CYAN}]")
+        console.print("[dim]Press Ctrl+C to cancel[/dim]\n")
+
+        transcribed = record_and_transcribe(max_duration=30.0)
+        if transcribed and debate_fn:
+            console.print()
+            await debate_fn(transcribed, None)
+        elif not transcribed:
+            console.print("[dim]No speech detected or cancelled.[/dim]\n")
+        return False
+
     # ========== CUSTOM COMMANDS ==========
     elif is_custom_command(command):
         custom_cmd = get_custom_command(command)

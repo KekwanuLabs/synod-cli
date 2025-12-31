@@ -472,6 +472,13 @@ def _register_default_commands():
         "init", "Initialize .synod/SYNOD.md for this project", category="general"
     )
 
+    register_command(
+        "voice",
+        "Speak your query instead of typing",
+        aliases=["mic"],
+        category="general",
+    )
+
 
 # Initialize default commands on module load
 _register_default_commands()

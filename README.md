@@ -473,6 +473,27 @@ synod> /exit       # Quit
 | **General** | |
 | `/help`, `/?` | Show all commands |
 | `/version` | Show version |
+| `/voice`, `/mic` | Speak your query instead of typing |
+
+### Voice Input (Experimental)
+
+Speak your queries instead of typing with `/voice`:
+
+```bash
+# Install voice dependencies
+pip install synod-cli[voice]
+
+# On macOS, you may also need:
+brew install portaudio
+
+# Then use voice in interactive mode
+synod> /voice
+Recording... (speak now, pause to stop)
+You said: How do I implement rate limiting?
+# → Debate starts with your spoken query
+```
+
+Voice input uses OpenAI Whisper API for transcription, so you need an OpenAI API key configured in your BYOK settings.
 
 ## Security
 
