@@ -73,6 +73,32 @@ That's it. No API keys to copy, no configuration files.
 
 > **Tip:** Use `pipx` for CLI tools — it installs in isolated environments and makes upgrades easy with `pipx upgrade synod-cli`
 
+### Headless Servers (SSH / No Browser)
+
+Synod auto-detects headless environments (SSH sessions, missing DISPLAY) and switches to manual authentication:
+
+```bash
+# On a headless server, this auto-uses manual mode
+synod login
+
+# Or explicitly use manual mode anywhere
+synod login --manual
+```
+
+Manual mode prompts you to:
+1. Visit https://synod.run/dashboard/keys on any device
+2. Create an API key
+3. Paste it into the terminal
+
+**Environment variable control:**
+```bash
+# Force headless mode (manual auth)
+export SYNOD_HEADLESS=1
+
+# Force browser mode (override auto-detection)
+export SYNOD_HEADLESS=0
+```
+
 ## How It Works
 
 ```
@@ -389,7 +415,8 @@ Checkpoints are stored in `.synod/checkpoints/` (auto-gitignored) and retain the
 
 ```bash
 synod              # Start interactive session
-synod login        # Authenticate via browser
+synod login        # Authenticate (auto-detects headless)
+synod login -m     # Manual API key entry (for servers)
 synod logout       # Clear credentials
 synod whoami       # Show current user
 synod status       # Check account status
@@ -498,6 +525,14 @@ Read our full [Privacy Policy](https://synod.run/privacy) for details.
 - `checkpoints/` - Auto-saved undo points
 
 API key format: `sk_...`
+
+### Environment Variables
+
+| Variable | Description | Values |
+|----------|-------------|--------|
+| `SYNOD_HEADLESS` | Control headless detection | `1`/`true` = force manual auth, `0`/`false` = force browser |
+
+Synod auto-detects headless environments (SSH sessions, missing `DISPLAY` on Linux) and switches to manual API key entry. Use `SYNOD_HEADLESS` to override this behavior.
 
 ## Architecture
 
