@@ -48,12 +48,16 @@ _whisper_model: Optional["WhisperModel"] = None
 
 
 def get_install_command() -> str:
-    """Get the pip install command for voice dependencies."""
+    """Get the pip install command for voice dependencies.
+
+    Note: Returns escaped brackets for Rich console output.
+    """
     if sys.platform == "darwin":
         # macOS may need portaudio
-        return "brew install portaudio && pip install synod-cli[voice]"
+        # Escape brackets for Rich: \[ prevents tag interpretation
+        return r"brew install portaudio && pip install synod-cli\[voice]"
     else:
-        return "pip install synod-cli[voice]"
+        return r"pip install synod-cli\[voice]"
 
 
 def is_voice_available() -> Tuple[bool, Optional[str]]:
