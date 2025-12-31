@@ -86,9 +86,9 @@ synod login --manual
 ```
 
 Manual mode prompts you to:
-1. Visit https://synod.run/dashboard/keys on any device
-2. Create an API key
-3. Paste it into the terminal
+1. Visit https://synod.run/dashboard/settings on any device
+2. Click "Generate API Key" in the CLI Sessions section
+3. Copy the key and paste it into the terminal
 
 **Environment variable control:**
 ```bash

@@ -256,9 +256,9 @@ def _prompt_for_manual_api_key() -> Optional[str]:
     """Prompt user to enter API key manually (for headless environments)."""
     console.print(f"[{CYAN}]Manual authentication[/{CYAN}]")
     console.print()
-    console.print("[dim]1. Visit [/dim][bold]https://synod.run/dashboard/keys[/bold][dim] on any device[/dim]")
-    console.print("[dim]2. Create a new API key[/dim]")
-    console.print("[dim]3. Paste it below[/dim]")
+    console.print("[dim]1. Visit [/dim][bold]https://synod.run/dashboard/settings[/bold][dim] on any device[/dim]")
+    console.print("[dim]2. Click 'Generate API Key' in CLI Sessions section[/dim]")
+    console.print("[dim]3. Copy the key and paste it below[/dim]")
     console.print()
 
     try:
@@ -670,9 +670,9 @@ def login(
         # Manual API key entry - for headless servers
         console.print(f"[{CYAN}]Manual login mode[/{CYAN}]")
         console.print()
-        console.print("[dim]1. Visit [/dim][bold]https://synod.run/dashboard/keys[/bold][dim] on any device[/dim]")
-        console.print("[dim]2. Create a new API key[/dim]")
-        console.print("[dim]3. Paste it below[/dim]")
+        console.print("[dim]1. Visit [/dim][bold]https://synod.run/dashboard/settings[/bold][dim] on any device[/dim]")
+        console.print("[dim]2. Click 'Generate API Key' in CLI Sessions section[/dim]")
+        console.print("[dim]3. Copy the key and paste it below[/dim]")
         console.print()
         api_key = typer.prompt("API key (starts with sk_)")
         if not api_key.strip():

@@ -13,9 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - First-run welcome flow offers choice between manual and browser authentication
   - `SYNOD_HEADLESS` environment variable for explicit control (`1` = force manual, `0` = force browser)
 - **`synod login --manual` / `-m`**: Explicit flag for manual API key entry on any system
+- **Dashboard: Generate API Key**: New button in Settings > CLI Sessions to generate API keys for headless use
 
 ### Changed
 - Improved error messages for authentication failures with headless-friendly suggestions
+- Updated manual auth flow to point to `/dashboard/settings` for API key generation
 
 ## [2.2.0] - 2025-12-09
 
