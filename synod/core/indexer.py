@@ -8,11 +8,32 @@ This module handles:
 """
 
 import os
+import sys
 import subprocess
 from pathlib import Path
 from typing import List, Dict, Optional, Set
 from dataclasses import dataclass, field
 import json
+
+
+def _get_ripgrep_install_hint() -> str:
+    """Get OS-specific install command for ripgrep."""
+    if sys.platform == "darwin":
+        return "brew install ripgrep"
+    elif sys.platform.startswith("linux"):
+        # Check for common package managers
+        if os.path.exists("/usr/bin/apt"):
+            return "sudo apt install ripgrep"
+        elif os.path.exists("/usr/bin/dnf"):
+            return "sudo dnf install ripgrep"
+        elif os.path.exists("/usr/bin/pacman"):
+            return "sudo pacman -S ripgrep"
+        else:
+            return "Install ripgrep: https://github.com/BurntSushi/ripgrep#installation"
+    elif sys.platform == "win32":
+        return "winget install BurntSushi.ripgrep"
+    else:
+        return "Install ripgrep: https://github.com/BurntSushi/ripgrep#installation"
 
 from rich.progress import (
     Progress,
@@ -239,8 +260,10 @@ class FileIndexer:
             List of file paths
         """
         if not self.check_ripgrep_available():
+            hint = _get_ripgrep_install_hint()
             console.print(
-                "[warning]ripgrep not found, falling back to slower method[/warning]"
+                f"[dim]ripgrep not found, using slower fallback. "
+                f"Install for faster indexing:[/dim] [cyan]{hint}[/cyan]"
             )
             return self.index_with_pathlib(show_progress)
 
