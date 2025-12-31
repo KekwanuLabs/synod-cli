@@ -407,6 +407,13 @@ def _register_default_commands():
         "critique", "Run adversarial critique on specific files", category="review"
     )
 
+    # ========== TESTING COMMANDS ==========
+    register_command(
+        "test",
+        "Run project tests (auto-detects pytest, jest, go, etc.)",
+        category="testing",
+    )
+
     # ========== CONFIGURATION COMMANDS ==========
     register_command(
         "config",

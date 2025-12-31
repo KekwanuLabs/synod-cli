@@ -1347,6 +1347,50 @@ Identify:
             console.print("[dim]No speech detected or cancelled.[/dim]\n")
         return False
 
+    elif command == "test":
+        # Run project tests
+        from synod.core.test_runner import run_tests, detect_framework
+
+        console.print(f"\n[{CYAN}]Running Tests[/{CYAN}]")
+
+        # Parse extra args
+        extra_args = args.split() if args else None
+
+        # Detect framework
+        framework = detect_framework()
+        if framework:
+            console.print(f"[dim]Detected: {framework.name}[/dim]")
+            console.print(f"[dim]Running: {' '.join(framework.run_command)}[/dim]\n")
+        else:
+            console.print("[yellow]No test framework detected.[/yellow]")
+            console.print("[dim]Supported: pytest, jest, vitest, go test, cargo test, rspec, phpunit, maven, gradle[/dim]\n")
+            return False
+
+        # Run tests
+        result = run_tests(extra_args=extra_args)
+
+        # Display results
+        if result.success:
+            console.print(f"[green]All tests passed![/green] ({result.summary()})\n")
+        else:
+            console.print(f"[red]Tests failed:[/red] {result.summary()}\n")
+
+            # Show failure details
+            if result.failure_details:
+                console.print("[dim]Failures:[/dim]")
+                for failure in result.failure_details[:10]:  # Limit to 10
+                    console.print(f"  [red]{failure}[/red]")
+                console.print()
+
+        # If there are failures and we have a debate function, offer to fix
+        if not result.success and debate_fn:
+            console.print("[dim]Tip: Ask Synod to fix the failing tests[/dim]\n")
+
+            # Store test output in context for the next debate
+            # The user can now ask "fix the failing tests" and Synod will have context
+
+        return False
+
     # ========== CUSTOM COMMANDS ==========
     elif is_custom_command(command):
         custom_cmd = get_custom_command(command)

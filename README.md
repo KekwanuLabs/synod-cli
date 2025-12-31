@@ -454,6 +454,9 @@ synod> /exit       # Quit
 | **Review** | |
 | `/review <file\|pr#>` | Review a file or PR number |
 | `/critique <files...>` | Adversarial critique of files |
+| **Testing** | |
+| `/test` | Run project tests (auto-detects framework) |
+| `/test -k <pattern>` | Run tests matching pattern (pytest) |
 | **Memory** | |
 | `/memory` | View memory dashboard |
 | `/memory show` | Display local context files |
@@ -495,6 +498,38 @@ You said: How do I implement rate limiting?
 ```
 
 Voice runs entirely locally using [faster-whisper](https://github.com/SYSTRAN/faster-whisper) - no API costs, works offline. Models are cached in `~/.cache/synod/whisper-models/`.
+
+### Test Runner
+
+Run your project's tests directly from Synod with `/test`:
+
+```bash
+synod> /test
+Running Tests
+Detected: pytest
+Running: pytest -v --tb=short
+
+tests/test_api.py::test_create_user PASSED
+tests/test_api.py::test_rate_limit FAILED
+
+Tests failed: 1 failed, 5 passed
+
+Tip: Ask Synod to fix the failing tests
+
+synod> fix the failing test
+# → Synod analyzes the failure and fixes your code
+```
+
+**Supported frameworks:**
+- **Python**: pytest, unittest
+- **JavaScript/TypeScript**: jest, vitest, mocha, npm test
+- **Go**: go test
+- **Rust**: cargo test
+- **Ruby**: rspec, minitest
+- **PHP**: phpunit
+- **Java**: maven, gradle
+
+Pass extra arguments: `/test -k auth` → runs `pytest -v --tb=short -k auth`
 
 ## Security
 
