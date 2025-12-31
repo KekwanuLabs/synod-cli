@@ -13,10 +13,29 @@ from rich.text import Text
 from rich.box import HEAVY
 import asyncio
 import os
+import sys
 import json
 import webbrowser
 from pathlib import Path
 from typing import Optional
+
+
+def _is_headless() -> bool:
+    """Detect if running in a headless environment (no browser available)."""
+    # Check for explicit override first
+    headless_env = os.environ.get("SYNOD_HEADLESS", "").lower()
+    if headless_env in ("0", "false", "no"):
+        return False  # User explicitly wants browser mode
+    if headless_env in ("1", "true", "yes"):
+        return True  # User explicitly wants headless mode
+
+    # Auto-detect: SSH session
+    if os.environ.get("SSH_CLIENT") or os.environ.get("SSH_TTY"):
+        return True
+    # Auto-detect: missing DISPLAY on Linux (X11)
+    if sys.platform.startswith("linux") and not os.environ.get("DISPLAY"):
+        return True
+    return False
 
 from synod.core.cloud_debate import run_cloud_debate, UpgradeRequiredError
 from synod.core.theme import PRIMARY, CYAN, GOLD, GREEN, ACCENT, SynodStyles
@@ -233,6 +252,22 @@ def start_login_flow() -> Optional[str]:
     return api_key
 
 
+def _prompt_for_manual_api_key() -> Optional[str]:
+    """Prompt user to enter API key manually (for headless environments)."""
+    console.print(f"[{CYAN}]Manual authentication[/{CYAN}]")
+    console.print()
+    console.print("[dim]1. Visit [/dim][bold]https://synod.run/dashboard/keys[/bold][dim] on any device[/dim]")
+    console.print("[dim]2. Create a new API key[/dim]")
+    console.print("[dim]3. Paste it below[/dim]")
+    console.print()
+
+    try:
+        api_key = input("API key (starts with sk_): ").strip()
+        return api_key if api_key else None
+    except (KeyboardInterrupt, EOFError):
+        return None
+
+
 def show_first_run_welcome() -> bool:
     """Show welcome for first-time users and start login flow.
 
@@ -241,29 +276,54 @@ def show_first_run_welcome() -> bool:
     # Show the animated story
     show_welcome_story()
 
-    # Prompt to start login
-    console.print(
-        f"[{CYAN}]Press Enter to sign in and get started, or Ctrl+C to exit...[/{CYAN}]"
-    )
-    console.print()
+    headless = _is_headless()
 
-    try:
-        input()
-    except (KeyboardInterrupt, EOFError):
-        return False
+    if headless:
+        # Headless environment - offer choice
+        console.print(f"[{GOLD}]Headless environment detected (SSH/no display)[/{GOLD}]")
+        console.print()
+        console.print(f"[{CYAN}][1][/{CYAN}] Enter API key manually [dim](recommended for servers)[/dim]")
+        console.print(f"[{CYAN}][2][/{CYAN}] Try browser auth anyway")
+        console.print(f"[{CYAN}][q][/{CYAN}] Quit")
+        console.print()
 
-    # Start login flow
-    api_key = start_login_flow()
+        try:
+            choice = input("Choice [1/2/q]: ").strip().lower()
+        except (KeyboardInterrupt, EOFError):
+            return False
+
+        if choice == "q":
+            return False
+        elif choice == "2":
+            # Try browser auth anyway
+            api_key = start_login_flow()
+        else:
+            # Default to manual (choice 1 or any other input)
+            api_key = _prompt_for_manual_api_key()
+    else:
+        # Normal environment - browser auth
+        console.print(
+            f"[{CYAN}]Press Enter to sign in and get started, or Ctrl+C to exit...[/{CYAN}]"
+        )
+        console.print()
+
+        try:
+            input()
+        except (KeyboardInterrupt, EOFError):
+            return False
+
+        # Start login flow
+        api_key = start_login_flow()
 
     if not api_key:
         console.print("\n[red]Authentication timed out or was cancelled.[/red]")
-        console.print("[dim]Run 'synod login' to try again.[/dim]\n")
+        console.print("[dim]Run 'synod login' to try again, or 'synod login --manual' for API key entry.[/dim]\n")
         return False
 
     # Validate and save
     if not api_key.startswith("sk_"):
-        console.print("\n[red]Invalid API key received.[/red]")
-        console.print("[dim]Run 'synod login' to try again.[/dim]\n")
+        console.print("\n[red]Invalid API key format. Should start with 'sk_'[/red]")
+        console.print("[dim]Run 'synod login --manual' to try again.[/dim]\n")
         return False
 
     # Save the key
@@ -598,23 +658,23 @@ def login(
         except Exception:
             pass  # Key invalid, continue with login flow
 
+    # Auto-detect headless and suggest manual mode
+    headless = _is_headless()
+    if headless and not manual:
+        console.print(f"[{GOLD}]Headless environment detected (SSH/no display)[/{GOLD}]")
+        console.print("[dim]Switching to manual mode (set SYNOD_HEADLESS=0 to override)[/dim]")
+        console.print()
+        manual = True
+
     if manual:
-        # Manual API key entry - fallback mode
+        # Manual API key entry - for headless servers
         console.print(f"[{CYAN}]Manual login mode[/{CYAN}]")
         console.print()
-        console.print(
-            f"[{GOLD}]Note: The automatic flow (synod login) is recommended.[/{GOLD}]"
-        )
-        console.print(
-            "[dim]It generates an API key automatically without copy/paste.[/dim]"
-        )
+        console.print("[dim]1. Visit [/dim][bold]https://synod.run/dashboard/keys[/bold][dim] on any device[/dim]")
+        console.print("[dim]2. Create a new API key[/dim]")
+        console.print("[dim]3. Paste it below[/dim]")
         console.print()
-        console.print("[dim]If you already have a Synod API key, enter it below.[/dim]")
-        console.print(
-            "[dim]Keys start with 'sk_' and can be generated from synod.run/dashboard[/dim]"
-        )
-        console.print()
-        api_key = typer.prompt("Enter your API key")
+        api_key = typer.prompt("API key (starts with sk_)")
         if not api_key.strip():
             console.print("\n[red]No API key provided.[/red]\n")
             raise typer.Exit(1)
