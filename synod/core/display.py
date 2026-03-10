@@ -53,7 +53,10 @@ def check_cloud_compatibility(cli_version: str) -> dict:
 
     try:
         url = "https://api.synod.run/version"
-        headers = {"X-Synod-CLI-Version": cli_version}
+        headers = {
+            "X-Synod-CLI-Version": cli_version,
+            "User-Agent": f"synod-cli/{cli_version}",
+        }
         req = urllib.request.Request(url, headers=headers)
 
         with urllib.request.urlopen(req, timeout=5) as response:
@@ -244,7 +247,8 @@ def check_for_updates(current_version: str) -> Optional[str]:
     def _check():
         try:
             url = "https://pypi.org/pypi/synod-cli/json"
-            with urllib.request.urlopen(url, timeout=2) as response:
+            req = urllib.request.Request(url, headers={"User-Agent": f"synod-cli/{current_version}"})
+            with urllib.request.urlopen(req, timeout=2) as response:
                 data = json.loads(response.read().decode())
                 latest = data["info"]["version"]
 
