@@ -623,12 +623,20 @@ def _format_model_name(model_id: str) -> str:
 
     # Common transformations
     replacements = {
-        "claude-3.5-sonnet": "Claude 3.5",
-        "claude-sonnet-4": "Claude 4.0",
-        "gpt-4o": "GPT-4o",
-        "gpt-4": "GPT-4",
+        "claude-opus-4.6": "Claude Opus 4.6",
+        "claude-sonnet-4.6": "Claude Sonnet 4.6",
+        "claude-haiku-4.5": "Claude Haiku 4.5",
+        "gpt-5.4-pro": "GPT 5.4 Pro",
+        "gpt-5.4": "GPT 5.4",
+        "gpt-5-mini": "GPT 5 Mini",
+        "gpt-5-nano": "GPT 5 Nano",
+        "gpt-5": "GPT 5",
+        "gemini-3.1-pro-preview": "Gemini 3.1 Pro",
+        "gemini-3-flash-preview": "Gemini 3 Flash",
+        "grok-4.1-fast": "Grok 4.1 Fast",
+        "grok-4": "Grok 4",
+        "deepseek-v3.1": "DeepSeek V3.1",
         "deepseek-chat": "DeepSeek",
-        "gemini-1.5-pro": "Gemini 1.5",
     }
 
     for pattern, replacement in replacements.items():

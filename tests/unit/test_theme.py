@@ -335,8 +335,8 @@ class TestFormatModelName:
 
     def test_known_model_exact_match(self):
         """Test known model IDs return clean names."""
-        assert format_model_name("anthropic/claude-opus-4.5") == "Claude Opus 4.5"
-        assert format_model_name("openai/gpt-5.1-chat") == "GPT 5.1 Chat"
+        assert format_model_name("anthropic/claude-opus-4.6") == "Claude Opus 4.6"
+        assert format_model_name("openai/gpt-5.4") == "GPT 5.4"
         assert format_model_name("x-ai/grok-4.1-fast") == "Grok 4.1 Fast"
 
     def test_model_with_free_suffix(self):
@@ -362,12 +362,24 @@ class TestFormatModelName:
 
     def test_gemini_model(self):
         """Test Google Gemini model."""
-        assert format_model_name("google/gemini-3.0") == "Gemini 3.0"
+        assert format_model_name("google/gemini-3.1-pro-preview") == "Gemini 3.1 Pro"
 
     def test_deepseek_models(self):
         """Test DeepSeek models."""
         assert format_model_name("deepseek/deepseek-v3.1") == "DeepSeek V3.1"
         assert format_model_name("deepseek/deepseek-chat-v3.1") == "DeepSeek V3.1"
+
+    def test_new_openai_models(self):
+        """Test new OpenAI model names."""
+        assert format_model_name("openai/gpt-5.4-pro") == "GPT 5.4 Pro"
+        assert format_model_name("openai/gpt-5") == "GPT 5"
+        assert format_model_name("openai/gpt-5-mini") == "GPT 5 Mini"
+        assert format_model_name("openai/gpt-5-nano") == "GPT 5 Nano"
+
+    def test_new_anthropic_models(self):
+        """Test new Anthropic model names."""
+        assert format_model_name("anthropic/claude-sonnet-4.6") == "Claude Sonnet 4.6"
+        assert format_model_name("anthropic/claude-haiku-4.5") == "Claude Haiku 4.5"
 
     def test_classifier_models(self):
         """Test classifier model names."""

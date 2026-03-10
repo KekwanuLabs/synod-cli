@@ -270,9 +270,9 @@ def format_model_name(model_id: str) -> str:
     """Format raw model ID into clean, user-friendly display name.
 
     Examples:
-        - "anthropic/claude-opus-4.5" → "Claude Opus 4.5"
+        - "anthropic/claude-opus-4.6" → "Claude Opus 4.6"
+        - "openai/gpt-5.4" → "GPT 5.4"
         - "qwen/qwen-2.5-coder-32b-instruct:free" → "Qwen 2.5 Coder 32B"
-        - "openai/gpt-5.1-chat-v3.1" → "GPT 5.1 Chat"
 
     Args:
         model_id: Raw model identifier (provider/model format)
@@ -284,17 +284,37 @@ def format_model_name(model_id: str) -> str:
 
     # Mapping of raw model IDs to clean display names
     CLEAN_NAMES = {
-        # Bishops (actual debate models)
+        # Anthropic
+        "anthropic/claude-opus-4.6": "Claude Opus 4.6",
+        "anthropic/claude-sonnet-4.6": "Claude Sonnet 4.6",
+        "anthropic/claude-haiku-4.5": "Claude Haiku 4.5",
+        # OpenAI
+        "openai/gpt-5.4": "GPT 5.4",
+        "openai/gpt-5.4-pro": "GPT 5.4 Pro",
+        "openai/gpt-5": "GPT 5",
+        "openai/gpt-5-mini": "GPT 5 Mini",
+        "openai/gpt-5-nano": "GPT 5 Nano",
+        # Google
+        "google/gemini-3.1-pro-preview": "Gemini 3.1 Pro",
+        "google/gemini-3-flash-preview": "Gemini 3 Flash",
+        # xAI
+        "x-ai/grok-4.1-fast": "Grok 4.1 Fast",
+        "x-ai/grok-4.1-fast:free": "Grok 4.1 Fast",
+        "x-ai/grok-4": "Grok 4",
+        "x-ai/grok-4-fast": "Grok 4 Fast",
+        "x-ai/grok-code-fast-1": "Grok Code Fast 1",
+        # DeepSeek
+        "deepseek/deepseek-v3.1": "DeepSeek V3.1",
+        "deepseek/deepseek-chat-v3.1": "DeepSeek V3.1",
+        # Zhipu
+        "zhipu/glm-4.6": "GLM 4.6",
+        # Legacy model IDs (for backward compat with stored data)
         "anthropic/claude-opus-4.5": "Claude Opus 4.5",
         "anthropic/claude-sonnet-4.5": "Claude Sonnet 4.5",
         "openai/gpt-5.1-chat": "GPT 5.1 Chat",
         "openai/gpt-5.1-chat-v3.1": "GPT 5.1 Chat",
-        "x-ai/grok-4.1-fast": "Grok 4.1 Fast",
-        "x-ai/grok-4.1-fast:free": "Grok 4.1 Fast",
         "google/gemini-3.0": "Gemini 3.0",
-        "deepseek/deepseek-v3.1": "DeepSeek V3.1",
-        "deepseek/deepseek-chat-v3.1": "DeepSeek V3.1",
-        # Classifiers (should not appear as bishops, but handle just in case)
+        # Classifiers
         "qwen/qwen-2.5-coder-32b-instruct": "Qwen 2.5 Coder 32B",
         "qwen/qwen-2.5-coder-32b-instruct:free": "Qwen 2.5 Coder 32B",
         "mistralai/mistral-small-3": "Mistral Small 3",
