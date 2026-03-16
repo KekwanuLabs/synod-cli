@@ -8,6 +8,7 @@ Features:
 - Parallel file reading
 - Smart token budget management
 - Memory-guided context boosting
+- Import statement detection (Python, JS, TS)
 """
 
 import re
@@ -76,19 +77,149 @@ CODE_EXTENSIONS = {
     ".scss",
 }
 
+# Well-known stdlib / built-in module names that should never be resolved to
+# local files.  This list is intentionally non-exhaustive — the goal is just
+# to avoid wasting glob calls on the most common false positives.
+_PYTHON_STDLIB_MODULES = {
+    "os", "sys", "re", "io", "abc", "ast", "copy", "csv", "json", "math",
+    "time", "datetime", "random", "string", "struct", "types", "typing",
+    "enum", "dataclasses", "functools", "itertools", "operator", "pathlib",
+    "shutil", "tempfile", "glob", "fnmatch", "stat", "logging", "warnings",
+    "traceback", "inspect", "dis", "gc", "weakref", "contextlib", "collections",
+    "heapq", "bisect", "array", "queue", "threading", "multiprocessing",
+    "subprocess", "socket", "ssl", "http", "urllib", "email", "html", "xml",
+    "sqlite3", "hashlib", "hmac", "secrets", "base64", "binascii", "codecs",
+    "unicodedata", "locale", "gettext", "argparse", "unittest", "doctest",
+    "pdb", "profile", "timeit", "platform", "signal", "errno", "builtins",
+    "__future__", "__main__",
+    # Very common third-party packages that are never local files
+    "pytest", "click", "typer", "rich", "pydantic", "httpx", "requests",
+    "fastapi", "flask", "django", "sqlalchemy", "numpy", "pandas",
+    "asyncio", "aiohttp", "anyio", "trio",
+}
+
+
+def _extract_import_file_candidates(query: str) -> List[str]:
+    """Extract candidate file paths from import statements found in the query.
+
+    Handles:
+    - Python:  ``import module`` / ``from package.module import name``
+    - JS/TS:   ``import ... from './path'`` / ``require('./path')``
+
+    Returns a list of candidate relative file paths (without extension) that
+    the caller can try to resolve against the project root.
+    """
+    candidates: List[str] = []
+
+    # ------------------------------------------------------------------
+    # Python imports
+    # ------------------------------------------------------------------
+
+    # ``from package.sub.module import Something``
+    # ``from .relative import Something`` (relative imports)
+    py_from_import = re.findall(
+        r"(?:^|[\s`'\"])from\s+([\w.]+)\s+import",
+        query,
+        re.MULTILINE,
+    )
+    for module in py_from_import:
+        # Strip leading dots (relative imports like .models, ..utils)
+        module = module.lstrip(".")
+        if not module:
+            continue
+        top_level = module.split(".")[0]
+        if top_level in _PYTHON_STDLIB_MODULES:
+            continue
+        # Convert dotted module path to a file path candidate
+        # e.g.  "database.connection"  ->  "database/connection"
+        candidates.append(module.replace(".", "/"))
+
+    # ``import module`` / ``import package.sub``
+    py_plain_import = re.findall(
+        r"(?:^|[\s`'\"])import\s+([\w.]+)",
+        query,
+        re.MULTILINE,
+    )
+    for module in py_plain_import:
+        top_level = module.split(".")[0]
+        if top_level in _PYTHON_STDLIB_MODULES:
+            continue
+        candidates.append(module.replace(".", "/"))
+
+    # ------------------------------------------------------------------
+    # JS / TS imports  (only relative/local paths, i.e. start with . or /)
+    # ------------------------------------------------------------------
+
+    # ``import ... from './path'``  or  ``import ... from "../lib/helper"``
+    js_from_import = re.findall(
+        r'from\s+[\'"]([./][^\'"]*)[\'"]",
+        query,
+    )
+    for raw_path in js_from_import:
+        # Remove leading ./ but keep relative directory structure
+        clean = raw_path.lstrip("./")
+        if clean:
+            candidates.append(clean)
+
+    # ``require('./path')`` / ``require("../utils")``
+    js_require = re.findall(
+        r'require\s*\(\s*[\'"]([./][^\'"]*)[\'"]",
+        query,
+    )
+    for raw_path in js_require:
+        clean = raw_path.lstrip("./")
+        if clean:
+            candidates.append(clean)
+
+    # Deduplicate while preserving order
+    seen: set = set()
+    unique: List[str] = []
+    for c in candidates:
+        if c not in seen:
+            seen.add(c)
+            unique.append(c)
+    return unique
+
+
+def _import_candidates_to_file_mentions(candidates: List[str]) -> List[str]:
+    """Convert bare module path candidates into concrete file-path strings.
+
+    For each candidate (e.g. ``"database/connection"``) we produce several
+    possible extensions so the existing file-resolution logic can try them.
+    We return the most specific guess (with extension) so it merges cleanly
+    with ``file_mentions`` from explicit path references.
+    """
+    extensions_by_priority = [
+        ".py", ".ts", ".tsx", ".js", ".jsx",  # Most common source files first
+        ".go", ".rs", ".rb", ".java",
+    ]
+    result: List[str] = []
+    for candidate in candidates:
+        # If the candidate already has a recognised extension, use it directly
+        if Path(candidate).suffix in CODE_EXTENSIONS:
+            result.append(candidate)
+        else:
+            # Emit one entry per extension; the resolver will stop at the first
+            # that actually exists.
+            for ext in extensions_by_priority:
+                result.append(f"{candidate}{ext}")
+    return result
+
 
 def analyze_query_for_context(query: str) -> Dict[str, Any]:
     """Analyze a query to extract context signals.
 
     Returns:
         Dict with:
-        - file_mentions: Explicit file paths mentioned
+        - file_mentions: Explicit file paths and import-derived paths
+        - import_mentions: Module paths extracted from import statements
         - symbol_mentions: Function/class names mentioned
         - keywords: Important keywords for search
         - is_code_query: Whether this needs code context
     """
     analysis = {
         "file_mentions": [],
+        "import_mentions": [],
         "symbol_mentions": [],
         "keywords": [],
         "is_code_query": False,
@@ -97,7 +228,22 @@ def analyze_query_for_context(query: str) -> Dict[str, Any]:
     # Extract explicit file paths (e.g., "src/auth.py", "./config.ts")
     file_pattern = r"(?:^|[\s\'\"(])([./\w-]+\.(?:py|js|ts|tsx|jsx|rs|go|java|cpp|c|h|rb|php|swift|kt|scala|sh|sql|yaml|yml|json|toml|md|html|css|scss))(?:[\s\'\")\n,:]|$)"
     file_matches = re.findall(file_pattern, query, re.IGNORECASE)
-    analysis["file_mentions"] = list(set(file_matches))
+    explicit_mentions = list(set(file_matches))
+
+    # Extract import-derived file candidates
+    import_candidates = _extract_import_file_candidates(query)
+    analysis["import_mentions"] = import_candidates
+    import_file_paths = _import_candidates_to_file_mentions(import_candidates)
+
+    # Merge: explicit mentions take precedence; append import-derived ones
+    # after deduplication against what's already present.
+    merged_mentions = list(explicit_mentions)
+    existing_set = set(explicit_mentions)
+    for path in import_file_paths:
+        if path not in existing_set:
+            merged_mentions.append(path)
+            existing_set.add(path)
+    analysis["file_mentions"] = merged_mentions
 
     # Extract symbol names (CamelCase, snake_case, SCREAMING_CASE)
     symbol_pattern = (
@@ -139,6 +285,7 @@ def analyze_query_for_context(query: str) -> Dict[str, Any]:
     query_lower = query.lower()
     analysis["is_code_query"] = (
         len(analysis["file_mentions"]) > 0
+        or len(analysis["import_mentions"]) > 0
         or len(analysis["symbol_mentions"]) > 0
         or any(ind in query_lower for ind in code_indicators)
     )
